@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <!-- Arrière-plan dégradé -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#7C3AED;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0891B2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Fond arrondi -->
+  <rect width="192" height="192" rx="40" fill="url(#bgGradient)"/>
+  
+  <!-- Calendrier -->
+  <g transform="translate(40, 50)">
+    <!-- Corps du calendrier -->
+    <rect x="0" y="0" width="112" height="120" rx="8" fill="white" opacity="0.95"/>
+    
+    <!-- Barre du haut (mois/année) -->
+    <rect x="0" y="0" width="112" height="24" rx="8" fill="#7C3AED"/>
+    
+    <!-- Ligne séparatrice -->
+    <line x1="0" y1="24" x2="112" y2="24" stroke="#E0E0E0" stroke-width="1"/>
+    
+    <!-- Grille des jours -->
+    <!-- Semaine 1 -->
+    <circle cx="8" cy="40" r="6" fill="#F0E8F8"/>
+    <circle cx="27" cy="40" r="6" fill="#F0E8F8"/>
+    <circle cx="46" cy="40" r="6" fill="#F0E8F8"/>
+    <circle cx="65" cy="40" r="6" fill="#F0E8F8"/>
+    <circle cx="84" cy="40" r="6" fill="#F0E8F8"/>
+    <circle cx="103" cy="40" r="6" fill="#7C3AED" opacity="0.4"/>
+    
+    <!-- Semaine 2 -->
+    <circle cx="8" cy="59" r="6" fill="#F0E8F8"/>
+    <circle cx="27" cy="59" r="6" fill="#7C3AED" opacity="0.2"/>
+    <circle cx="46" cy="59" r="6" fill="#F0E8F8"/>
+    <circle cx="65" cy="59" r="6" fill="#F0E8F8"/>
+    <circle cx="84" cy="59" r="6" fill="#F0E8F8"/>
+    <circle cx="103" cy="59" r="6" fill="#F0E8F8"/>
+    
+    <!-- Semaine 3 -->
+    <circle cx="8" cy="78" r="6" fill="#F0E8F8"/>
+    <circle cx="27" cy="78" r="6" fill="#F0E8F8"/>
+    <circle cx="46" cy="78" r="6" fill="#7C3AED" opacity="0.6"/>
+    <circle cx="65" cy="78" r="6" fill="#F0E8F8"/>
+    <circle cx="84" cy="78" r="6" fill="#F0E8F8"/>
+    <circle cx="103" cy="78" r="6" fill="#F0E8F8"/>
+    
+    <!-- Semaine 4 -->
+    <circle cx="8" cy="97" r="6" fill="#7C3AED" opacity="0.3"/>
+    <circle cx="27" cy="97" r="6" fill="#F0E8F8"/>
+    <circle cx="46" cy="97" r="6" fill="#F0E8F8"/>
+    <circle cx="65" cy="97" r="6" fill="#F0E8F8"/>
+    <circle cx="84" cy="97" r="6" fill="#F0E8F8"/>
+    <circle cx="103" cy="97" r="6" fill="#F0E8F8"/>
+  </g>
+  
+  <!-- Horloge (coin bas-droit) -->
+  <g transform="translate(130, 130)">
+    <circle cx="0" cy="0" r="28" fill="white" opacity="0.95"/>
+    <circle cx="0" cy="0" r="26" fill="none" stroke="#0891B2" stroke-width="2"/>
+    
+    <!-- Aiguille des heures -->
+    <line x1="0" y1="0" x2="0" y2="-12" stroke="#0891B2" stroke-width="2.5" stroke-linecap="round"/>
+    
+    <!-- Aiguille des minutes -->
+    <line x1="0" y1="0" x2="15" y2="-3" stroke="#7C3AED" stroke-width="2" stroke-linecap="round"/>
+    
+    <!-- Centre -->
+    <circle cx="0" cy="0" r="3" fill="#0891B2"/>
+  </g>
+</svg>

@@ -125,6 +125,15 @@ const parseIcsDate = (raw) => {
   return cleaned;
 };
 
+const decodeIcsValue = (value) => {
+  if (!value) return value;
+  return value
+    .replace(/\\,/g, ",")
+    .replace(/\\;/g, ";")
+    .replace(/\\n/g, "\n")
+    .replace(/\\\\/g, "\\");
+};
+
 const parseIcs = (icsText) => {
   const events = [];
   const lines = icsText
@@ -155,7 +164,7 @@ const parseIcs = (icsText) => {
 
     switch (key) {
       case "SUMMARY":
-        current.summary = value;
+        current.summary = decodeIcsValue(value);
         break;
       case "DTSTART":
         current.start = parseIcsDate(value);
@@ -164,10 +173,10 @@ const parseIcs = (icsText) => {
         current.end = parseIcsDate(value);
         break;
       case "LOCATION":
-        current.location = value;
+        current.location = decodeIcsValue(value);
         break;
       case "DESCRIPTION":
-        current.description = value;
+        current.description = decodeIcsValue(value);
         break;
       default:
         break;
@@ -198,6 +207,65 @@ const getEventHeight = (start, end) => {
   return Math.max(20, (durationMinutes / 60) * PX_PER_HOUR);
 };
 
+// Extracte le type de matière du summary (ex: "SN123 - Titre" → "SN")
+const getSubjectType = (summary) => {
+  if (!summary) return "";
+  const match = summary.match(/^([A-Z]{2,3})/);
+  return match ? match[1] : "";
+};
+
+// Génère une couleur pour un type de matière
+const getColorForType = (type) => {
+  const colors = {
+    "IN": "#F0E8F8",    // Mauve clair
+    "SN": "#E8F4F8",    // Bleu clair
+    "PR": "#F8E8E8",    // Rose clair
+    "LV": "#E8F8E8",    // Vert clair
+    "XP": "#F8F8E8",    // Jaune clair
+    "AU": "#F8F0E8",    // Orange clair
+    "EP": "#E8F0F8",    // Bleu roi clair
+    "MAC": "#F0F8E8",   // Vert pâle
+    "SP": "#F8E8F0",    // Rose pâle
+  };
+  
+  if (colors[type]) return colors[type];
+  
+  // Génère une couleur basée sur le hash du type pour les types inconnus
+  let hash = 0;
+  for (let i = 0; i < type.length; i++) {
+    hash = ((hash << 5) - hash) + type.charCodeAt(i);
+    hash = hash & hash;
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 70%, 90%)`;
+};
+
+// Obtient la couleur de bordure pour un type
+const getBorderColorForType = (type) => {
+  const colors = {
+    "IN": "#7C3AED",    // Violet
+    "SN": "#0891B2",    // Cyan
+    "PR": "#EF4444",    // Rouge
+    "LV": "#10B981",    // Vert
+    "XP": "#EAB308",    // Jaune
+    "AU": "#F59E0B",    // Orange
+    "EP": "#3B82F6",    // Bleu
+    "MAC": "#22C55E",   // Vert clair
+    "SP": "#EC4899",    // Rose
+  };
+  
+  if (colors[type]) return colors[type];
+  
+  // Génère une couleur basée sur le hash du type pour les types inconnus
+  let hash = 0;
+  for (let i = 0; i < type.length; i++) {
+    hash = ((hash << 5) - hash) + type.charCodeAt(i);
+    hash = hash & hash;
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 80%, 50%)`;
+};
+
 const renderSchedule = (events) => {
   if (!events.length) {
     scheduleEl.innerHTML = "<p>Aucun événement pour cette semaine.</p>";
@@ -220,7 +288,9 @@ const renderSchedule = (events) => {
   const now = new Date();
   const todayKey = formatDateOnly(now);
   const isToday = daysInWeek.includes(todayKey);
-  const currentTimeTop = isToday ? getEventTop(now) : null;
+  const currentHour = now.getHours();
+  const isWithinBusinessHours = currentHour >= HOUR_START && currentHour < HOUR_END;
+  const currentTimeTop = isToday && isWithinBusinessHours ? getEventTop(now) : null;
 
   scheduleEl.innerHTML = daysInWeek
     .map((day) => {
@@ -232,9 +302,13 @@ const renderSchedule = (events) => {
           const location = event.location ? `<strong>Lieu :</strong> ${event.location}` : "";
           const top = getEventTop(event.start);
           const height = getEventHeight(event.start, event.end);
+          
+          const subjectType = getSubjectType(summary);
+          const bgColor = getColorForType(subjectType);
+          const borderColor = getBorderColorForType(subjectType);
 
           return `
-            <div class="event" style="top: ${top}px; height: ${height}px;">
+            <div class="event" style="top: ${top}px; height: ${height}px; background: ${bgColor}; border-left-color: ${borderColor};" data-event-summary="${summary}" data-event-day="${day}" data-subject-type="${subjectType}">
               <h3>${summary}</h3>
               <p>${timeRange}</p>
               ${location ? `<p>${location}</p>` : ""}
@@ -273,12 +347,13 @@ const renderSchedule = (events) => {
   // Ajouter event listeners aux événements
   document.querySelectorAll(".schedule .event").forEach((el) => {
     el.addEventListener("click", (e) => {
-      const summary = el.querySelector("h3")?.textContent || "";
-      const timeText = el.querySelector("p")?.textContent || "";
+      const summary = el.getAttribute("data-event-summary") || "";
+      const dayLabel = el.getAttribute("data-event-day") || "";
       
-      // Trouver l'événement correspondant
-      const event = dayEvents.find((ev) => 
-        (ev.summary || "(Sans titre)") === summary
+      // Trouver l'événement correspondant dans allEvents
+      const event = allEvents.find((ev) => 
+        (ev.summary || "(Sans titre)") === summary &&
+        formatDateOnly(ev.start) === dayLabel
       );
       
       if (event) {
@@ -634,4 +709,223 @@ downloadLink.addEventListener("click", (event) => {
   }
 });
 
+// ===== MODE SOMBRE =====
+const initTheme = () => {
+  const isDark = localStorage.getItem("darkMode") === "true";
+  if (isDark) {
+    document.documentElement.classList.add("dark-mode");
+    themeToggle.textContent = "☀️";
+  }
+};
+
+themeToggle.addEventListener("click", () => {
+  document.documentElement.classList.toggle("dark-mode");
+  const isDark = document.documentElement.classList.contains("dark-mode");
+  localStorage.setItem("darkMode", isDark ? "true" : "false");
+  themeToggle.textContent = isDark ? "☀️" : "🌙";
+});
+
+// ===== MODAL ÉVÉNEMENT =====
+const showEventModal = (event) => {
+  currentEvent = event;
+  eventTitle.textContent = event.summary || "(Sans titre)";
+  
+  const startStr = formatDateTime(event.start);
+  const endStr = formatTimeOnly(event.end);
+  const location = event.location || "Non spécifié";
+  const description = event.description || "Aucune description";
+  
+  eventDetails.innerHTML = `
+    <div class="event-detail-row">
+      <span class="event-detail-label">Début :</span>
+      <span class="event-detail-value">${startStr}</span>
+    </div>
+    <div class="event-detail-row">
+      <span class="event-detail-label">Fin :</span>
+      <span class="event-detail-value">${endStr}</span>
+    </div>
+    <div class="event-detail-row">
+      <span class="event-detail-label">Lieu :</span>
+      <span class="event-detail-value">${location}</span>
+    </div>
+    <div class="event-detail-row">
+      <span class="event-detail-label">Description :</span>
+      <span class="event-detail-value">${description}</span>
+    </div>
+  `;
+  
+  eventModal.style.display = "flex";
+};
+
+closeModalBtn.addEventListener("click", () => {
+  eventModal.style.display = "none";
+});
+
+eventModal.addEventListener("click", (e) => {
+  if (e.target === eventModal) {
+    eventModal.style.display = "none";
+  }
+});
+
+addToCalendarBtn.addEventListener("click", () => {
+  if (!currentEvent) return;
+  
+  const icsContent = generateIcsEvent(currentEvent);
+  const blob = new Blob([icsContent], { type: "text/calendar" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${currentEvent.summary || "event"}.ics`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+const generateIcsEvent = (event) => {
+  const formatIcsDate = (date) => {
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const hours = String(d.getHours()).padStart(2, "0");
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    const seconds = String(d.getSeconds()).padStart(2, "0");
+    return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+  };
+  
+  return `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Edt Esisar//NONSGML v1.0//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+DTSTART:${formatIcsDate(event.start)}
+DTEND:${formatIcsDate(event.end)}
+SUMMARY:${event.summary || "Événement"}
+LOCATION:${event.location || ""}
+DESCRIPTION:${event.description || ""}
+END:VEVENT
+END:VCALENDAR`;
+};
+
+// ===== RECHERCHE DE SALLE =====
+const getAllRooms = () => {
+  const rooms = new Set();
+  allEvents.forEach((event) => {
+    if (event.location) {
+      rooms.add(event.location.trim());
+    }
+  });
+  return Array.from(rooms).sort();
+};
+
+const getEventsForRoom = (roomName, date = null) => {
+  const targetDate = date || new Date();
+  const dayKey = formatDateOnly(targetDate);
+  
+  return allEvents.filter((event) => {
+    const eventDay = formatDateOnly(event.start);
+    return event.location && 
+           event.location.trim().toLowerCase() === roomName.toLowerCase() &&
+           eventDay === dayKey;
+  }).sort((a, b) => new Date(a.start) - new Date(b.start));
+};
+
+const renderRoomSchedule = (events, roomName) => {
+  if (!events.length) {
+    roomScheduleContent.innerHTML = "<p>Aucun événement dans cette salle pour ce jour.</p>";
+    return;
+  }
+
+  roomTitle.textContent = `Salle : ${roomName}`;
+  
+  const eventElements = events
+    .map((event) => {
+      const timeRange = `${formatTimeOnly(event.start)} - ${formatTimeOnly(event.end)}`;
+      const top = getEventTop(event.start);
+      const height = getEventHeight(event.start, event.end);
+      
+      return `
+        <div class="event" style="top: ${top}px; height: ${height}px;">
+          <h3>${event.summary || "(Sans titre)"}</h3>
+          <p>${timeRange}</p>
+        </div>
+      `;
+    })
+    .join("");
+
+  roomScheduleContent.innerHTML = `
+    <div class="day-schedule" style="margin-top: 1rem;">
+      <div class="hour-grid">
+        ${Array.from({ length: HOURS_TOTAL + 1 })
+          .map(
+            (_, i) =>
+              `<div class="hour-line" style="top: ${i * PX_PER_HOUR}px;" title="${HOUR_START + i}h"></div>`
+          )
+          .join("")}
+      </div>
+      ${eventElements}
+    </div>
+  `;
+  
+  roomScheduleContainer.style.display = "block";
+};
+
+searchRoomBtn.addEventListener("click", () => {
+  const roomName = roomInput.value.trim();
+  if (!roomName) {
+    roomStatus.textContent = "Veuillez entrer un nom de salle.";
+    return;
+  }
+  
+  const events = getEventsForRoom(roomName);
+  if (events.length === 0) {
+    roomStatus.textContent = `Aucun événement trouvé pour la salle "${roomName}".`;
+    roomScheduleContainer.style.display = "none";
+    return;
+  }
+  
+  roomStatus.textContent = `${events.length} événement(s) trouvé(s) pour "${roomName}".`;
+  renderRoomSchedule(events, roomName);
+});
+
+emptyRoomsBtn.addEventListener("click", () => {
+  const now = new Date();
+  const allRooms = getAllRooms();
+  
+  const emptyRooms = allRooms.filter((room) => {
+    // Filtrer seulement les salles au format A/B/C/D suivi de chiffres/tirets (ex: A049, D130, B-201)
+    const roomPattern = /^[ABCD][\d\-]+$/;
+    if (!roomPattern.test(room)) {
+      return false;
+    }
+    
+    const events = allEvents.filter((event) => {
+      const eventLocation = event.location ? event.location.trim().toLowerCase() : "";
+      const isCurrentRoom = eventLocation === room.toLowerCase();
+      const isNow = new Date(event.start) <= now && new Date(event.end) > now;
+      return isCurrentRoom && isNow;
+    });
+    return events.length === 0;
+  });
+  
+  if (emptyRooms.length === 0) {
+    roomStatus.textContent = "Aucune salle vide en ce moment (salles A, B, C, D).";
+    roomScheduleContainer.style.display = "none";
+    return;
+  }
+  
+  roomStatus.innerHTML = `
+    <strong>${emptyRooms.length} salle(s) vide(s) en ce moment :</strong><br>
+    ${emptyRooms.join(", ")}
+  `;
+  roomScheduleContainer.style.display = "none";
+});
+
+roomInput.addEventListener("keypress", (e) => {
+  if (e.key === "Enter") {
+    searchRoomBtn.click();
+  }
+});
+
 loadFileList();
+initTheme();
