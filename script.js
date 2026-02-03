@@ -188,10 +188,38 @@ const parseIcs = (icsText) => {
     .sort((a, b) => new Date(a.start) - new Date(b.start));
 };
 
-const HOUR_START = 8;
-const HOUR_END = 18;
-const HOURS_TOTAL = HOUR_END - HOUR_START;
-const PX_PER_HOUR = 600 / HOURS_TOTAL;
+let HOUR_START = 8;
+let HOUR_END = 18;
+let HOURS_TOTAL = HOUR_END - HOUR_START;
+let PX_PER_HOUR = 600 / HOURS_TOTAL;
+
+const adjustHoursForMobile = (events) => {
+  // Sur mobile seulement, adapter les heures au contenu
+  if (window.innerWidth > 480) {
+    HOUR_START = 8;
+    HOUR_END = 18;
+  } else {
+    if (!events.length) {
+      HOUR_START = 8;
+      HOUR_END = 18;
+    } else {
+      const hours = events.map(e => new Date(e.start).getHours());
+      HOUR_START = Math.min(...hours);
+      
+      const endHours = events.map(e => new Date(e.end).getHours());
+      HOUR_END = Math.max(...endHours);
+    }
+  }
+  
+  HOURS_TOTAL = HOUR_END - HOUR_START;
+  PX_PER_HOUR = 600 / HOURS_TOTAL;
+  
+  // Mettre à jour les variables CSS
+  document.documentElement.style.setProperty('--hour-start', HOUR_START);
+  document.documentElement.style.setProperty('--hour-end', HOUR_END);
+  document.documentElement.style.setProperty('--hours-total', HOURS_TOTAL);
+  document.documentElement.style.setProperty('--px-per-hour', PX_PER_HOUR + 'px');
+};
 
 const getEventTop = (date) => {
   const hours = date.getHours();
@@ -215,6 +243,9 @@ const getSubjectType = (summary) => {
 };
 
 const renderSchedule = (events) => {
+  // Adapter les heures pour mobile si nécessaire
+  adjustHoursForMobile(events);
+  
   if (!events.length) {
     scheduleEl.innerHTML = "<p>Aucun événement pour cette semaine.</p>";
     return;
@@ -299,6 +330,24 @@ const renderSchedule = (events) => {
       }
     });
     el.style.cursor = "pointer";
+  });
+
+  // Ajuster la hauteur de chaque .day-schedule en fonction de ses événements
+  document.querySelectorAll(".day-schedule").forEach((schedule) => {
+    const events = schedule.querySelectorAll(".event");
+    if (events.length === 0) return;
+    
+    let maxBottom = 0;
+    events.forEach((event) => {
+      const top = parseFloat(event.style.getPropertyValue("--event-top")) || 0;
+      const height = parseFloat(event.style.getPropertyValue("--event-height")) || 0;
+      const bottom = top + height;
+      if (bottom > maxBottom) maxBottom = bottom;
+    });
+    
+    // Ajouter un peu de padding pour éviter que le dernier événement touche le bord
+    const minHeight = Math.max(maxBottom + 10, 300);
+    schedule.style.minHeight = minHeight + "px";
   });
 };
 
