@@ -196,9 +196,11 @@ let PX_PER_HOUR = 600 / HOURS_TOTAL;
 const adjustHoursForMobile = (events) => {
   // Sur mobile seulement, adapter les heures au contenu
   if (window.innerWidth > 480) {
+    // Desktop : toujours 8-18h
     HOUR_START = 8;
     HOUR_END = 18;
   } else {
+    // Mobile : adapter au contenu
     if (!events.length) {
       HOUR_START = 8;
       HOUR_END = 18;
@@ -214,7 +216,7 @@ const adjustHoursForMobile = (events) => {
   HOURS_TOTAL = HOUR_END - HOUR_START;
   PX_PER_HOUR = 600 / HOURS_TOTAL;
   
-  // Mettre à jour les variables CSS
+  // Toujours mettre à jour les variables CSS pour que le désktop soit bien à 8h
   document.documentElement.style.setProperty('--hour-start', HOUR_START);
   document.documentElement.style.setProperty('--hour-end', HOUR_END);
   document.documentElement.style.setProperty('--hours-total', HOURS_TOTAL);
