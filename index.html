@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Emplois du temps (ICS)</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="header">
+    <div class="container">
+      <div class="header-top">
+        <div>
+          <h1>Emplois du temps</h1>
+          <p>Sélectionnez un emploi du temps pour afficher la semaine en cours.</p>
+        </div>
+        <button id="themeToggle" class="theme-toggle" type="button" aria-label="Basculer mode sombre" title="Mode sombre">🌙</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <div class="controls">
+        <label>Choix de l'emploi du temps</label>
+        <select id="yearSelect" aria-label="Choisir l'année">
+          <option value="">Année…</option>
+        </select>
+        <select id="trackSelect" aria-label="Choisir le parcours" disabled>
+          <option value="">Parcours…</option>
+        </select>
+        <select id="typeSelect" aria-label="Choisir le type" disabled>
+          <option value="">Type…</option>
+        </select>
+        <select id="fileSelect" aria-label="Choisir la suite" disabled>
+          <option value="">Suite…</option>
+        </select>
+        <button id="refreshBtn" type="button">Rafraîchir la liste</button>
+        <button id="shareBtn" type="button" title="Copier l'URL de partage">Partager</button>
+        <a id="downloadLink" class="download" href="#" download>Télécharger</a>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="card">
+      <h2>Recherche de salle</h2>
+      <div class="room-search">
+        <input id="roomInput" type="text" placeholder="Entrez le nom/numéro de salle..." />
+        <button id="searchRoomBtn" type="button">Chercher</button>
+        <button id="emptyRoomsBtn" type="button" title="Salles libres en ce moment">Salles vides maintenant</button>
+      </div>
+      <div id="roomStatus" class="status" role="status" aria-live="polite"></div>
+      <div id="roomSchedule" class="room-schedule-container" style="display: none;">
+        <h3 id="roomTitle"></h3>
+        <div id="roomScheduleContent" class="schedule"></div>
+      </div>
+    </section>
+
+    <section class="card">
+        <h2>Planning</h2>
+        <div class="week-nav">
+          <button id="prevWeek" type="button" aria-label="Semaine précédente">◀</button>
+          <div id="weekLabel" class="week-label"></div>
+          <button id="nextWeek" type="button" aria-label="Semaine suivante">▶</button>
+          <button id="todayBtn" type="button" class="today-btn">Semaine actuelle</button>
+        </div>
+      </div>
+      <div id="schedule" class="schedule"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <span>Hébergé sur edt.remcorp.fr</span>
+    </div>
+  </footer>
+
+  <!-- Modal événement -->
+  <div id="eventModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <button id="closeModal" class="close-btn" type="button" aria-label="Fermer">✕</button>
+      <h2 id="eventTitle"></h2>
+      <div id="eventDetails" class="event-details"></div>
+      <button id="addToCalendarBtn" class="modal-btn" type="button">Ajouter au calendrier</button>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
