@@ -21,6 +21,11 @@
   </header>
 
   <main class="container">
+    <section id="nextCourseSection" class="card next-course-mobile" style="display: none;">
+      <h2>Prochain cours</h2>
+      <div id="nextCourseContent" class="next-course-content"></div>
+    </section>
+
     <section class="card">
       <div class="controls">
         <label>Choix de l'emploi du temps</label>
@@ -44,6 +49,19 @@
     </section>
 
     <section class="card">
+        <div class="planning-header">
+          <h2>Planning</h2>
+          <button id="todayBtn" type="button" class="today-btn">Semaine actuelle</button>
+        </div>
+        <div class="week-nav">
+          <button id="prevWeek" type="button" aria-label="Semaine précédente">◀</button>
+          <div id="weekLabel" class="week-label"></div>
+          <button id="nextWeek" type="button" aria-label="Semaine suivante">▶</button>
+        </div>
+      <div id="schedule" class="schedule"></div>
+    </section>
+
+    <section class="card">
       <h2>Recherche de salle</h2>
       <div class="room-search">
         <input id="roomInput" type="text" placeholder="Entrez le nom/numéro de salle..." />
@@ -55,18 +73,6 @@
         <h3 id="roomTitle"></h3>
         <div id="roomScheduleContent" class="schedule"></div>
       </div>
-    </section>
-
-    <section class="card">
-        <h2>Planning</h2>
-        <div class="week-nav">
-          <button id="prevWeek" type="button" aria-label="Semaine précédente">◀</button>
-          <div id="weekLabel" class="week-label"></div>
-          <button id="nextWeek" type="button" aria-label="Semaine suivante">▶</button>
-          <button id="todayBtn" type="button" class="today-btn">Semaine actuelle</button>
-        </div>
-      </div>
-      <div id="schedule" class="schedule"></div>
     </section>
   </main>
 

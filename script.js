@@ -377,6 +377,7 @@ const renderWeek = () => {
     return start >= currentWeekStart && start <= weekEnd;
   });
   renderSchedule(weekEvents);
+  updateNextCourse();
 };
 
 const loadSchedule = async (fileName) => {
@@ -926,6 +927,38 @@ roomInput.addEventListener("keypress", (e) => {
     searchRoomBtn.click();
   }
 });
+
+// ===== PROCHAIN COURS (MOBILE) =====
+const nextCourseSection = document.getElementById("nextCourseSection");
+const nextCourseContent = document.getElementById("nextCourseContent");
+
+const getNextCourse = () => {
+  const now = new Date();
+  const upcomingEvents = allEvents.filter((event) => new Date(event.start) > now);
+  if (upcomingEvents.length === 0) return null;
+  return upcomingEvents[0];
+};
+
+const updateNextCourse = () => {
+  const nextEvent = getNextCourse();
+  if (!nextEvent) {
+    nextCourseSection.style.display = "none";
+    return;
+  }
+
+  nextCourseSection.style.display = "block";
+  const subjectType = getSubjectType(nextEvent.summary);
+  const bgColor = getColorForType(subjectType);
+  const borderColor = getBorderColorForType(subjectType);
+
+  nextCourseContent.innerHTML = `
+    <div class="next-course-event" style="background: ${bgColor}; border-left-color: ${borderColor};">
+      <h3 style="margin: 0 0 0.5rem; color: ${borderColor};">${nextEvent.summary || "(Sans titre)"}</h3>
+      <p style="margin: 0.25rem 0; font-weight: 600;">${formatDateTime(nextEvent.start)}</p>
+      <p style="margin: 0.25rem 0; font-size: 0.9rem;">${nextEvent.location || "Lieu non spécifié"}</p>
+    </div>
+  `;
+};
 
 loadFileList();
 initTheme();
