@@ -214,58 +214,6 @@ const getSubjectType = (summary) => {
   return match ? match[1] : "";
 };
 
-// Génère une couleur pour un type de matière
-const getColorForType = (type) => {
-  const colors = {
-    "IN": "#F0E8F8",    // Mauve clair
-    "SN": "#E8F4F8",    // Bleu clair
-    "PR": "#F8E8E8",    // Rose clair
-    "LV": "#E8F8E8",    // Vert clair
-    "XP": "#F8F8E8",    // Jaune clair
-    "AU": "#F8F0E8",    // Orange clair
-    "EP": "#E8F0F8",    // Bleu roi clair
-    "MAC": "#F0F8E8",   // Vert pâle
-    "SP": "#F8E8F0",    // Rose pâle
-  };
-  
-  if (colors[type]) return colors[type];
-  
-  // Génère une couleur basée sur le hash du type pour les types inconnus
-  let hash = 0;
-  for (let i = 0; i < type.length; i++) {
-    hash = ((hash << 5) - hash) + type.charCodeAt(i);
-    hash = hash & hash;
-  }
-  const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 70%, 90%)`;
-};
-
-// Obtient la couleur de bordure pour un type
-const getBorderColorForType = (type) => {
-  const colors = {
-    "IN": "#7C3AED",    // Violet
-    "SN": "#0891B2",    // Cyan
-    "PR": "#EF4444",    // Rouge
-    "LV": "#10B981",    // Vert
-    "XP": "#EAB308",    // Jaune
-    "AU": "#F59E0B",    // Orange
-    "EP": "#3B82F6",    // Bleu
-    "MAC": "#22C55E",   // Vert clair
-    "SP": "#EC4899",    // Rose
-  };
-  
-  if (colors[type]) return colors[type];
-  
-  // Génère une couleur basée sur le hash du type pour les types inconnus
-  let hash = 0;
-  for (let i = 0; i < type.length; i++) {
-    hash = ((hash << 5) - hash) + type.charCodeAt(i);
-    hash = hash & hash;
-  }
-  const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 80%, 50%)`;
-};
-
 const renderSchedule = (events) => {
   if (!events.length) {
     scheduleEl.innerHTML = "<p>Aucun événement pour cette semaine.</p>";
@@ -304,11 +252,9 @@ const renderSchedule = (events) => {
           const height = getEventHeight(event.start, event.end);
           
           const subjectType = getSubjectType(summary);
-          const bgColor = getColorForType(subjectType);
-          const borderColor = getBorderColorForType(subjectType);
 
           return `
-            <div class="event" style="top: ${top}px; height: ${height}px; background: ${bgColor}; border-left-color: ${borderColor};" data-event-summary="${summary}" data-event-day="${day}" data-subject-type="${subjectType}">
+            <div class="event" style="--event-top: ${top}px; --event-height: ${height}px;" data-event-summary="${summary}" data-event-day="${day}" data-subject-type="${subjectType}">
               <h3>${summary}</h3>
               <p>${timeRange}</p>
               ${location ? `<p>${location}</p>` : ""}
@@ -319,7 +265,7 @@ const renderSchedule = (events) => {
 
       const currentTimeIndicator =
         day === todayKey && currentTimeTop !== null
-          ? `<div class="current-time-line" style="top: ${currentTimeTop}px;"></div>`
+          ? `<div class="current-time-line" style="--indicator-top: ${currentTimeTop}px;"></div>`
           : "";
 
       const isTodayClass = day === todayKey ? "today" : "";
@@ -328,14 +274,6 @@ const renderSchedule = (events) => {
         <div class="day-group ${isTodayClass}">
           <div class="day-title">${day}</div>
           <div class="day-schedule">
-            <div class="hour-grid">
-              ${Array.from({ length: HOURS_TOTAL + 1 })
-                .map(
-                  (_, i) =>
-                    `<div class="hour-line" style="top: ${i * PX_PER_HOUR}px;" title="${HOUR_START + i}h"></div>`
-                )
-                .join("")}
-            </div>
             ${currentTimeIndicator}
             ${eventElements}
           </div>
@@ -724,6 +662,7 @@ themeToggle.addEventListener("click", () => {
   const isDark = document.documentElement.classList.contains("dark-mode");
   localStorage.setItem("darkMode", isDark ? "true" : "false");
   themeToggle.textContent = isDark ? "☀️" : "🌙";
+  // Les couleurs se changent automatiquement via CSS variables
 });
 
 // ===== MODAL ÉVÉNEMENT =====
@@ -948,12 +887,10 @@ const updateNextCourse = () => {
 
   nextCourseSection.style.display = "block";
   const subjectType = getSubjectType(nextEvent.summary);
-  const bgColor = getColorForType(subjectType);
-  const borderColor = getBorderColorForType(subjectType);
 
   nextCourseContent.innerHTML = `
-    <div class="next-course-event" style="background: ${bgColor}; border-left-color: ${borderColor};">
-      <h3 style="margin: 0 0 0.5rem; color: ${borderColor};">${nextEvent.summary || "(Sans titre)"}</h3>
+    <div class="next-course-event" data-subject-type="${subjectType}">
+      <h3 style="margin: 0 0 0.5rem;">${nextEvent.summary || "(Sans titre)"}</h3>
       <p style="margin: 0.25rem 0; font-weight: 600;">${formatDateTime(nextEvent.start)}</p>
       <p style="margin: 0.25rem 0; font-size: 0.9rem;">${nextEvent.location || "Lieu non spécifié"}</p>
     </div>

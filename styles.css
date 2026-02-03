@@ -6,6 +6,25 @@
   --muted: #6b7280;
   --accent: #2563eb;
   --border: #e5e7eb;
+  
+  /* Constantes calendrier */
+  --hour-start: 8;
+  --hour-end: 18;
+  --hours-total: 10;
+  --px-per-hour: 60px;
+  --schedule-height: 600px;
+  
+  /* Couleurs des types de cours (mode clair) */
+  --color-IN: #F0E8F8; --border-IN: #7C3AED;
+  --color-SN: #E8F4F8; --border-SN: #0891B2;
+  --color-PR: #F8E8E8; --border-PR: #EF4444;
+  --color-LV: #E8F8E8; --border-LV: #10B981;
+  --color-XP: #F8F8E8; --border-XP: #EAB308;
+  --color-AU: #F8F0E8; --border-AU: #F59E0B;
+  --color-EP: #E8F0F8; --border-EP: #3B82F6;
+  --color-MAC: #F0F8E8; --border-MAC: #22C55E;
+  --color-SP: #F8E8F0; --border-SP: #EC4899;
+  --color-PT: #F0E8F8; --border-PT: #8B5CF6;
 }
 
 html.dark-mode {
@@ -16,6 +35,18 @@ html.dark-mode {
   --muted: #94a3b8;
   --accent: #3b82f6;
   --border: #334155;
+  
+  /* Couleurs des types de cours (mode sombre) */
+  --color-IN: #4C1D97; --border-IN: #A78BFA;
+  --color-SN: #0C4A6E; --border-SN: #06B6D4;
+  --color-PR: #7F1D1D; --border-PR: #FCA5A5;
+  --color-LV: #14532D; --border-LV: #86EFAC;
+  --color-XP: #713F12; --border-XP: #FBBF24;
+  --color-AU: #7C2D12; --border-AU: #FDBA74;
+  --color-EP: #1E3A8A; --border-EP: #60A5FA;
+  --color-MAC: #15803D; --border-MAC: #4ADE80;
+  --color-SP: #831843; --border-SP: #F472B6;
+  --color-PT: #5B21B6; --border-PT: #C084FC;
 }
 
 * {
@@ -164,6 +195,16 @@ main {
   box-shadow: 0 6px 16px rgba(37, 99, 235, 0.25);
 }
 
+.room-search-section {
+  /* Positionné après le planning uniquement sur mobile */
+}
+
+@media (max-width: 480px) {
+  .room-search-section {
+    order: 10;
+  }
+}
+
 .room-schedule-container {
   margin-top: 1rem;
 }
@@ -270,13 +311,9 @@ main {
   gap: 0.75rem;
 }
 
-.day-group.today {
-  order: -1;
-}
-
-@media (min-width: 481px) {
+@media (max-width: 480px) {
   .day-group.today {
-    order: auto;
+    order: -1;
   }
 }
 
@@ -302,26 +339,22 @@ main {
 
 .day-schedule {
   position: relative;
-  height: 600px;
+  height: var(--schedule-height);
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg);
   font-size: 0.85rem;
+  background-image: repeating-linear-gradient(
+    0deg,
+    var(--border) 0px,
+    var(--border) 1px,
+    transparent 1px,
+    transparent var(--px-per-hour)
+  );
 }
 
 .hour-grid {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  top: 0;
-  left: 0;
-  border-top: 1px solid var(--border);
-}
-
-.hour-line {
-  position: absolute;
-  width: 100%;
-  border-top: 1px solid var(--border);
+  display: none;
 }
 
 .event {
@@ -334,7 +367,23 @@ main {
   padding: 0.4rem;
   background: #f0f4ff;
   overflow: hidden;
+  
+  /* Positionnement via CSS variables depuis script.js */
+  top: var(--event-top, 0);
+  height: var(--event-height, 50px);
 }
+
+/* Couleurs par type de cours */
+.event[data-subject-type="IN"] { background: var(--color-IN); border-left-color: var(--border-IN); }
+.event[data-subject-type="SN"] { background: var(--color-SN); border-left-color: var(--border-SN); }
+.event[data-subject-type="PR"] { background: var(--color-PR); border-left-color: var(--border-PR); }
+.event[data-subject-type="LV"] { background: var(--color-LV); border-left-color: var(--border-LV); }
+.event[data-subject-type="XP"] { background: var(--color-XP); border-left-color: var(--border-XP); }
+.event[data-subject-type="AU"] { background: var(--color-AU); border-left-color: var(--border-AU); }
+.event[data-subject-type="EP"] { background: var(--color-EP); border-left-color: var(--border-EP); }
+.event[data-subject-type="MAC"] { background: var(--color-MAC); border-left-color: var(--border-MAC); }
+.event[data-subject-type="SP"] { background: var(--color-SP); border-left-color: var(--border-SP); }
+.event[data-subject-type="PT"] { background: var(--color-PT); border-left-color: var(--border-PT); }
 
 .event h3 {
   margin: 0;
@@ -357,6 +406,7 @@ main {
   background: #ef4444;
   border-top: 1px solid #dc2626;
   z-index: 10;
+  top: var(--indicator-top, 0);
 }
 
 .footer {
@@ -467,8 +517,20 @@ main {
   padding: 1rem;
   border-radius: 8px;
   border-left: 4px solid var(--accent);
-  background: var(--bg);
+  background: var(--color-IN, var(--bg));
+  border-left-color: var(--border-IN, var(--accent));
 }
+
+.next-course-event[data-subject-type="IN"] { background: var(--color-IN); border-left-color: var(--border-IN); }
+.next-course-event[data-subject-type="SN"] { background: var(--color-SN); border-left-color: var(--border-SN); }
+.next-course-event[data-subject-type="PR"] { background: var(--color-PR); border-left-color: var(--border-PR); }
+.next-course-event[data-subject-type="LV"] { background: var(--color-LV); border-left-color: var(--border-LV); }
+.next-course-event[data-subject-type="XP"] { background: var(--color-XP); border-left-color: var(--border-XP); }
+.next-course-event[data-subject-type="AU"] { background: var(--color-AU); border-left-color: var(--border-AU); }
+.next-course-event[data-subject-type="EP"] { background: var(--color-EP); border-left-color: var(--border-EP); }
+.next-course-event[data-subject-type="MAC"] { background: var(--color-MAC); border-left-color: var(--border-MAC); }
+.next-course-event[data-subject-type="SP"] { background: var(--color-SP); border-left-color: var(--border-SP); }
+.next-course-event[data-subject-type="PT"] { background: var(--color-PT); border-left-color: var(--border-PT); }
 
 @media (min-width: 720px) {
   .controls {
@@ -625,11 +687,11 @@ main {
   }
 
   .event h3 {
-    font-size: 0.65rem;
+    font-size: 0.95rem;
   }
 
   .event p {
-    font-size: 0.6rem;
+    font-size: 0.8rem;
     margin-top: 0.05rem;
   }
 
