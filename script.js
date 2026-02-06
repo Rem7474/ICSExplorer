@@ -23,9 +23,6 @@ const roomSelect = document.getElementById("roomSelect");
 const emptyRoomsBtn = document.getElementById("emptyRoomsBtn");
 const roomModeStatus = document.getElementById("roomModeStatus");
 const emptyRoomsStatus = document.getElementById("emptyRoomsStatus");
-const roomScheduleContainer = document.getElementById("roomSchedule");
-const roomTitle = document.getElementById("roomTitle");
-const roomScheduleContent = document.getElementById("roomScheduleContent");
 
 // Modal
 const eventModal = document.getElementById("eventModal");
@@ -565,7 +562,10 @@ const loadTeacherList = async () => {
 };
 
 const loadTeacherSchedule = (teacherName) => {
-  if (!teacherName) return;
+  if (!teacherName) {
+    setStatus("");
+    return;
+  }
   const events = teacherEventsByName.get(teacherName) || [];
   allEvents = events;
   populateRoomSelect();
@@ -573,7 +573,7 @@ const loadTeacherSchedule = (teacherName) => {
   renderWeek();
   downloadLink.href = "#";
   downloadLink.textContent = "Télécharger";
-  setStatus(`Emploi du temps du professeur : ${teacherName}`);
+  setStatus(`Professeur : ${teacherName}`);
 };
 
 const updateModeVisibility = () => {
@@ -584,10 +584,13 @@ const updateModeVisibility = () => {
   teacherControls.classList.toggle("is-hidden", !isTeacherMode);
   roomControls.classList.toggle("is-hidden", !isRoomMode);
 
-  if (!isRoomMode) {
-    roomScheduleContainer.style.display = "none";
-    roomModeStatus.textContent = "";
-  }
+  // Masquer les boutons partager/télécharger en mode prof ou salle
+  shareBtn.style.display = isTeacherMode || isRoomMode ? "none" : "inline-block";
+  downloadLink.style.display = isTeacherMode || isRoomMode ? "none" : "inline-block";
+
+  // Nettoyer les statuts
+  roomModeStatus.textContent = "";
+  setStatus("");
 
   if (isTeacherMode) {
     teacherSelect.focus();
@@ -763,11 +766,7 @@ const loadFileList = async () => {
       return;
     }
 
-    setStatus(
-      count
-        ? `Liste chargée. Professeurs détectés : ${count}`
-        : "Liste chargée. Aucun professeur détecté."
-    );
+    setStatus("Liste chargée.");
   } catch (error) {
     setStatus(
       "Impossible de lire le dossier /output. Activez l'indexation des fichiers côté serveur ou fournissez une liste JSON."
@@ -988,67 +987,54 @@ const getEventsForRoom = (roomName, date = null) => {
   }).sort((a, b) => new Date(a.start) - new Date(b.start));
 };
 
-const renderRoomSchedule = (events, roomName) => {
-  if (!events.length) {
-    roomScheduleContent.innerHTML = "<p>Aucun événement dans cette salle pour ce jour.</p>";
-    return;
-  }
-
-  roomTitle.textContent = `Salle : ${roomName}`;
-  
-  const eventElements = events
-    .map((event) => {
-      const timeRange = `${formatTimeOnly(event.start)} - ${formatTimeOnly(event.end)}`;
-      const top = getEventTop(event.start);
-      const height = getEventHeight(event.start, event.end);
-      
-      return `
-        <div class="event" style="top: ${top}px; height: ${height}px;">
-          <h3>${event.summary || "(Sans titre)"}</h3>
-          <p>${timeRange}</p>
-        </div>
-      `;
-    })
-    .join("");
-
-  roomScheduleContent.innerHTML = `
-    <div class="day-schedule" style="margin-top: 1rem;">
-      <div class="hour-grid">
-        ${Array.from({ length: HOURS_TOTAL + 1 })
-          .map(
-            (_, i) =>
-              `<div class="hour-line" style="top: ${i * PX_PER_HOUR}px;" title="${HOUR_START + i}h"></div>`
-          )
-          .join("")}
-      </div>
-      ${eventElements}
-    </div>
-  `;
-  
-  roomScheduleContainer.style.display = "block";
-};
-
-roomSelect.addEventListener("change", () => {
-  const roomName = roomSelect.value.trim();
+const loadRoomSchedule = (roomName) => {
   if (!roomName) {
     roomModeStatus.textContent = "";
-    roomScheduleContainer.style.display = "none";
+    setStatus("");
     return;
   }
 
   const events = getEventsForRoom(roomName);
   if (events.length === 0) {
-    roomModeStatus.textContent = `Aucun événement trouvé pour la salle "${roomName}".`;
-    roomScheduleContainer.style.display = "none";
+    scheduleEl.innerHTML = `<p>Aucun événement trouvé pour la salle "${roomName}".</p>`;
+    roomModeStatus.textContent = "";
+    setStatus(`Salle : ${roomName}`);
     return;
   }
 
-  roomModeStatus.textContent = `${events.length} événement(s) trouvé(s) pour "${roomName}".`;
-  renderRoomSchedule(events, roomName);
+  roomModeStatus.textContent = "";
+  allEvents = events;
+  currentWeekStart = getWeekStart(new Date());
+  renderWeek();
+  downloadLink.href = "#";
+  downloadLink.textContent = "Télécharger";
+  setStatus(`Salle : ${roomName}`);
+};
+
+roomSelect.addEventListener("change", () => {
+  loadRoomSchedule(roomSelect.value);
 });
 
 emptyRoomsBtn.addEventListener("click", () => {
   const now = new Date();
+  const hour = now.getHours();
+  const minute = now.getMinutes();
+  
+  // Définir le checkTime selon l'heure actuelle
+  let checkTime = new Date(now);
+  let timeLabel = "maintenant";
+  
+  if (hour < 8 || (hour === 8 && minute < 30)) {
+    // Avant 8h30 → regarder pour 8h30
+    checkTime.setHours(8, 30, 0, 0);
+    timeLabel = "à 8h30";
+  } else if (hour >= 12 && hour < 13 || (hour === 13 && minute < 45)) {
+    // Entre 12h et 13h45 → regarder pour 14h
+    checkTime.setHours(14, 0, 0, 0);
+    timeLabel = "à 14h00";
+  }
+  // Sinon checkTime = now (l'heure actuelle)
+  
   const allRooms = getAllRooms();
   
   const emptyRooms = allRooms.filter((room) => {
@@ -1061,23 +1047,24 @@ emptyRoomsBtn.addEventListener("click", () => {
     const events = allEvents.filter((event) => {
       const eventLocation = event.location ? event.location.trim().toLowerCase() : "";
       const isCurrentRoom = eventLocation === room.toLowerCase();
-      const isNow = new Date(event.start) <= now && new Date(event.end) > now;
-      return isCurrentRoom && isNow;
+      const eventStart = new Date(event.start);
+      const eventEnd = new Date(event.end);
+      // Vérifier si l'événement chevauche le checkTime
+      const opensNow = eventStart <= checkTime && eventEnd > checkTime;
+      return isCurrentRoom && opensNow;
     });
     return events.length === 0;
   });
   
   if (emptyRooms.length === 0) {
-    emptyRoomsStatus.textContent = "Aucune salle vide en ce moment (salles A, B, C, D).";
-    roomScheduleContainer.style.display = "none";
+    emptyRoomsStatus.textContent = `Aucune salle vide ${timeLabel} (salles A, B, C, D).`;
     return;
   }
   
   emptyRoomsStatus.innerHTML = `
-    <strong>${emptyRooms.length} salle(s) vide(s) en ce moment :</strong><br>
+    <strong>${emptyRooms.length} salle(s) vide(s) ${timeLabel} :</strong><br>
     ${emptyRooms.join(", ")}
   `;
-  roomScheduleContainer.style.display = "none";
 });
 
 // ===== PROCHAIN COURS (MOBILE) =====

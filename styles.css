@@ -128,6 +128,21 @@ main {
   gap: 0.75rem;
 }
 
+#roomControls {
+  gap: 0;
+}
+
+#teacherControls select {
+  max-width: 100%;
+  word-break: break-word;
+}
+
+#roomModeStatus {
+  min-height: 0;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
 .is-hidden {
   display: none;
 }
@@ -206,6 +221,23 @@ main {
 
 .room-search-section {
   /* Positionné après le planning uniquement sur mobile */
+}
+
+#emptyRoomsBtn {
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: transform 0.1s ease-in-out, box-shadow 0.1s ease-in-out;
+}
+
+#emptyRoomsBtn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.25);
 }
 
 @media (max-width: 480px) {
@@ -545,6 +577,10 @@ main {
   .controls {
     grid-template-columns: repeat(6, minmax(0, 1fr));
     align-items: end;
+  }
+
+  #roomControls {
+    grid-column: span 4;
   }
 
   .controls label {
