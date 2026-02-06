@@ -348,7 +348,8 @@ main {
 }
 
 .day-group {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 0.75rem;
 }
 
@@ -381,6 +382,7 @@ main {
 .day-schedule {
   position: relative;
   min-height: var(--schedule-height);
+  flex: 1;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg);
@@ -579,8 +581,17 @@ main {
     align-items: end;
   }
 
+  #teacherControls {
+    grid-column: span 3;
+  }
+
+  #refreshBtn {
+    grid-column: span 2;
+    justify-self: end;
+  }
+
   #roomControls {
-    grid-column: span 4;
+    grid-column: span 3;
   }
 
   .controls label {

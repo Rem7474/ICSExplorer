@@ -211,22 +211,20 @@ let PX_PER_HOUR = 600 / HOURS_TOTAL;
 
 const adjustHoursForMobile = (events) => {
   // Sur mobile seulement, adapter les heures au contenu
-  if (window.innerWidth > 480) {
+  const isMobile = window.matchMedia("(max-width: 480px)").matches;
+  if (!isMobile) {
     // Desktop : toujours 8-18h
     HOUR_START = 8;
     HOUR_END = 18;
+  } else if (!events.length) {
+    HOUR_START = 8;
+    HOUR_END = 18;
   } else {
-    // Mobile : adapter au contenu
-    if (!events.length) {
-      HOUR_START = 8;
-      HOUR_END = 18;
-    } else {
-      const hours = events.map(e => new Date(e.start).getHours());
-      HOUR_START = Math.min(...hours);
-      
-      const endHours = events.map(e => new Date(e.end).getHours());
-      HOUR_END = Math.max(...endHours);
-    }
+    const hours = events.map(e => new Date(e.start).getHours());
+    HOUR_START = Math.min(...hours);
+    
+    const endHours = events.map(e => new Date(e.end).getHours());
+    HOUR_END = Math.max(...endHours);
   }
   
   HOURS_TOTAL = HOUR_END - HOUR_START;
@@ -239,18 +237,18 @@ const adjustHoursForMobile = (events) => {
   document.documentElement.style.setProperty('--px-per-hour', PX_PER_HOUR + 'px');
 };
 
-const getEventTop = (date) => {
+const getEventTop = (date, startHour = HOUR_START, pxPerHour = PX_PER_HOUR) => {
   const hours = date.getHours();
   const minutes = date.getMinutes();
-  const relativeHours = hours - HOUR_START + minutes / 60;
-  return Math.max(0, relativeHours * PX_PER_HOUR);
+  const relativeHours = hours - startHour + minutes / 60;
+  return Math.max(0, relativeHours * pxPerHour);
 };
 
-const getEventHeight = (start, end) => {
+const getEventHeight = (start, end, pxPerHour = PX_PER_HOUR) => {
   const startDate = new Date(start);
   const endDate = new Date(end);
   const durationMinutes = (endDate - startDate) / 60000;
-  return Math.max(20, (durationMinutes / 60) * PX_PER_HOUR);
+  return Math.max(20, (durationMinutes / 60) * pxPerHour);
 };
 
 // Extracte le type de matière du summary (ex: "SN123 - Titre" → "SN")
@@ -263,6 +261,7 @@ const getSubjectType = (summary) => {
 const renderSchedule = (events) => {
   // Adapter les heures pour mobile si nécessaire
   adjustHoursForMobile(events);
+  const isMobile = window.matchMedia("(max-width: 480px)").matches;
   
   if (!events.length) {
     scheduleEl.innerHTML = "<p>Aucun événement pour cette semaine.</p>";
@@ -284,21 +283,26 @@ const renderSchedule = (events) => {
 
   const now = new Date();
   const todayKey = formatDateOnly(now);
-  const isToday = daysInWeek.includes(todayKey);
-  const currentHour = now.getHours();
-  const isWithinBusinessHours = currentHour >= HOUR_START && currentHour < HOUR_END;
-  const currentTimeTop = isToday && isWithinBusinessHours ? getEventTop(now) : null;
 
   scheduleEl.innerHTML = daysInWeek
     .map((day) => {
       const dayEvents = grouped.get(day);
+      const dayStart = isMobile
+        ? Math.min(...dayEvents.map((event) => new Date(event.start).getHours()))
+        : HOUR_START;
+      const dayEnd = isMobile
+        ? Math.max(...dayEvents.map((event) => new Date(event.end).getHours()))
+        : HOUR_END;
+      const dayHoursTotal = Math.max(1, dayEnd - dayStart);
+      const dayPxPerHour = isMobile ? 600 / dayHoursTotal : PX_PER_HOUR;
+
       const eventElements = dayEvents
         .map((event) => {
           const summary = event.summary || "(Sans titre)";
           const timeRange = `${formatTimeOnly(event.start)} - ${formatTimeOnly(event.end)}`;
           const location = event.location ? `<strong>Lieu :</strong> ${event.location}` : "";
-          const top = getEventTop(event.start);
-          const height = getEventHeight(event.start, event.end);
+          const top = getEventTop(event.start, dayStart, dayPxPerHour);
+          const height = getEventHeight(event.start, event.end, dayPxPerHour);
           
           const subjectType = getSubjectType(summary);
 
@@ -312,8 +316,17 @@ const renderSchedule = (events) => {
         })
         .join("");
 
+      const isToday = day === todayKey;
+      const isWithinBusinessHours =
+        !isMobile
+          ? now.getHours() >= HOUR_START && now.getHours() < HOUR_END
+          : now.getHours() >= dayStart && now.getHours() < dayEnd;
+      const currentTimeTop =
+        isToday && isWithinBusinessHours
+          ? getEventTop(now, dayStart, dayPxPerHour)
+          : null;
       const currentTimeIndicator =
-        day === todayKey && currentTimeTop !== null
+        currentTimeTop !== null
           ? `<div class="current-time-line" style="--indicator-top: ${currentTimeTop}px;"></div>`
           : "";
 
@@ -322,7 +335,7 @@ const renderSchedule = (events) => {
       return `
         <div class="day-group ${isTodayClass}">
           <div class="day-title">${day}</div>
-          <div class="day-schedule">
+          <div class="day-schedule" style="--px-per-hour: ${dayPxPerHour}px;">
             ${currentTimeIndicator}
             ${eventElements}
           </div>
@@ -656,10 +669,29 @@ const loadSelectedFile = () => {
   }
 };
 
+const applySelectionFromMatch = (match) => {
+  yearSelect.value = match.year;
+  updateTrackOptions();
+  trackSelect.value = match.track;
+  updateTypeOptions();
+  typeSelect.value = match.type;
+  updateFileOptions();
+  fileSelect.value = match.rest;
+};
+
+const applyModeSelection = (modeValue) => {
+  if (!modeValue) return;
+  const allowedModes = ["student", "teacher", "room"];
+  if (!allowedModes.includes(modeValue)) return;
+  modeSelect.value = modeValue;
+  updateModeVisibility();
+};
+
 const saveSelectionsToStorage = () => {
   localStorage.setItem(
     "edtSelection",
     JSON.stringify({
+      mode: modeSelect.value,
       year: yearSelect.value,
       track: trackSelect.value,
       type: typeSelect.value,
@@ -680,6 +712,7 @@ const loadSelectionsFromStorage = () => {
 const getUrlParams = () => {
   const params = new URLSearchParams(window.location.search);
   return {
+    mode: params.get("mode"),
     year: params.get("year"),
     track: params.get("track"),
     type: params.get("type"),
@@ -688,18 +721,22 @@ const getUrlParams = () => {
 };
 
 const updateUrl = () => {
+  const mode = modeSelect.value;
   const year = yearSelect.value;
   const track = trackSelect.value;
   const type = typeSelect.value;
   const rest = fileSelect.value;
+  const url = new URL(window.location);
+  if (mode) {
+    url.searchParams.set("mode", mode);
+  }
   if (year && track && type && rest) {
-    const url = new URL(window.location);
     url.searchParams.set("year", year);
     url.searchParams.set("track", track);
     url.searchParams.set("type", type);
     url.searchParams.set("rest", rest);
-    window.history.replaceState({}, "", url);
   }
+  window.history.replaceState({}, "", url);
 };
 
 const populateSelects = (files) => {
@@ -725,6 +762,25 @@ const populateSelects = (files) => {
     Object.entries(urlParams).filter(([, v]) => v !== null)
   );
   const params = { ...saved, ...filteredUrlParams };
+
+  applyModeSelection(params.mode);
+
+  const matchFromParams =
+    params.year && params.track && params.type && params.rest
+      ? availableFiles.find(
+          (item) =>
+            item.year === params.year &&
+            item.track === params.track &&
+            item.type === params.type &&
+            item.rest === params.rest
+        )
+      : null;
+
+  if (matchFromParams) {
+    applySelectionFromMatch(matchFromParams);
+    loadSelectedFile();
+    return;
+  }
 
   if (params.year && years.includes(params.year)) {
     yearSelect.value = params.year;
