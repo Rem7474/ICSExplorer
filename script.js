@@ -970,6 +970,22 @@ const getAllRooms = () => {
   return Array.from(rooms).sort();
 };
 
+const getRoomCode = (location) => {
+  if (!location) return "";
+  const match = location.toUpperCase().match(/\b([ABCD]\s*[\d-]+)\b/);
+  if (!match) return "";
+  return match[1].replace(/\s+/g, "");
+};
+
+const getRoomCodes = () => {
+  const rooms = new Set();
+  allEvents.forEach((event) => {
+    const code = getRoomCode(event.location);
+    if (code) rooms.add(code);
+  });
+  return Array.from(rooms).sort();
+};
+
 const populateRoomSelect = () => {
   const rooms = getAllRooms();
   setSelectOptions(roomSelect, "Salle…", rooms, rooms.length === 0);
@@ -1035,18 +1051,12 @@ emptyRoomsBtn.addEventListener("click", () => {
   }
   // Sinon checkTime = now (l'heure actuelle)
   
-  const allRooms = getAllRooms();
+  const allRooms = getRoomCodes();
   
   const emptyRooms = allRooms.filter((room) => {
-    // Filtrer seulement les salles au format A/B/C/D suivi de chiffres/tirets (ex: A049, D130, B-201)
-    const roomPattern = /^[ABCD][\d\-]+$/;
-    if (!roomPattern.test(room)) {
-      return false;
-    }
-    
     const events = allEvents.filter((event) => {
-      const eventLocation = event.location ? event.location.trim().toLowerCase() : "";
-      const isCurrentRoom = eventLocation === room.toLowerCase();
+      const eventRoomCode = getRoomCode(event.location);
+      const isCurrentRoom = eventRoomCode === room;
       const eventStart = new Date(event.start);
       const eventEnd = new Date(event.end);
       // Vérifier si l'événement chevauche le checkTime
