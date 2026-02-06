@@ -258,6 +258,120 @@ const getSubjectType = (summary) => {
   return match ? match[1] : "";
 };
 
+const getSubjectCode = (summary) => {
+  if (!summary) return "";
+  const match = summary.match(/^([A-Z]{2,3}\d{2,4})/);
+  return match ? match[1] : "";
+};
+
+const getSubjectNumber = (summary) => {
+  if (!summary) return null;
+  const match = summary.match(/^[A-Z]{2,3}(\d{2,4})/);
+  if (!match) return null;
+  return Number.parseInt(match[1], 10);
+};
+
+const hashString = (value) => {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+};
+
+const hexToHsl = (hex) => {
+  const cleaned = hex.replace("#", "");
+  const r = parseInt(cleaned.slice(0, 2), 16) / 255;
+  const g = parseInt(cleaned.slice(2, 4), 16) / 255;
+  const b = parseInt(cleaned.slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const delta = max - min;
+  let h = 0;
+  let s = 0;
+  const l = (max + min) / 2;
+
+  if (delta !== 0) {
+    s = delta / (1 - Math.abs(2 * l - 1));
+    switch (max) {
+      case r:
+        h = ((g - b) / delta) % 6;
+        break;
+      case g:
+        h = (b - r) / delta + 2;
+        break;
+      default:
+        h = (r - g) / delta + 4;
+        break;
+    }
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+
+  return { h, s: s * 100, l: l * 100 };
+};
+
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+const getSubjectColors = (summary) => {
+  const type = getSubjectType(summary) || "IN";
+  const code = getSubjectCode(summary) || type;
+  const number = getSubjectNumber(summary);
+
+  const baseHex = getComputedStyle(document.documentElement)
+    .getPropertyValue(`--border-${type}`)
+    .trim();
+
+  if (!baseHex) {
+    return {
+      background: "var(--card)",
+      border: "var(--accent)",
+    };
+  }
+
+  const base = hexToHsl(baseHex);
+  const bgHex = getComputedStyle(document.documentElement)
+    .getPropertyValue("--bg")
+    .trim();
+  const isDark = bgHex && hexToHsl(bgHex).l < 50;
+  const typeSeed = hashString(type);
+  const codeSeed = hashString(code);
+  const numberShift = number !== null ? ((number % 100) - 50) * 1.2 : 0; // -60..60
+  const typeShift = (typeSeed % 19) - 9; // -9..9
+  const hueShift = numberShift + typeShift; // -69..69
+  const satShift = (codeSeed % 31) - 15; // -15..15
+  const lightShift = (codeSeed % 21) - 10; // -10..10
+
+  const borderLight = isDark
+    ? clamp(base.l + lightShift, 45, 80)
+    : clamp(base.l + lightShift, 28, 72);
+  const bgLight = isDark
+    ? clamp(base.l - 18 + lightShift * 0.4, 18, 40)
+    : clamp(base.l + 24 + lightShift * 0.6, 65, 92);
+
+  const isBgDark = bgLight < 55;
+  const text = isBgDark
+    ? "hsl(210 20% 96%)"
+    : "hsl(210 25% 16%)";
+  const subtext = isBgDark
+    ? "hsl(210 15% 82%)"
+    : "hsl(210 15% 32%)";
+
+  const border = `hsl(${(base.h + hueShift + 360) % 360} ${clamp(
+    base.s + satShift,
+    35,
+    90
+  )}% ${borderLight}%)`;
+  const background = `hsl(${(base.h + hueShift + 360) % 360} ${clamp(
+    base.s - 15 + satShift * 0.4,
+    20,
+    70
+  )}% ${bgLight}%)`;
+
+  return { background, border, text, subtext };
+};
+
 const renderSchedule = (events) => {
   // Adapter les heures pour mobile si nécessaire
   adjustHoursForMobile(events);
@@ -305,9 +419,10 @@ const renderSchedule = (events) => {
           const height = getEventHeight(event.start, event.end, dayPxPerHour);
           
           const subjectType = getSubjectType(summary);
+          const subjectColors = getSubjectColors(summary);
 
           return `
-            <div class="event" style="--event-top: ${top}px; --event-height: ${height}px;" data-event-summary="${summary}" data-event-day="${day}" data-subject-type="${subjectType}">
+            <div class="event" style="--event-top: ${top}px; --event-height: ${height}px; --event-bg: ${subjectColors.background}; --event-border: ${subjectColors.border}; --event-text: ${subjectColors.text}; --event-subtext: ${subjectColors.subtext};" data-event-summary="${summary}" data-event-day="${day}" data-subject-type="${subjectType}">
               <h3>${summary}</h3>
               <p>${timeRange}</p>
               ${location ? `<p>${location}</p>` : ""}
@@ -931,6 +1046,11 @@ themeToggle.addEventListener("click", () => {
   localStorage.setItem("darkMode", isDark ? "true" : "false");
   themeToggle.textContent = isDark ? "☀️" : "🌙";
   // Les couleurs se changent automatiquement via CSS variables
+  if (currentWeekStart) {
+    renderWeek();
+  } else if (allEvents.length) {
+    renderSchedule(allEvents);
+  }
 });
 
 // ===== MODAL ÉVÉNEMENT =====
@@ -1154,8 +1274,10 @@ const updateNextCourse = () => {
   nextCourseSection.style.display = "block";
   const subjectType = getSubjectType(nextEvent.summary);
 
+  const subjectColors = getSubjectColors(nextEvent.summary);
+
   nextCourseContent.innerHTML = `
-    <div class="next-course-event" data-subject-type="${subjectType}">
+    <div class="next-course-event" data-subject-type="${subjectType}" style="--event-bg: ${subjectColors.background}; --event-border: ${subjectColors.border}; --event-text: ${subjectColors.text}; --event-subtext: ${subjectColors.subtext};">
       <h3 style="margin: 0 0 0.5rem;">${nextEvent.summary || "(Sans titre)"}</h3>
       <p style="margin: 0.25rem 0; font-weight: 600;">${formatDateTime(nextEvent.start)}</p>
       <p style="margin: 0.25rem 0; font-size: 0.9rem;">${nextEvent.location || "Lieu non spécifié"}</p>

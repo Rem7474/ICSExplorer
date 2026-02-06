@@ -24,7 +24,7 @@
   --color-EP: #E8F0F8; --border-EP: #3B82F6;
   --color-MAC: #F0F8E8; --border-MAC: #22C55E;
   --color-SP: #F8E8F0; --border-SP: #EC4899;
-  --color-PT: #F0E8F8; --border-PT: #8B5CF6;
+  --color-PT: #E8F8F6; --border-PT: #14B8A6;
 }
 
 html.dark-mode {
@@ -46,7 +46,7 @@ html.dark-mode {
   --color-EP: #1E3A8A; --border-EP: #60A5FA;
   --color-MAC: #15803D; --border-MAC: #4ADE80;
   --color-SP: #831843; --border-SP: #F472B6;
-  --color-PT: #5B21B6; --border-PT: #C084FC;
+  --color-PT: #134E4A; --border-PT: #5EEAD4;
 }
 
 * {
@@ -408,7 +408,9 @@ main {
   border-left: 4px solid var(--accent);
   border-radius: 6px;
   padding: 0.4rem;
-  background: #f0f4ff;
+  background: var(--event-bg, #f0f4ff);
+  border-color: var(--event-border, var(--accent));
+  border-left-color: var(--event-border, var(--accent));
   overflow: hidden;
   
   /* Positionnement via CSS variables depuis script.js */
@@ -416,29 +418,19 @@ main {
   height: var(--event-height, 50px);
 }
 
-/* Couleurs par type de cours */
-.event[data-subject-type="IN"] { background: var(--color-IN); border-left-color: var(--border-IN); }
-.event[data-subject-type="SN"] { background: var(--color-SN); border-left-color: var(--border-SN); }
-.event[data-subject-type="PR"] { background: var(--color-PR); border-left-color: var(--border-PR); }
-.event[data-subject-type="LV"] { background: var(--color-LV); border-left-color: var(--border-LV); }
-.event[data-subject-type="XP"] { background: var(--color-XP); border-left-color: var(--border-XP); }
-.event[data-subject-type="AU"] { background: var(--color-AU); border-left-color: var(--border-AU); }
-.event[data-subject-type="EP"] { background: var(--color-EP); border-left-color: var(--border-EP); }
-.event[data-subject-type="MAC"] { background: var(--color-MAC); border-left-color: var(--border-MAC); }
-.event[data-subject-type="SP"] { background: var(--color-SP); border-left-color: var(--border-SP); }
-.event[data-subject-type="PT"] { background: var(--color-PT); border-left-color: var(--border-PT); }
+/* Couleurs par type de cours gérées par variables CSS */
 
 .event h3 {
   margin: 0;
   font-size: 0.8rem;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--event-text, var(--accent));
 }
 
 .event p {
   margin: 0.2rem 0 0;
   font-size: 0.75rem;
-  color: var(--muted);
+  color: var(--event-subtext, var(--muted));
 }
 
 .current-time-line {
@@ -560,20 +552,16 @@ main {
   padding: 1rem;
   border-radius: 8px;
   border-left: 4px solid var(--accent);
-  background: var(--color-IN, var(--bg));
-  border-left-color: var(--border-IN, var(--accent));
+  background: var(--event-bg, var(--color-IN, var(--bg)));
+  border-left-color: var(--event-border, var(--border-IN, var(--accent)));
+  color: var(--event-text, var(--text));
 }
 
-.next-course-event[data-subject-type="IN"] { background: var(--color-IN); border-left-color: var(--border-IN); }
-.next-course-event[data-subject-type="SN"] { background: var(--color-SN); border-left-color: var(--border-SN); }
-.next-course-event[data-subject-type="PR"] { background: var(--color-PR); border-left-color: var(--border-PR); }
-.next-course-event[data-subject-type="LV"] { background: var(--color-LV); border-left-color: var(--border-LV); }
-.next-course-event[data-subject-type="XP"] { background: var(--color-XP); border-left-color: var(--border-XP); }
-.next-course-event[data-subject-type="AU"] { background: var(--color-AU); border-left-color: var(--border-AU); }
-.next-course-event[data-subject-type="EP"] { background: var(--color-EP); border-left-color: var(--border-EP); }
-.next-course-event[data-subject-type="MAC"] { background: var(--color-MAC); border-left-color: var(--border-MAC); }
-.next-course-event[data-subject-type="SP"] { background: var(--color-SP); border-left-color: var(--border-SP); }
-.next-course-event[data-subject-type="PT"] { background: var(--color-PT); border-left-color: var(--border-PT); }
+.next-course-event p {
+  color: var(--event-subtext, var(--muted));
+}
+
+/* Couleurs du prochain cours gérées par variables CSS */
 
 @media (min-width: 720px) {
   .controls {
