@@ -33,6 +33,12 @@
     <section class="card">
       <div class="controls">
         <label>Choix de l'emploi du temps</label>
+        <select id="modeSelect" aria-label="Choisir le mode">
+          <option value="student">Élève</option>
+          <option value="teacher">Professeur</option>
+          <option value="room">Salle</option>
+        </select>
+        <div id="studentControls" class="controls-group">
         <select id="yearSelect" aria-label="Choisir l'année">
           <option value="">Année…</option>
         </select>
@@ -45,6 +51,18 @@
         <select id="fileSelect" aria-label="Choisir la suite" disabled>
           <option value="">Suite…</option>
         </select>
+        </div>
+        <div id="teacherControls" class="controls-group is-hidden">
+        <select id="teacherSelect" aria-label="Choisir un professeur" disabled>
+          <option value="">Professeur…</option>
+        </select>
+        </div>
+        <div id="roomControls" class="controls-group is-hidden">
+          <select id="roomSelect" aria-label="Choisir une salle" disabled>
+            <option value="">Salle…</option>
+          </select>
+          <div id="roomModeStatus" class="status" role="status" aria-live="polite"></div>
+        </div>
         <button id="refreshBtn" type="button">Rafraîchir la liste</button>
         <button id="shareBtn" type="button" title="Copier l'URL de partage">Partager</button>
         <a id="downloadLink" class="download" href="#" download>Télécharger</a>
@@ -63,20 +81,16 @@
           <button id="nextWeek" type="button" aria-label="Semaine suivante">▶</button>
         </div>
       <div id="schedule" class="schedule"></div>
-    </section>
-
-    <section class="card room-search-section">
-      <h2>Recherche de salle</h2>
-      <div class="room-search">
-        <input id="roomInput" type="text" placeholder="Entrez le nom/numéro de salle..." />
-        <button id="searchRoomBtn" type="button">Chercher</button>
-        <button id="emptyRoomsBtn" type="button" title="Salles libres en ce moment">Salles vides maintenant</button>
-      </div>
-      <div id="roomStatus" class="status" role="status" aria-live="polite"></div>
       <div id="roomSchedule" class="room-schedule-container" style="display: none;">
         <h3 id="roomTitle"></h3>
         <div id="roomScheduleContent" class="schedule"></div>
       </div>
+    </section>
+
+    <section class="card room-search-section">
+      <h2>Salles vides</h2>
+      <button id="emptyRoomsBtn" type="button" title="Salles libres en ce moment">Salles vides maintenant</button>
+      <div id="emptyRoomsStatus" class="status" role="status" aria-live="polite"></div>
     </section>
   </main>
 

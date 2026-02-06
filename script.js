@@ -4,6 +4,11 @@ const yearSelect = document.getElementById("yearSelect");
 const trackSelect = document.getElementById("trackSelect");
 const typeSelect = document.getElementById("typeSelect");
 const fileSelect = document.getElementById("fileSelect");
+const teacherSelect = document.getElementById("teacherSelect");
+const modeSelect = document.getElementById("modeSelect");
+const studentControls = document.getElementById("studentControls");
+const teacherControls = document.getElementById("teacherControls");
+const roomControls = document.getElementById("roomControls");
 const refreshBtn = document.getElementById("refreshBtn");
 const statusEl = document.getElementById("status");
 const scheduleEl = document.getElementById("schedule");
@@ -14,10 +19,10 @@ const nextWeekBtn = document.getElementById("nextWeek");
 const weekLabelEl = document.getElementById("weekLabel");
 
 // Éléments pour recherche de salle
-const roomInput = document.getElementById("roomInput");
-const searchRoomBtn = document.getElementById("searchRoomBtn");
+const roomSelect = document.getElementById("roomSelect");
 const emptyRoomsBtn = document.getElementById("emptyRoomsBtn");
-const roomStatus = document.getElementById("roomStatus");
+const roomModeStatus = document.getElementById("roomModeStatus");
+const emptyRoomsStatus = document.getElementById("emptyRoomsStatus");
 const roomScheduleContainer = document.getElementById("roomSchedule");
 const roomTitle = document.getElementById("roomTitle");
 const roomScheduleContent = document.getElementById("roomScheduleContent");
@@ -36,6 +41,8 @@ let allEvents = [];
 let currentWeekStart = null;
 let availableFiles = [];
 let currentEvent = null;
+let teacherEventsByName = new Map();
+let isTeacherListLoading = false;
 
 const formatDateTime = (value) => {
   if (!value) return "";
@@ -186,6 +193,18 @@ const parseIcs = (icsText) => {
   return events
     .filter((event) => event.start)
     .sort((a, b) => new Date(a.start) - new Date(b.start));
+};
+
+const extractTeacherNames = (description) => {
+  if (!description) return [];
+  const match = description.match(/\bavec\b\s*([^\n]+)/i);
+  if (!match) return [];
+  return match[1]
+    .split(",")
+    .map((name) => name.trim())
+    .filter((name) => name && !name.startsWith("*"))
+    .map((name) => name.replace(/^\*+\s*/, "").trim())
+    .filter(Boolean);
 };
 
 let HOUR_START = 8;
@@ -378,6 +397,7 @@ const loadSchedule = async (fileName) => {
     if (!response.ok) throw new Error("Impossible de récupérer le fichier.");
     const text = await response.text();
     allEvents = parseIcs(text);
+    populateRoomSelect();
     if (allEvents.length) {
       currentWeekStart = getWeekStart(allEvents[0].start);
     } else {
@@ -413,6 +433,13 @@ const safeDecodeURIComponent = (value) => {
   }
 };
 
+const decodeHtmlEntities = (value) => {
+  if (!value) return value;
+  const textarea = document.createElement("textarea");
+  textarea.innerHTML = value;
+  return textarea.value;
+};
+
 const extractIcsLinks = (html) => {
   const links = Array.from(html.matchAll(/href=["']([^"']+\.ics)["']/gi)).map(
     (match) => match[1]
@@ -420,6 +447,7 @@ const extractIcsLinks = (html) => {
 
   return [...new Set(links)]
     .map((link) => link.replace(/^.*\//, ""))
+    .map((link) => decodeHtmlEntities(link))
     .map((link) => safeDecodeURIComponent(link))
     .sort((a, b) => a.localeCompare(b, "fr", { numeric: true }));
 };
@@ -459,6 +487,114 @@ const normalizeFiles = (files) =>
     .filter((item) => item.year && item.track && item.type);
 
 const getUnique = (values) => [...new Set(values)].sort((a, b) => a.localeCompare(b, "fr", { numeric: true }));
+
+const isStudentType = (typeValue) =>
+  String(typeValue || "")
+    .toLowerCase()
+    .includes("eleve");
+
+const getStudentFiles = (items) => {
+  const studentItems = items.filter((item) => isStudentType(item.type));
+  const source = studentItems.length ? studentItems : items;
+  return source.map((item) => item.file);
+};
+
+const fetchIcsText = async (fileName) => {
+  const fileUrl = `${outputBase}${encodeURIComponent(fileName)}`;
+  const response = await fetch(fileUrl);
+  if (!response.ok) throw new Error("Impossible de récupérer le fichier.");
+  return decodeTextWithFallback(response);
+};
+
+const buildTeacherIndexFromFiles = async (fileNames) => {
+  const teacherMap = new Map();
+
+  await Promise.all(
+    fileNames.map(async (fileName) => {
+      try {
+        const text = await fetchIcsText(fileName);
+        const events = parseIcs(text);
+        events.forEach((event) => {
+          const teacherNames = extractTeacherNames(event.description);
+          if (!teacherNames.length) return;
+          teacherNames.forEach((teacherName) => {
+            if (!teacherMap.has(teacherName)) {
+              teacherMap.set(teacherName, []);
+            }
+            teacherMap.get(teacherName).push(event);
+          });
+        });
+      } catch (error) {
+        console.warn("Erreur lors du chargement du fichier ICS:", fileName, error);
+      }
+    })
+  );
+
+  teacherMap.forEach((events) => {
+    events.sort((a, b) => new Date(a.start) - new Date(b.start));
+  });
+
+  return teacherMap;
+};
+
+const populateTeacherSelect = (teacherNames) => {
+  setSelectOptions(teacherSelect, "Professeur…", teacherNames, teacherNames.length === 0);
+};
+
+const loadTeacherList = async () => {
+  if (isTeacherListLoading) return { count: 0, error: false };
+  isTeacherListLoading = true;
+
+  try {
+    const studentFiles = getStudentFiles(availableFiles);
+    if (!studentFiles.length) {
+      populateTeacherSelect([]);
+      return { count: 0, error: false };
+    }
+
+    teacherEventsByName = await buildTeacherIndexFromFiles(studentFiles);
+    const teacherNames = getUnique(Array.from(teacherEventsByName.keys()));
+    populateTeacherSelect(teacherNames);
+    return { count: teacherNames.length, error: false };
+  } catch (error) {
+    populateTeacherSelect([]);
+    return { count: 0, error: true };
+  } finally {
+    isTeacherListLoading = false;
+  }
+};
+
+const loadTeacherSchedule = (teacherName) => {
+  if (!teacherName) return;
+  const events = teacherEventsByName.get(teacherName) || [];
+  allEvents = events;
+  populateRoomSelect();
+  currentWeekStart = getWeekStart(new Date());
+  renderWeek();
+  downloadLink.href = "#";
+  downloadLink.textContent = "Télécharger";
+  setStatus(`Emploi du temps du professeur : ${teacherName}`);
+};
+
+const updateModeVisibility = () => {
+  const isTeacherMode = modeSelect.value === "teacher";
+  const isRoomMode = modeSelect.value === "room";
+
+  studentControls.classList.toggle("is-hidden", isTeacherMode || isRoomMode);
+  teacherControls.classList.toggle("is-hidden", !isTeacherMode);
+  roomControls.classList.toggle("is-hidden", !isRoomMode);
+
+  if (!isRoomMode) {
+    roomScheduleContainer.style.display = "none";
+    roomModeStatus.textContent = "";
+  }
+
+  if (isTeacherMode) {
+    teacherSelect.focus();
+  } else if (isRoomMode) {
+    roomSelect.focus();
+  }
+};
 
 const updateTrackOptions = () => {
   const year = yearSelect.value;
@@ -500,6 +636,9 @@ const loadSelectedFile = () => {
   const type = typeSelect.value;
   const rest = fileSelect.value;
   if (!year || !track || !type || !rest) return;
+  if (modeSelect.value === "student") {
+    teacherSelect.value = "";
+  }
   const match = availableFiles.find(
     (item) =>
       item.year === year &&
@@ -610,16 +749,31 @@ const loadFileList = async () => {
     const html = await decodeTextWithFallback(response);
     const files = extractIcsLinks(html);
     populateSelects(files);
+    if (!files.length) {
+      populateTeacherSelect([]);
+      setStatus("Aucun fichier .ics détecté.");
+      return;
+    }
+
+    setSelectOptions(teacherSelect, "Chargement des professeurs…", [], true);
+    setStatus("Chargement des professeurs…");
+    const { count, error } = await loadTeacherList();
+    if (error) {
+      setStatus("Erreur lors du chargement des professeurs.");
+      return;
+    }
+
     setStatus(
-      files.length
-        ? "Liste chargée."
-        : "Aucun fichier .ics détecté."
+      count
+        ? `Liste chargée. Professeurs détectés : ${count}`
+        : "Liste chargée. Aucun professeur détecté."
     );
   } catch (error) {
     setStatus(
       "Impossible de lire le dossier /output. Activez l'indexation des fichiers côté serveur ou fournissez une liste JSON."
     );
     populateSelects([]);
+    populateTeacherSelect([]);
   }
 };
 
@@ -637,6 +791,14 @@ typeSelect.addEventListener("change", () => {
 
 fileSelect.addEventListener("change", () => {
   loadSelectedFile();
+});
+
+teacherSelect.addEventListener("change", () => {
+  loadTeacherSchedule(teacherSelect.value);
+});
+
+modeSelect.addEventListener("change", () => {
+  updateModeVisibility();
 });
 
 prevWeekBtn.addEventListener("click", () => {
@@ -809,6 +971,11 @@ const getAllRooms = () => {
   return Array.from(rooms).sort();
 };
 
+const populateRoomSelect = () => {
+  const rooms = getAllRooms();
+  setSelectOptions(roomSelect, "Salle…", rooms, rooms.length === 0);
+};
+
 const getEventsForRoom = (roomName, date = null) => {
   const targetDate = date || new Date();
   const dayKey = formatDateOnly(targetDate);
@@ -861,21 +1028,22 @@ const renderRoomSchedule = (events, roomName) => {
   roomScheduleContainer.style.display = "block";
 };
 
-searchRoomBtn.addEventListener("click", () => {
-  const roomName = roomInput.value.trim();
+roomSelect.addEventListener("change", () => {
+  const roomName = roomSelect.value.trim();
   if (!roomName) {
-    roomStatus.textContent = "Veuillez entrer un nom de salle.";
-    return;
-  }
-  
-  const events = getEventsForRoom(roomName);
-  if (events.length === 0) {
-    roomStatus.textContent = `Aucun événement trouvé pour la salle "${roomName}".`;
+    roomModeStatus.textContent = "";
     roomScheduleContainer.style.display = "none";
     return;
   }
-  
-  roomStatus.textContent = `${events.length} événement(s) trouvé(s) pour "${roomName}".`;
+
+  const events = getEventsForRoom(roomName);
+  if (events.length === 0) {
+    roomModeStatus.textContent = `Aucun événement trouvé pour la salle "${roomName}".`;
+    roomScheduleContainer.style.display = "none";
+    return;
+  }
+
+  roomModeStatus.textContent = `${events.length} événement(s) trouvé(s) pour "${roomName}".`;
   renderRoomSchedule(events, roomName);
 });
 
@@ -900,22 +1068,16 @@ emptyRoomsBtn.addEventListener("click", () => {
   });
   
   if (emptyRooms.length === 0) {
-    roomStatus.textContent = "Aucune salle vide en ce moment (salles A, B, C, D).";
+    emptyRoomsStatus.textContent = "Aucune salle vide en ce moment (salles A, B, C, D).";
     roomScheduleContainer.style.display = "none";
     return;
   }
   
-  roomStatus.innerHTML = `
+  emptyRoomsStatus.innerHTML = `
     <strong>${emptyRooms.length} salle(s) vide(s) en ce moment :</strong><br>
     ${emptyRooms.join(", ")}
   `;
   roomScheduleContainer.style.display = "none";
-});
-
-roomInput.addEventListener("keypress", (e) => {
-  if (e.key === "Enter") {
-    searchRoomBtn.click();
-  }
 });
 
 // ===== PROCHAIN COURS (MOBILE) =====
@@ -950,6 +1112,7 @@ const updateNextCourse = () => {
 
 loadFileList();
 initTheme();
+updateModeVisibility();
 
 // ===== SERVICE WORKER (PWA) =====
 if ('serviceWorker' in navigator) {

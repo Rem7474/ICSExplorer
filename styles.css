@@ -123,6 +123,15 @@ main {
   grid-template-columns: 1fr;
 }
 
+.controls-group {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.is-hidden {
+  display: none;
+}
+
 .controls label {
   font-weight: 600;
 }

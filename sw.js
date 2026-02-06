@@ -36,13 +36,53 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Stratégie de récupération : cache d'abord, puis réseau
+// Stratégie de récupération
 self.addEventListener('fetch', (event) => {
   // Ignorer les requêtes non-GET
   if (event.request.method !== 'GET') {
     return;
   }
 
+  const url = new URL(event.request.url);
+  const isIcsFile = url.pathname.endsWith('.ics');
+  const isApiCall = url.pathname.includes('/output/');
+
+  // Stratégie network-first pour les fichiers ICS et appels API (données dynamiques)
+  if (isIcsFile || isApiCall) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          // Cacher les réponses valides
+          if (response && response.status === 200) {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME)
+              .then((cache) => {
+                cache.put(event.request, responseToCache);
+              });
+          }
+          return response;
+        })
+        .catch(() => {
+          // Utiliser le cache en cas d'erreur réseau
+          return caches.match(event.request)
+            .then((response) => {
+              if (response) {
+                return response;
+              }
+              return new Response('Mode hors ligne', {
+                status: 503,
+                statusText: 'Service Unavailable',
+                headers: new Headers({
+                  'Content-Type': 'text/plain'
+                })
+              });
+            });
+        })
+    );
+    return;
+  }
+
+  // Stratégie cache-first pour les assets statiques
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
@@ -62,9 +102,6 @@ self.addEventListener('fetch', (event) => {
             caches.open(CACHE_NAME)
               .then((cache) => {
                 cache.put(event.request, responseToCache);
-              })
-              .catch(() => {
-                // Ignorer les erreurs de cache
               });
             return response;
           })
