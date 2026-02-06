@@ -1,5 +1,5 @@
 // Service Worker - Cache d'accès hors ligne
-const CACHE_NAME = 'edt-v2';
+const CACHE_NAME = 'edt-v3';
 const urlsToCache = [
   '/',
   '/index.html',
