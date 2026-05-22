@@ -66,6 +66,7 @@
         <button id="refreshBtn" type="button">Rafraîchir la liste</button>
         <button id="shareBtn" type="button" title="Copier l'URL de partage">Partager</button>
         <a id="downloadLink" class="download" href="#" download>Télécharger</a>
+        <a id="subscribeLink" class="subscribe" href="#" title="Ajouter ce planning à votre calendrier (mises à jour automatiques)">S'abonner</a>
       </div>
       <div id="status" class="status" role="status" aria-live="polite"></div>
     </section>
@@ -80,12 +81,18 @@
           <div id="weekLabel" class="week-label"></div>
           <button id="nextWeek" type="button" aria-label="Semaine suivante">▶</button>
         </div>
+        <div id="weekStats" class="week-stats" style="display: none;" aria-live="polite"></div>
       <div id="schedule" class="schedule"></div>
     </section>
 
     <section class="card room-search-section">
       <h2>Salles vides</h2>
-      <button id="emptyRoomsBtn" type="button" title="Salles libres en ce moment">Salles vides maintenant</button>
+      <p class="room-search-help">Affiche les salles libres à l'heure choisie, en croisant tous les emplois du temps.</p>
+      <div class="empty-rooms-controls">
+        <label for="emptyRoomsTime" class="sr-only">Heure à vérifier</label>
+        <input id="emptyRoomsTime" type="time" step="900" />
+        <button id="emptyRoomsBtn" type="button" title="Salles libres au créneau choisi (par défaut : maintenant / prochain créneau)">Rechercher</button>
+      </div>
       <div id="emptyRoomsStatus" class="status" role="status" aria-live="polite"></div>
     </section>
   </main>
@@ -97,15 +104,15 @@
   </footer>
 
   <!-- Modal événement -->
-  <div id="eventModal" class="modal" style="display: none;">
+  <div id="eventModal" class="modal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="eventTitle">
     <div class="modal-content">
-      <button id="closeModal" class="close-btn" type="button" aria-label="Fermer">✕</button>
+      <button id="closeModal" class="close-btn" type="button" aria-label="Fermer la fenêtre">✕</button>
       <h2 id="eventTitle"></h2>
       <div id="eventDetails" class="event-details"></div>
       <button id="addToCalendarBtn" class="modal-btn" type="button">Ajouter au calendrier</button>
     </div>
   </div>
 
-  <script src="script.js"></script>
+  <script type="module" src="src/main.js"></script>
 </body>
 </html>
