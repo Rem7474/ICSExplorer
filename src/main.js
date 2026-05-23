@@ -5,7 +5,12 @@ import {
   getWeekStart,
   getWeekEnd,
 } from "./utils/dates.js";
-import { $, escapeHtml } from "./utils/dom.js";
+import { $, escapeHtml, setSelectOptions } from "./utils/dom.js";
+import { getUnique } from "./utils/collections.js";
+import {
+  createFileCascade,
+  getStudentFiles as getStudentFilesFromItems,
+} from "./ui/controls.js";
 import {
   getSubjectType,
   getSubjectColors,
@@ -54,6 +59,7 @@ const downloadLink = $("downloadLink");
 const subscribeLink = $("subscribeLink");
 const shareBtn = $("shareBtn");
 const weekStatsEl = $("weekStats");
+const dayDotsEl = $("dayDots");
 const prevWeekBtn = $("prevWeek");
 const nextWeekBtn = $("nextWeek");
 const weekLabelEl = $("weekLabel");
@@ -76,13 +82,25 @@ const themeToggle = $("themeToggle");
 const state = {
   viewEvents: [],
   currentWeekStart: null,
-  availableFiles: [],
   currentEvent: null,
   teacherEventsByName: new Map(),
   isTeacherListLoading: false,
   currentRoomName: null,
   isRoomSelectPopulated: false,
 };
+
+// ===== Cascading selects =====
+const fileCascade = createFileCascade({
+  yearSelect,
+  trackSelect,
+  typeSelect,
+  fileSelect,
+  onComplete: (match) => {
+    if (modeSelect.value === "student") teacherSelect.value = "";
+    persistCurrentSelection();
+    loadSchedule(match.file);
+  },
+});
 
 // ===== Helpers =====
 const setStatus = (message) => {
@@ -94,51 +112,8 @@ const setWeekLabel = (weekStart) => {
   weekLabelEl.textContent = `${formatDateOnly(weekStart)} - ${formatDateOnly(weekEnd)}`;
 };
 
-const isStudentType = (typeValue) =>
-  String(typeValue || "").toLowerCase().includes("eleve");
-
-const getStudentFiles = (items = state.availableFiles) => {
-  const studentItems = items.filter((item) => isStudentType(item.type));
-  const source = studentItems.length ? studentItems : items;
-  return source.map((item) => item.file);
-};
-
-const getUnique = (values) =>
-  [...new Set(values)].sort((a, b) =>
-    a.localeCompare(b, "fr", { numeric: true })
-  );
-
-const setSelectOptions = (select, placeholderText, values, disabled = false) => {
-  select.innerHTML = "";
-  const placeholder = document.createElement("option");
-  placeholder.value = "";
-  placeholder.textContent = placeholderText;
-  select.appendChild(placeholder);
-  values.forEach((value) => {
-    const option = document.createElement("option");
-    option.value = value;
-    option.textContent = value;
-    select.appendChild(option);
-  });
-  select.disabled = disabled || values.length === 0;
-};
-
-const normalizeFiles = (files) =>
-  files
-    .map((file) => {
-      const base = file.replace(/\.ics$/i, "");
-      const normalized = base.replace(/\s*-\s*/g, "-");
-      const parts = normalized.split("-");
-      const [year, track, type, ...restParts] = parts;
-      return {
-        file,
-        year: year || "",
-        track: track || "",
-        type: type || "",
-        rest: restParts.length ? restParts.join("-") : "(général)",
-      };
-    })
-    .filter((item) => item.year && item.track && item.type);
+const getStudentFiles = () =>
+  getStudentFilesFromItems(fileCascade.getAvailableFiles());
 
 // ===== Render =====
 const renderWeek = () => {
@@ -153,6 +128,7 @@ const renderWeek = () => {
     container: scheduleEl,
     events: weekEvents,
     onEventClick: showEventModal,
+    dotsContainer: dayDotsEl,
   });
   renderWeekStats(weekStatsEl, weekEvents);
   updateNextCourse();
@@ -350,9 +326,7 @@ const onModeChange = () => {
 
   // Restore appropriate view if possible
   if (mode === "student") {
-    if (yearSelect.value && trackSelect.value && typeSelect.value && fileSelect.value) {
-      loadSelectedFile();
-    }
+    fileCascade.triggerLoad();
   } else if (mode === "teacher") {
     if (teacherSelect.value) loadTeacherSchedule(teacherSelect.value);
   } else if (mode === "room") {
@@ -360,88 +334,15 @@ const onModeChange = () => {
   }
 };
 
-// ===== Cascading selects =====
-const updateTrackOptions = () => {
-  const year = yearSelect.value;
-  const tracks = getUnique(
-    state.availableFiles
-      .filter((item) => item.year === year)
-      .map((item) => item.track)
-  );
-  setSelectOptions(trackSelect, "Parcours…", tracks, !year);
-  setSelectOptions(typeSelect, "Type…", [], true);
-  setSelectOptions(fileSelect, "Suite…", [], true);
-};
-
-const updateTypeOptions = () => {
-  const year = yearSelect.value;
-  const track = trackSelect.value;
-  const types = getUnique(
-    state.availableFiles
-      .filter((item) => item.year === year && item.track === track)
-      .map((item) => item.type)
-  );
-  setSelectOptions(typeSelect, "Type…", types, !track);
-  setSelectOptions(fileSelect, "Suite…", [], true);
-};
-
-const updateFileOptions = () => {
-  const year = yearSelect.value;
-  const track = trackSelect.value;
-  const type = typeSelect.value;
-  const rests = getUnique(
-    state.availableFiles
-      .filter(
-        (item) =>
-          item.year === year && item.track === track && item.type === type
-      )
-      .map((item) => item.rest)
-  );
-  setSelectOptions(fileSelect, "Suite…", rests, !type);
-};
-
-const loadSelectedFile = () => {
-  const year = yearSelect.value;
-  const track = trackSelect.value;
-  const type = typeSelect.value;
-  const rest = fileSelect.value;
-  if (!year || !track || !type || !rest) return;
-  if (modeSelect.value === "student") teacherSelect.value = "";
-  const match = state.availableFiles.find(
-    (item) =>
-      item.year === year &&
-      item.track === track &&
-      item.type === type &&
-      item.rest === rest
-  );
-  if (match) {
-    persistCurrentSelection();
-    loadSchedule(match.file);
-  }
-};
-
 const currentSelection = () => ({
   mode: modeSelect.value,
-  year: yearSelect.value,
-  track: trackSelect.value,
-  type: typeSelect.value,
-  rest: fileSelect.value,
+  ...fileCascade.getSelection(),
 });
 
 const persistCurrentSelection = () => {
   const sel = currentSelection();
   saveSelection(sel);
   writeUrlParams(sel);
-};
-
-const applySelectionFromMatch = (match) => {
-  yearSelect.value = match.year;
-  updateTrackOptions();
-  trackSelect.value = match.track;
-  updateTypeOptions();
-  typeSelect.value = match.type;
-  updateFileOptions();
-  fileSelect.value = match.rest;
 };
 
 const applyModeSelection = (modeValue) => {
@@ -453,57 +354,13 @@ const applyModeSelection = (modeValue) => {
 };
 
 const populateSelects = (files) => {
-  state.availableFiles = normalizeFiles(files);
-  if (!state.availableFiles.length) {
-    setSelectOptions(yearSelect, "Aucun fichier ICS trouvé", [], true);
-    setSelectOptions(trackSelect, "Parcours…", [], true);
-    setSelectOptions(typeSelect, "Type…", [], true);
-    setSelectOptions(fileSelect, "Suite…", [], true);
-    return;
-  }
-
-  const years = getUnique(state.availableFiles.map((item) => item.year));
-  setSelectOptions(yearSelect, "Année…", years, false);
-  setSelectOptions(trackSelect, "Parcours…", [], true);
-  setSelectOptions(typeSelect, "Type…", [], true);
-  setSelectOptions(fileSelect, "Suite…", [], true);
+  fileCascade.setAvailableFiles(files);
+  if (!fileCascade.getAvailableFiles().length) return;
 
   const params = mergeSelectionSources();
   applyModeSelection(params.mode);
-
-  const matchFromParams =
-    params.year && params.track && params.type && params.rest
-      ? state.availableFiles.find(
-          (item) =>
-            item.year === params.year &&
-            item.track === params.track &&
-            item.type === params.type &&
-            item.rest === params.rest
-        )
-      : null;
-
-  if (matchFromParams) {
-    applySelectionFromMatch(matchFromParams);
-    loadSelectedFile();
-    return;
-  }
-
-  if (params.year && years.includes(params.year)) {
-    yearSelect.value = params.year;
-    updateTrackOptions();
-    if (params.track) {
-      trackSelect.value = params.track;
-      updateTypeOptions();
-      if (params.type) {
-        typeSelect.value = params.type;
-        updateFileOptions();
-        if (params.rest) {
-          fileSelect.value = params.rest;
-          loadSelectedFile();
-        }
-      }
-    }
-  }
+  fileCascade.applyPartialSelection(params);
+  fileCascade.triggerLoad();
 };
 
 const loadFileList = async () => {
@@ -538,10 +395,6 @@ const loadFileList = async () => {
 };
 
 // ===== Event wiring =====
-yearSelect.addEventListener("change", updateTrackOptions);
-trackSelect.addEventListener("change", updateTypeOptions);
-typeSelect.addEventListener("change", updateFileOptions);
-fileSelect.addEventListener("change", loadSelectedFile);
 teacherSelect.addEventListener("change", () =>
   loadTeacherSchedule(teacherSelect.value)
 );
@@ -679,7 +532,7 @@ initEmptyRoomsFeature({
   buttonEl: emptyRoomsBtn,
   statusEl: emptyRoomsStatus,
   timeInputEl: emptyRoomsTime,
-  getStudentFiles: () => getStudentFiles(state.availableFiles),
+  getStudentFiles,
 });
 
 // ===== Next course (card displayed on mobile) =====

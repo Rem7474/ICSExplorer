@@ -14,15 +14,21 @@ let PX_PER_HOUR = SCHEDULE_PX / HOURS_TOTAL;
 const isMobileViewport = () =>
   window.matchMedia("(max-width: 480px)").matches;
 
-const adjustHoursForMobile = (events) => {
-  if (!isMobileViewport() || !events.length) {
+// Compute schedule range from events: default 8-18, expanded to fit outliers.
+// Applies on both desktop and mobile so a day has the same scale across days,
+// keeping swipe transitions visually stable.
+const adjustHoursToFit = (events) => {
+  if (!events.length) {
     HOUR_START = DEFAULT_HOUR_START;
     HOUR_END = DEFAULT_HOUR_END;
   } else {
     const startHours = events.map((e) => new Date(e.start).getHours());
-    const endHours = events.map((e) => new Date(e.end).getHours());
-    HOUR_START = Math.min(...startHours);
-    HOUR_END = Math.max(...endHours);
+    const endHoursCeil = events.map((e) => {
+      const d = new Date(e.end);
+      return d.getHours() + (d.getMinutes() > 0 ? 1 : 0);
+    });
+    HOUR_START = Math.min(DEFAULT_HOUR_START, ...startHours);
+    HOUR_END = Math.max(DEFAULT_HOUR_END, ...endHoursCeil);
   }
 
   HOURS_TOTAL = Math.max(1, HOUR_END - HOUR_START);
@@ -35,18 +41,18 @@ const adjustHoursForMobile = (events) => {
   root.setProperty("--px-per-hour", PX_PER_HOUR + "px");
 };
 
-const getEventTop = (date, startHour, pxPerHour) => {
+const getEventTop = (date) => {
   const hours = date.getHours();
   const minutes = date.getMinutes();
-  const relativeHours = hours - startHour + minutes / 60;
-  return Math.max(0, relativeHours * pxPerHour);
+  const relativeHours = hours - HOUR_START + minutes / 60;
+  return Math.max(0, relativeHours * PX_PER_HOUR);
 };
 
-const getEventHeight = (start, end, pxPerHour) => {
+const getEventHeight = (start, end) => {
   const startDate = new Date(start);
   const endDate = new Date(end);
   const durationMinutes = (endDate - startDate) / 60000;
-  return Math.max(20, (durationMinutes / 60) * pxPerHour);
+  return Math.max(20, (durationMinutes / 60) * PX_PER_HOUR);
 };
 
 const groupEventsByDay = (events) =>
@@ -58,7 +64,6 @@ const groupEventsByDay = (events) =>
   }, new Map());
 
 // Greedy column packing per cluster of mutually-overlapping events.
-// Returns Map<eventObject, { col, cols }>
 const layoutDayEvents = (events) => {
   const items = events.map((event) => ({
     event,
@@ -73,7 +78,7 @@ const layoutDayEvents = (events) => {
 
   const flush = () => {
     if (!cluster.length) return;
-    const lanes = []; // each lane = endT of last event placed
+    const lanes = [];
     const colByIdx = [];
     cluster.forEach((item) => {
       let lane = lanes.findIndex((endT) => endT <= item.startT);
@@ -103,24 +108,15 @@ const layoutDayEvents = (events) => {
   return layout;
 };
 
-const renderDay = (day, dayEvents, isMobile, todayKey, eventIndex) => {
-  const dayStart = isMobile
-    ? Math.min(...dayEvents.map((e) => new Date(e.start).getHours()))
-    : HOUR_START;
-  const dayEnd = isMobile
-    ? Math.max(...dayEvents.map((e) => new Date(e.end).getHours()))
-    : HOUR_END;
-  const dayHoursTotal = Math.max(1, dayEnd - dayStart);
-  const dayPxPerHour = isMobile ? SCHEDULE_PX / dayHoursTotal : PX_PER_HOUR;
-
+const renderDay = (day, dayEvents, todayKey, eventIndex) => {
   const layout = layoutDayEvents(dayEvents);
 
   const eventElements = dayEvents
     .map((event, idx) => {
       const summary = event.summary || "(Sans titre)";
       const timeRange = `${formatTimeOnly(event.start)} - ${formatTimeOnly(event.end)}`;
-      const top = getEventTop(event.start, dayStart, dayPxPerHour);
-      const height = getEventHeight(event.start, event.end, dayPxPerHour);
+      const top = getEventTop(new Date(event.start));
+      const height = getEventHeight(event.start, event.end);
       const subjectType = getSubjectType(summary);
       const colors = getSubjectColors(summary);
       const { col, cols } = layout.get(event) || { col: 0, cols: 1 };
@@ -148,13 +144,10 @@ const renderDay = (day, dayEvents, isMobile, todayKey, eventIndex) => {
 
   const now = new Date();
   const isToday = day === todayKey;
-  const isWithinBusinessHours = !isMobile
-    ? now.getHours() >= HOUR_START && now.getHours() < HOUR_END
-    : now.getHours() >= dayStart && now.getHours() < dayEnd;
+  const isWithinBusinessHours =
+    now.getHours() >= HOUR_START && now.getHours() < HOUR_END;
   const currentTimeTop =
-    isToday && isWithinBusinessHours
-      ? getEventTop(now, dayStart, dayPxPerHour)
-      : null;
+    isToday && isWithinBusinessHours ? getEventTop(now) : null;
   const currentTimeIndicator =
     currentTimeTop !== null
       ? `<div class="current-time-line" style="--indicator-top: ${currentTimeTop}px;" aria-hidden="true"></div>`
@@ -163,7 +156,7 @@ const renderDay = (day, dayEvents, isMobile, todayKey, eventIndex) => {
   return `
     <div class="day-group ${isToday ? "today" : ""}">
       <div class="day-title">${escapeHtml(day)}</div>
-      <div class="day-schedule" style="--px-per-hour: ${dayPxPerHour}px;">
+      <div class="day-schedule">
         ${currentTimeIndicator}
         ${eventElements}
       </div>
@@ -189,19 +182,26 @@ const renderHourRail = () => {
   `;
 };
 
+// All days share the same min-height for visual consistency,
+// especially important in the mobile horizontal-swipe view.
 const adjustDayHeights = (container) => {
-  container.querySelectorAll(".day-schedule").forEach((schedule) => {
-    const eventEls = schedule.querySelectorAll(".event");
-    if (eventEls.length === 0) return;
-    let maxBottom = 0;
-    eventEls.forEach((el) => {
+  const dayScheds = container.querySelectorAll(".day-schedule");
+  if (!dayScheds.length) return;
+
+  let maxBottom = 0;
+  dayScheds.forEach((schedule) => {
+    schedule.querySelectorAll(".event").forEach((el) => {
       const top = parseFloat(el.style.getPropertyValue("--event-top")) || 0;
       const height =
         parseFloat(el.style.getPropertyValue("--event-height")) || 0;
       const bottom = top + height;
       if (bottom > maxBottom) maxBottom = bottom;
     });
-    schedule.style.minHeight = Math.max(maxBottom + 10, 300) + "px";
+  });
+
+  const minHeight = Math.max(maxBottom + 10, SCHEDULE_PX);
+  dayScheds.forEach((schedule) => {
+    schedule.style.minHeight = minHeight + "px";
   });
 };
 
@@ -221,12 +221,92 @@ const wireClickHandlers = (container, eventIndex, onEventClick) => {
   });
 };
 
-export const renderSchedule = ({ container, events, onEventClick }) => {
-  adjustHoursForMobile(events);
+// ===== Mobile horizontal swipe + day dots =====
+const renderDayDots = (dotsContainer, days, todayKey) => {
+  if (!dotsContainer) return;
+  if (!days.length) {
+    dotsContainer.innerHTML = "";
+    return;
+  }
+  const dots = days
+    .map((day, idx) => {
+      const isToday = day === todayKey;
+      const label = isToday ? `${day} (aujourd'hui)` : day;
+      return `<button type="button" class="day-dot ${isToday ? "today" : ""}" data-day-index="${idx}" aria-label="${escapeHtml(label)}"></button>`;
+    })
+    .join("");
+  dotsContainer.innerHTML = dots;
+};
+
+const wireSwipeNavigation = (scheduleContainer, dotsContainer, days, todayKey) => {
+  if (!dotsContainer) return;
+
+  const dayGroups = scheduleContainer.querySelectorAll(".day-group");
+  const dotEls = dotsContainer.querySelectorAll(".day-dot");
+
+  // Click dot → scroll to that day
+  dotEls.forEach((dot) => {
+    dot.addEventListener("click", () => {
+      const idx = Number(dot.getAttribute("data-day-index"));
+      const target = dayGroups[idx];
+      if (!target) return;
+      scheduleContainer.scrollTo({
+        left: target.offsetLeft,
+        behavior: "smooth",
+      });
+    });
+  });
+
+  // Scroll → update active dot
+  const updateActive = () => {
+    if (!dayGroups.length) return;
+    const scrollLeft = scheduleContainer.scrollLeft;
+    let bestIdx = 0;
+    let bestDistance = Infinity;
+    dayGroups.forEach((group, idx) => {
+      const distance = Math.abs(group.offsetLeft - scrollLeft);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIdx = idx;
+      }
+    });
+    dotEls.forEach((dot, idx) => {
+      dot.classList.toggle("active", idx === bestIdx);
+    });
+  };
+
+  let scrollRaf = 0;
+  scheduleContainer.addEventListener("scroll", () => {
+    if (scrollRaf) return;
+    scrollRaf = requestAnimationFrame(() => {
+      scrollRaf = 0;
+      updateActive();
+    });
+  });
+
+  // Initial scroll: jump to today if present, otherwise first day
+  requestAnimationFrame(() => {
+    const todayIdx = days.indexOf(todayKey);
+    if (todayIdx > 0) {
+      const target = dayGroups[todayIdx];
+      if (target) scheduleContainer.scrollLeft = target.offsetLeft;
+    }
+    updateActive();
+  });
+};
+
+export const renderSchedule = ({
+  container,
+  events,
+  onEventClick,
+  dotsContainer,
+}) => {
+  adjustHoursToFit(events);
   const isMobile = isMobileViewport();
 
   if (!events.length) {
     container.innerHTML = "<p>Aucun événement pour cette semaine.</p>";
+    if (dotsContainer) dotsContainer.innerHTML = "";
     return;
   }
 
@@ -234,6 +314,7 @@ export const renderSchedule = ({ container, events, onEventClick }) => {
   const days = Array.from(grouped.keys());
   if (days.length === 0) {
     container.innerHTML = "<p>Aucun événement pour cette semaine.</p>";
+    if (dotsContainer) dotsContainer.innerHTML = "";
     return;
   }
 
@@ -242,11 +323,18 @@ export const renderSchedule = ({ container, events, onEventClick }) => {
 
   const railHtml = isMobile ? "" : renderHourRail();
   const daysHtml = days
-    .map((day) => renderDay(day, grouped.get(day), isMobile, todayKey, eventIndex))
+    .map((day) => renderDay(day, grouped.get(day), todayKey, eventIndex))
     .join("");
 
   container.innerHTML = railHtml + daysHtml;
 
   wireClickHandlers(container, eventIndex, onEventClick);
   adjustDayHeights(container);
+
+  if (isMobile) {
+    renderDayDots(dotsContainer, days, todayKey);
+    wireSwipeNavigation(container, dotsContainer, days, todayKey);
+  } else if (dotsContainer) {
+    dotsContainer.innerHTML = "";
+  }
 };

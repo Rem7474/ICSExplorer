@@ -9,3 +9,18 @@ export const escapeHtml = (value) => {
 };
 
 export const $ = (id) => document.getElementById(id);
+
+export const setSelectOptions = (select, placeholderText, values, disabled = false) => {
+  select.innerHTML = "";
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = placeholderText;
+  select.appendChild(placeholder);
+  values.forEach((value) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = value;
+    select.appendChild(option);
+  });
+  select.disabled = disabled || values.length === 0;
+};

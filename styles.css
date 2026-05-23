@@ -345,6 +345,45 @@ main {
   font-weight: 700;
 }
 
+/* Day dots (mobile swipe nav) */
+.day-dots {
+  display: none;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+@media (max-width: 480px) {
+  .day-dots {
+    display: flex;
+  }
+}
+
+.day-dot {
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--border);
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.day-dot:hover {
+  background: var(--muted);
+}
+
+.day-dot.today {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.day-dot.active {
+  background: var(--accent);
+  transform: scale(1.35);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -497,11 +536,7 @@ main {
   gap: 0.75rem;
 }
 
-@media (max-width: 480px) {
-  .day-group.today {
-    order: -1;
-  }
-}
+/* Mobile horizontal swipe view sets its own ordering — see media query at end */
 
 .day-title {
   font-weight: 700;
@@ -864,9 +899,28 @@ main {
     padding: 0.75rem;
   }
 
+  /* Mobile: horizontal swipe between days, snap to each */
   .schedule {
-    grid-template-columns: 1fr;
-    gap: 0.5rem;
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 0;
+  }
+
+  .schedule::-webkit-scrollbar {
+    display: none;
+  }
+
+  .day-group {
+    flex: 0 0 100%;
+    min-width: 100%;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
   }
 
   .hour-rail {

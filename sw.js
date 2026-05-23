@@ -1,5 +1,5 @@
 // Service Worker - Cache d'accès hors ligne
-const CACHE_NAME = 'edt-v7';
+const CACHE_NAME = 'edt-v8';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -8,12 +8,14 @@ const urlsToCache = [
   '/src/utils/dom.js',
   '/src/utils/dates.js',
   '/src/utils/colors.js',
+  '/src/utils/collections.js',
   '/src/ics/parser.js',
   '/src/ics/api.js',
   '/src/ics/aggregator.js',
   '/src/ui/schedule.js',
   '/src/ui/modal.js',
   '/src/ui/toast.js',
+  '/src/ui/controls.js',
   '/src/state/persistence.js',
   '/src/features/empty-rooms.js',
   '/src/features/week-stats.js',
