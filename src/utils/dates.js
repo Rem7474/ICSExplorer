@@ -47,3 +47,32 @@ export const getWeekEnd = (weekStart) => {
   d.setHours(23, 59, 59, 999);
   return d;
 };
+
+export const addDays = (date, days) => {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+};
+
+// Returns the week start of the next event that hasn't ended yet. Falls back
+// to the current week if no upcoming events exist. This skips empty weeks
+// (vacations, end-of-week after Friday's last course is done, etc.).
+export const getRelevantWeekStart = (events, now = new Date()) => {
+  const weekStart = getWeekStart(now);
+  if (!events || !events.length) return weekStart;
+
+  let nextEvent = null;
+  let nextStartT = Infinity;
+  for (const ev of events) {
+    const end = new Date(ev.end);
+    if (end <= now) continue;
+    const startT = new Date(ev.start).getTime();
+    if (startT < nextStartT) {
+      nextStartT = startT;
+      nextEvent = ev;
+    }
+  }
+
+  if (nextEvent) return getWeekStart(nextEvent.start);
+  return weekStart;
+};

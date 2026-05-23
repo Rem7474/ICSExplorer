@@ -4,6 +4,7 @@ import {
   formatTimeOnly,
   getWeekStart,
   getWeekEnd,
+  getRelevantWeekStart,
 } from "./utils/dates.js";
 import { $, escapeHtml, setSelectOptions } from "./utils/dom.js";
 import { getUnique } from "./utils/collections.js";
@@ -148,7 +149,7 @@ const loadSchedule = async (fileName) => {
     const text = await response.text();
     state.viewEvents = parseIcs(text);
     state.currentRoomName = null;
-    state.currentWeekStart = getWeekStart(new Date());
+    state.currentWeekStart = getRelevantWeekStart(state.viewEvents);
     renderWeek();
     downloadLink.href = url;
     downloadLink.textContent = `Télécharger (${fileName})`;
@@ -228,7 +229,7 @@ const loadTeacherSchedule = (teacherName) => {
   const events = state.teacherEventsByName.get(teacherName) || [];
   state.viewEvents = events;
   state.currentRoomName = null;
-  state.currentWeekStart = getWeekStart(new Date());
+  state.currentWeekStart = getRelevantWeekStart(state.viewEvents);
   renderWeek();
   downloadLink.href = "#";
   downloadLink.textContent = "Télécharger";
@@ -282,7 +283,7 @@ const loadRoomSchedule = async (roomName) => {
 
     state.viewEvents = events;
     state.currentRoomName = roomName;
-    state.currentWeekStart = getWeekStart(new Date());
+    state.currentWeekStart = getRelevantWeekStart(state.viewEvents);
 
     if (events.length === 0) {
       scheduleEl.innerHTML = `<p>Aucun événement trouvé pour la salle "${escapeHtml(roomName)}".</p>`;
@@ -420,7 +421,7 @@ nextWeekBtn.addEventListener("click", () => {
 });
 
 $("todayBtn").addEventListener("click", () => {
-  state.currentWeekStart = getWeekStart(new Date());
+  state.currentWeekStart = getRelevantWeekStart(state.viewEvents);
   renderWeek();
 });
 
