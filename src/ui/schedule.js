@@ -295,17 +295,48 @@ const wireSwipeNavigation = (scheduleContainer, dotsContainer, days, todayKey) =
   });
 };
 
+const renderEmptyState = (container, emptyState) => {
+  const title = (emptyState && emptyState.title) || "Aucun événement";
+  const subtitle = (emptyState && emptyState.subtitle) || "";
+  const cta = emptyState && emptyState.cta;
+
+  const ctaHtml = cta
+    ? `<button type="button" class="empty-cta">${escapeHtml(cta.label)}</button>`
+    : "";
+
+  container.innerHTML = `
+    <div class="empty-state">
+      <svg class="empty-illustration" viewBox="0 0 120 120" width="120" height="120" aria-hidden="true">
+        <circle cx="60" cy="60" r="48" fill="none" stroke="currentColor" stroke-width="2" opacity="0.25"/>
+        <rect x="38" y="42" width="44" height="38" rx="4" fill="none" stroke="currentColor" stroke-width="2" opacity="0.55"/>
+        <line x1="38" y1="54" x2="82" y2="54" stroke="currentColor" stroke-width="2" opacity="0.55"/>
+        <line x1="48" y1="38" x2="48" y2="48" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
+        <line x1="72" y1="38" x2="72" y2="48" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
+      </svg>
+      <p class="empty-title">${escapeHtml(title)}</p>
+      ${subtitle ? `<p class="empty-subtitle">${escapeHtml(subtitle)}</p>` : ""}
+      ${ctaHtml}
+    </div>
+  `;
+
+  if (cta) {
+    const btn = container.querySelector(".empty-cta");
+    if (btn) btn.addEventListener("click", cta.onClick);
+  }
+};
+
 export const renderSchedule = ({
   container,
   events,
   onEventClick,
   dotsContainer,
+  emptyState,
 }) => {
   adjustHoursToFit(events);
   const isMobile = isMobileViewport();
 
   if (!events.length) {
-    container.innerHTML = "<p>Aucun événement pour cette semaine.</p>";
+    renderEmptyState(container, emptyState);
     if (dotsContainer) dotsContainer.innerHTML = "";
     return;
   }
@@ -313,7 +344,7 @@ export const renderSchedule = ({
   const grouped = groupEventsByDay(events);
   const days = Array.from(grouped.keys());
   if (days.length === 0) {
-    container.innerHTML = "<p>Aucun événement pour cette semaine.</p>";
+    renderEmptyState(container, emptyState);
     if (dotsContainer) dotsContainer.innerHTML = "";
     return;
   }

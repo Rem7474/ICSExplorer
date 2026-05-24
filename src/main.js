@@ -17,18 +17,11 @@ import {
   getSubjectColors,
   invalidateColorCache,
 } from "./utils/colors.js";
-import {
-  parseIcs,
-  extractTeacherNames,
-  generateIcsEvent,
-} from "./ics/parser.js";
-import {
-  fileUrl,
-  fetchIcsText,
-  fetchFileList,
-} from "./ics/api.js";
+import { parseIcs, generateIcsEvent } from "./ics/parser.js";
+import { fileUrl, fetchFileList } from "./ics/api.js";
 import {
   getAggregatedEvents,
+  getTeacherIndex,
   invalidateAggregateCache,
 } from "./ics/aggregator.js";
 import { renderSchedule } from "./ui/schedule.js";
@@ -36,6 +29,16 @@ import { initModal, openModal, closeModal } from "./ui/modal.js";
 import { showToast } from "./ui/toast.js";
 import { initEmptyRoomsFeature } from "./features/empty-rooms.js";
 import { renderWeekStats } from "./features/week-stats.js";
+import { checkVersion } from "./features/etag-watcher.js";
+import { createFavorites } from "./features/favorites.js";
+import {
+  isSupported as notifSupported,
+  isEnabled as notifEnabled,
+  setEnabled as setNotifEnabled,
+  currentPermission as notifPermission,
+  requestPermission as requestNotifPermission,
+  scheduleNotifications,
+} from "./features/notifications.js";
 import {
   saveSelection,
   writeUrlParams,
@@ -60,6 +63,9 @@ const subscribeLink = $("subscribeLink");
 const shareBtn = $("shareBtn");
 const weekStatsEl = $("weekStats");
 const dayDotsEl = $("dayDots");
+const favoritesBarEl = $("favoritesBar");
+const addFavBtn = $("addFavBtn");
+const notifBtn = $("notifBtn");
 const prevWeekBtn = $("prevWeek");
 const nextWeekBtn = $("nextWeek");
 const weekLabelEl = $("weekLabel");
@@ -86,6 +92,7 @@ const state = {
   teacherEventsByName: new Map(),
   isTeacherListLoading: false,
   currentRoomName: null,
+  currentTeacherName: null,
   isRoomSelectPopulated: false,
 };
 
@@ -99,8 +106,46 @@ const fileCascade = createFileCascade({
     if (modeSelect.value === "student") teacherSelect.value = "";
     persistCurrentSelection();
     loadSchedule(match.file);
+    favorites.refreshActiveState();
   },
 });
+
+// ===== Favorites + Notifications wiring (instances filled below) =====
+let favorites;
+
+const getCurrentSelection = () => ({
+  mode: modeSelect.value,
+  ...fileCascade.getSelection(),
+  teacher: state.currentTeacherName || "",
+  room: state.currentRoomName || "",
+});
+
+const applyFavorite = (fav) => {
+  if (fav.mode === "student") {
+    if (modeSelect.value !== "student") {
+      modeSelect.value = "student";
+      updateModeVisibility();
+    }
+    fileCascade.applyPartialSelection(fav);
+    fileCascade.triggerLoad();
+  } else if (fav.mode === "teacher" && fav.teacher) {
+    if (modeSelect.value !== "teacher") {
+      modeSelect.value = "teacher";
+      updateModeVisibility();
+    }
+    teacherSelect.value = fav.teacher;
+    loadTeacherSchedule(fav.teacher);
+  } else if (fav.mode === "room" && fav.room) {
+    if (modeSelect.value !== "room") {
+      modeSelect.value = "room";
+      updateModeVisibility();
+    }
+    populateRoomSelectFromAggregator().then(() => {
+      roomSelect.value = fav.room;
+      loadRoomSchedule(fav.room);
+    });
+  }
+};
 
 // ===== Helpers =====
 const setStatus = (message) => {
@@ -129,13 +174,56 @@ const renderWeek = () => {
     events: weekEvents,
     onEventClick: showEventModal,
     dotsContainer: dayDotsEl,
+    emptyState: buildEmptyState(weekEvents),
   });
   renderWeekStats(weekStatsEl, weekEvents);
   updateNextCourse();
+  scheduleNotifications(state.viewEvents);
+};
+
+const buildEmptyState = (weekEvents) => {
+  if (weekEvents.length > 0) return null;
+  if (!state.viewEvents.length) {
+    return {
+      title: "Aucun emploi du temps chargé",
+      subtitle: "Sélectionne une année, un parcours et un type ci-dessus.",
+    };
+  }
+  const now = new Date();
+  const nextEvent = state.viewEvents.find((ev) => new Date(ev.start) > now);
+  if (nextEvent) {
+    const nextWeek = getWeekStart(nextEvent.start);
+    if (nextWeek.getTime() === state.currentWeekStart.getTime()) {
+      return {
+        title: "Pas encore de cours cette semaine",
+        subtitle: "Profite du calme.",
+      };
+    }
+    return {
+      title: "Pas de cours cette semaine",
+      subtitle: `Prochain cours : ${formatDateOnly(nextEvent.start)}`,
+      cta: {
+        label: "Aller au prochain cours",
+        onClick: () => {
+          state.currentWeekStart = nextWeek;
+          renderWeek();
+        },
+      },
+    };
+  }
+  return {
+    title: "Plus aucun cours à venir",
+    subtitle: "L'emploi du temps est épuisé.",
+  };
 };
 
 const toWebcalUrl = (httpsUrl) =>
   httpsUrl.replace(/^https?:/, "webcal:");
+
+// ===== Dynamic page title =====
+const setPageTitle = (suffix) => {
+  document.title = suffix ? `${suffix} — EDT ESISAR` : "Emplois du temps ESISAR";
+};
 
 // ===== Student / file loading =====
 const loadSchedule = async (fileName) => {
@@ -145,14 +233,25 @@ const loadSchedule = async (fileName) => {
     const url = fileUrl(fileName);
     const response = await fetch(url);
     if (!response.ok) throw new Error("Impossible de récupérer le fichier.");
+    const { changed } = checkVersion(url, response);
     const text = await response.text();
     state.viewEvents = parseIcs(text);
+    if (changed) {
+      showToast("Ton emploi du temps a été mis à jour.", {
+        type: "info",
+        duration: 4500,
+      });
+    }
     state.currentRoomName = null;
+    state.currentTeacherName = null;
     state.currentWeekStart = getRelevantWeekStart(state.viewEvents);
     renderWeek();
     downloadLink.href = url;
     downloadLink.textContent = `Télécharger (${fileName})`;
     subscribeLink.href = toWebcalUrl(url);
+    const sel = fileCascade.getSelection();
+    const label = [sel.year, sel.track, sel.type].filter(Boolean).join(" ");
+    setPageTitle(label || fileName);
     setStatus(`Chargé : ${fileName}`);
   } catch (error) {
     setStatus("Erreur lors du chargement du fichier ICS.");
@@ -161,35 +260,6 @@ const loadSchedule = async (fileName) => {
 };
 
 // ===== Teacher mode =====
-const buildTeacherIndexFromFiles = async (fileNames) => {
-  const teacherMap = new Map();
-
-  await Promise.all(
-    fileNames.map(async (fileName) => {
-      try {
-        const text = await fetchIcsText(fileName);
-        const events = parseIcs(text);
-        events.forEach((event) => {
-          const teacherNames = extractTeacherNames(event.description);
-          if (!teacherNames.length) return;
-          teacherNames.forEach((teacherName) => {
-            if (!teacherMap.has(teacherName)) teacherMap.set(teacherName, []);
-            teacherMap.get(teacherName).push(event);
-          });
-        });
-      } catch (error) {
-        console.warn("Erreur lors du chargement du fichier ICS:", fileName, error);
-      }
-    })
-  );
-
-  teacherMap.forEach((events) => {
-    events.sort((a, b) => new Date(a.start) - new Date(b.start));
-  });
-
-  return teacherMap;
-};
-
 const populateTeacherSelect = (teacherNames) => {
   setSelectOptions(
     teacherSelect,
@@ -208,7 +278,7 @@ const loadTeacherList = async () => {
       populateTeacherSelect([]);
       return { count: 0, error: false };
     }
-    state.teacherEventsByName = await buildTeacherIndexFromFiles(studentFiles);
+    state.teacherEventsByName = await getTeacherIndex(studentFiles);
     const teacherNames = getUnique(Array.from(state.teacherEventsByName.keys()));
     populateTeacherSelect(teacherNames);
     return { count: teacherNames.length, error: false };
@@ -228,12 +298,15 @@ const loadTeacherSchedule = (teacherName) => {
   const events = state.teacherEventsByName.get(teacherName) || [];
   state.viewEvents = events;
   state.currentRoomName = null;
+  state.currentTeacherName = teacherName;
   state.currentWeekStart = getRelevantWeekStart(state.viewEvents);
   renderWeek();
   downloadLink.href = "#";
   downloadLink.textContent = "Télécharger";
   subscribeLink.href = "#";
+  setPageTitle(teacherName);
   setStatus(`Professeur : ${teacherName}`);
+  if (favorites) favorites.refreshActiveState();
 };
 
 // ===== Room mode (uses aggregator — no longer dependent on currently loaded EDT) =====
@@ -282,6 +355,7 @@ const loadRoomSchedule = async (roomName) => {
 
     state.viewEvents = events;
     state.currentRoomName = roomName;
+    state.currentTeacherName = null;
     state.currentWeekStart = getRelevantWeekStart(state.viewEvents);
 
     if (events.length === 0) {
@@ -289,7 +363,9 @@ const loadRoomSchedule = async (roomName) => {
     } else {
       renderWeek();
     }
+    setPageTitle(`Salle ${roomName}`);
     setStatus(`Salle : ${roomName} (${events.length} créneau(x))`);
+    if (favorites) favorites.refreshActiveState();
   } catch (error) {
     setStatus("Erreur lors du chargement de la salle.");
   }
@@ -566,6 +642,88 @@ const updateNextCourse = () => {
     </div>
   `;
 };
+
+// ===== Re-render on viewport breakpoint switch =====
+const mobileMQ = window.matchMedia("(max-width: 480px)");
+const onViewportChange = () => {
+  if (state.currentWeekStart) renderWeek();
+};
+if (mobileMQ.addEventListener) {
+  mobileMQ.addEventListener("change", onViewportChange);
+} else if (mobileMQ.addListener) {
+  mobileMQ.addListener(onViewportChange);
+}
+
+// ===== Refresh on focus / periodic =====
+const REFRESH_DEBOUNCE_MS = 2 * 60 * 1000;
+let lastRefresh = Date.now();
+
+const refreshIfStale = () => {
+  if (Date.now() - lastRefresh < REFRESH_DEBOUNCE_MS) return;
+  lastRefresh = Date.now();
+  loadFileList();
+};
+
+window.addEventListener("focus", refreshIfStale);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") refreshIfStale();
+});
+setInterval(() => {
+  if (document.visibilityState === "visible") refreshIfStale();
+}, 5 * 60 * 1000);
+
+// ===== Favorites instance =====
+favorites = createFavorites({
+  container: favoritesBarEl,
+  addButton: addFavBtn,
+  getCurrentSelection,
+  onApply: applyFavorite,
+});
+
+addFavBtn.addEventListener("favorite:added", (e) => {
+  const { ok, reason } = e.detail || {};
+  if (ok) {
+    showToast("Ajouté aux favoris", { type: "success", duration: 2000 });
+  } else if (reason) {
+    showToast(reason, { type: "error", duration: 2500 });
+  }
+});
+
+// ===== Notifications button =====
+const updateNotifBtn = () => {
+  const enabled = notifEnabled() && notifPermission() === "granted";
+  notifBtn.dataset.state = enabled ? "on" : "off";
+  notifBtn.textContent = enabled ? "🔔 Activées" : "🔔 Notifications";
+};
+
+if (!notifSupported()) {
+  notifBtn.style.display = "none";
+} else {
+  updateNotifBtn();
+  notifBtn.addEventListener("click", async () => {
+    if (notifEnabled() && notifPermission() === "granted") {
+      setNotifEnabled(false);
+      scheduleNotifications([]);
+      showToast("Notifications désactivées", { type: "info", duration: 2000 });
+      updateNotifBtn();
+      return;
+    }
+    const perm = await requestNotifPermission();
+    if (perm === "granted") {
+      setNotifEnabled(true);
+      scheduleNotifications(state.viewEvents);
+      showToast("Notifications activées — 15 min avant chaque cours", {
+        type: "success",
+        duration: 3500,
+      });
+    } else if (perm === "denied") {
+      showToast("Notifications refusées dans les réglages du navigateur", {
+        type: "error",
+      });
+    }
+    updateNotifBtn();
+  });
+}
 
 // ===== Boot =====
 loadFileList();

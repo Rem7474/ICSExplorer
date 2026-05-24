@@ -5,6 +5,7 @@
   --text: #1f2937;
   --muted: #6b7280;
   --accent: #2563eb;
+  --accent-dark: #1d4ed8;
   --border: #e5e7eb;
   
   /* Constantes calendrier */
@@ -34,6 +35,7 @@ html.dark-mode {
   --text: #e2e8f0;
   --muted: #94a3b8;
   --accent: #3b82f6;
+  --accent-dark: #1e40af;
   --border: #334155;
   
   /* Couleurs des types de cours (mode sombre) */
@@ -66,9 +68,9 @@ body {
 }
 
 .header {
-  background: linear-gradient(120deg, #1d4ed8, #3b82f6);
+  background: linear-gradient(120deg, var(--accent-dark), var(--accent));
   color: #fff;
-  padding: 2.5rem 0 2rem;
+  padding: 1.25rem 0 1rem;
 }
 
 .header-top {
@@ -94,13 +96,20 @@ body {
 }
 
 .header h1 {
-  margin: 0 0 0.5rem;
-  font-size: 2rem;
+  margin: 0 0 0.2rem;
+  font-size: 1.4rem;
+  line-height: 1.2;
 }
 
 .header p {
   margin: 0;
-  opacity: 0.9;
+  opacity: 0.85;
+  font-size: 0.9rem;
+}
+
+@media (min-width: 720px) {
+  .header h1 { font-size: 1.6rem; }
+  .header { padding: 1.5rem 0 1.25rem; }
 }
 
 main {
@@ -384,6 +393,160 @@ main {
   transform: scale(1.35);
 }
 
+/* Empty state */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2rem 1rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.empty-illustration {
+  color: var(--accent);
+  opacity: 0.7;
+  margin-bottom: 0.5rem;
+}
+
+.empty-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.empty-subtitle {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.empty-cta {
+  margin-top: 0.75rem;
+  padding: 0.55rem 1rem;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.empty-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.25);
+}
+
+/* ===== Favorites bar ===== */
+.favorites-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.favorites-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.favorites-bar.favorites-empty::before {
+  content: "Aucun favori — épingle ta sélection pour la rappeler en un tap";
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+.fav-pill {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  overflow: hidden;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.fav-pill:hover {
+  border-color: var(--accent);
+}
+
+.fav-pill.active {
+  border-color: var(--accent);
+  background: var(--bg);
+}
+
+.fav-pill.active .fav-apply {
+  color: var(--accent);
+}
+
+.fav-apply {
+  background: transparent;
+  border: none;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.fav-remove {
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border);
+  padding: 0 0.5rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.fav-remove:hover {
+  color: var(--text);
+  background: var(--bg);
+}
+
+.add-fav-btn {
+  padding: 0.35rem 0.7rem !important;
+  font-size: 0.85rem !important;
+  background: transparent !important;
+  color: var(--accent) !important;
+  border: 1px dashed var(--border) !important;
+  border-radius: 999px !important;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.add-fav-btn:hover {
+  background: var(--bg) !important;
+  border-color: var(--accent) !important;
+}
+
+/* ===== Notification button ===== */
+.notif-btn {
+  background: transparent !important;
+  color: var(--accent) !important;
+  border: 1px solid var(--border) !important;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.notif-btn[data-state="on"] {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border-color: var(--accent) !important;
+}
+
+.notif-btn:hover {
+  border-color: var(--accent) !important;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -483,6 +646,19 @@ main {
   border-radius: 8px;
   cursor: pointer;
   font-size: 1rem;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem !important;
+  width: 36px;
+  height: 36px;
+}
+
+.icon-btn svg {
+  display: block;
 }
 
 .week-nav button:first-child {
@@ -727,8 +903,20 @@ main {
   box-shadow: 0 6px 16px rgba(37, 99, 235, 0.25);
 }
 
-.next-course-mobile {
-  display: none;
+.next-course-card {
+  display: block;
+  position: sticky;
+  top: 0.5rem;
+  z-index: 50;
+  padding: 0.85rem 1rem;
+}
+
+.next-course-card h2 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
 }
 
 .next-course-content {
@@ -873,16 +1061,16 @@ main {
 
 @media (max-width: 480px) {
   .header {
-    padding: 1.5rem 0 1rem;
+    padding: 0.85rem 0 0.7rem;
   }
 
   .header h1 {
-    font-size: 1.5rem;
-    margin-bottom: 0.3rem;
+    font-size: 1.15rem;
+    margin-bottom: 0.15rem;
   }
 
   .header p {
-    font-size: 0.9rem;
+    font-size: 0.8rem;
   }
 
   main {
@@ -890,9 +1078,9 @@ main {
     gap: 1rem;
   }
 
-  .next-course-mobile {
-    display: block;
+  .next-course-card {
     order: -1;
+    padding: 0.75rem;
   }
 
   .card {

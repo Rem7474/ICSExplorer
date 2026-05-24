@@ -29,7 +29,7 @@
   </header>
 
   <main class="container">
-    <section id="nextCourseSection" class="card next-course-mobile" style="display: none;">
+    <section id="nextCourseSection" class="card next-course-card" style="display: none;">
       <h2>Prochain cours</h2>
       <div id="nextCourseContent" class="next-course-content"></div>
     </section>
@@ -71,6 +71,11 @@
         <button id="shareBtn" type="button" title="Copier l'URL de partage">Partager</button>
         <a id="downloadLink" class="download" href="#" download>Télécharger</a>
         <a id="subscribeLink" class="subscribe" href="#" title="Ajouter ce planning à votre calendrier (mises à jour automatiques)">S'abonner</a>
+        <button id="notifBtn" type="button" class="notif-btn" title="Activer les notifications 15 min avant chaque cours">🔔 Notifications</button>
+      </div>
+      <div class="favorites-row">
+        <div id="favoritesBar" class="favorites-bar favorites-empty" aria-label="Emplois du temps favoris"></div>
+        <button id="addFavBtn" type="button" class="add-fav-btn" title="Ajouter la sélection actuelle aux favoris">★ Épingler</button>
       </div>
       <div id="status" class="status" role="status" aria-live="polite"></div>
     </section>
@@ -81,9 +86,17 @@
           <button id="todayBtn" type="button" class="today-btn">Semaine actuelle</button>
         </div>
         <div class="week-nav">
-          <button id="prevWeek" type="button" aria-label="Semaine précédente">◀</button>
+          <button id="prevWeek" type="button" class="icon-btn" aria-label="Semaine précédente">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
           <div id="weekLabel" class="week-label"></div>
-          <button id="nextWeek" type="button" aria-label="Semaine suivante">▶</button>
+          <button id="nextWeek" type="button" class="icon-btn" aria-label="Semaine suivante">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
         </div>
         <div id="weekStats" class="week-stats" style="display: none;" aria-live="polite"></div>
         <div id="dayDots" class="day-dots" role="tablist" aria-label="Navigation entre jours"></div>
