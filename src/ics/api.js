@@ -46,6 +46,37 @@ export const fetchIcsText = async (fileName) => {
 
 export const fetchFileListHtml = async () => {
   const response = await fetch(outputBase, { cache: "no-store" });
-  if (!response.ok) throw new Error("Répertoire inaccessible");
+  if (!response.ok) {
+    throw new Error(`Répertoire inaccessible (HTTP ${response.status})`);
+  }
   return decodeTextWithFallback(response);
+};
+
+// Optional fallback: if the server hosts a static JSON list at /output/files.json,
+// use it when the directory listing fails (e.g. autoindex disabled, mobile flake).
+// Expected format: ["1A-IN-eleve.ics", "1A-SN-eleve.ics", ...]
+export const fetchFileListJson = async () => {
+  const url = `${outputBase}files.json`;
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Pas de fallback JSON (HTTP ${response.status})`);
+  }
+  const data = await response.json();
+  if (!Array.isArray(data)) throw new Error("files.json invalide");
+  return data.filter((s) => typeof s === "string" && s.endsWith(".ics"));
+};
+
+export const fetchFileList = async () => {
+  try {
+    const html = await fetchFileListHtml();
+    return extractIcsLinks(html);
+  } catch (htmlError) {
+    try {
+      return await fetchFileListJson();
+    } catch {
+      throw new Error(
+        htmlError && htmlError.message ? htmlError.message : "erreur réseau"
+      );
+    }
+  }
 };

@@ -25,8 +25,7 @@ import {
 import {
   fileUrl,
   fetchIcsText,
-  fetchFileListHtml,
-  extractIcsLinks,
+  fetchFileList,
 } from "./ics/api.js";
 import {
   getAggregatedEvents,
@@ -367,8 +366,7 @@ const populateSelects = (files) => {
 const loadFileList = async () => {
   try {
     setStatus("Récupération de la liste des fichiers…");
-    const html = await fetchFileListHtml();
-    const files = extractIcsLinks(html);
+    const files = await fetchFileList();
     invalidateAggregateCache();
     state.isRoomSelectPopulated = false;
     populateSelects(files);
@@ -385,11 +383,11 @@ const loadFileList = async () => {
       setStatus("Erreur lors du chargement des professeurs.");
       return;
     }
-    setStatus("Liste chargée.");
+    setStatus(`Liste chargée — ${files.length} fichier(s).`);
   } catch (error) {
-    setStatus(
-      "Impossible de lire le dossier /output. Activez l'indexation des fichiers côté serveur ou fournissez une liste JSON."
-    );
+    const reason = error && error.message ? error.message : "erreur inconnue";
+    setStatus(`Impossible de récupérer la liste : ${reason}. Touchez « Rafraîchir » pour réessayer.`);
+    showToast(`Liste indisponible : ${reason}`, { type: "error", duration: 5000 });
     populateSelects([]);
     populateTeacherSelect([]);
   }
@@ -576,9 +574,42 @@ updateModeVisibility();
 
 // ===== Service Worker (PWA) =====
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch((error) => {
-      console.log("Erreur Service Worker:", error);
-    });
+  let reloadedByControllerChange = false;
+
+  window.addEventListener("load", async () => {
+    try {
+      const registration = await navigator.serviceWorker.register("/sw.js");
+
+      // Detect when a new SW is installed and ready to take over
+      registration.addEventListener("updatefound", () => {
+        const newWorker = registration.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener("statechange", () => {
+          if (
+            newWorker.state === "installed" &&
+            navigator.serviceWorker.controller
+          ) {
+            // A new version is available — tell it to take over immediately
+            showToast("Mise à jour appliquée, rechargement…", {
+              type: "info",
+              duration: 2500,
+            });
+            newWorker.postMessage({ type: "SKIP_WAITING" });
+          }
+        });
+      });
+
+      // Periodic update check (useful for long-lived PWA sessions on phone)
+      setInterval(() => registration.update().catch(() => {}), 60 * 60 * 1000);
+    } catch (error) {
+      console.warn("Service Worker registration failed:", error);
+    }
+  });
+
+  // When the new SW takes control, reload so the page uses fresh modules
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (reloadedByControllerChange) return;
+    reloadedByControllerChange = true;
+    window.location.reload();
   });
 }
