@@ -8,7 +8,11 @@
   <title>Emplois du temps (ICS)</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="manifest" href="manifest.json" />
+  <!-- iOS uses apple-touch-icon (PNG only). With SVG, iOS falls back to a screenshot. -->
   <link rel="apple-touch-icon" href="favicon.svg" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="EDT ESISAR" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -25,7 +29,7 @@
   </header>
 
   <main class="container">
-    <section id="nextCourseSection" class="card next-course-mobile" style="display: none;">
+    <section id="nextCourseSection" class="card next-course-card" style="display: none;">
       <h2>Prochain cours</h2>
       <div id="nextCourseContent" class="next-course-content"></div>
     </section>
@@ -66,6 +70,12 @@
         <button id="refreshBtn" type="button">Rafraîchir la liste</button>
         <button id="shareBtn" type="button" title="Copier l'URL de partage">Partager</button>
         <a id="downloadLink" class="download" href="#" download>Télécharger</a>
+        <a id="subscribeLink" class="subscribe" href="#" title="Ajouter ce planning à votre calendrier (mises à jour automatiques)">S'abonner</a>
+        <button id="notifBtn" type="button" class="notif-btn" title="Activer les notifications 15 min avant chaque cours">🔔 Notifications</button>
+      </div>
+      <div class="favorites-row">
+        <div id="favoritesBar" class="favorites-bar favorites-empty" aria-label="Emplois du temps favoris"></div>
+        <button id="addFavBtn" type="button" class="add-fav-btn" title="Ajouter la sélection actuelle aux favoris">★ Épingler</button>
       </div>
       <div id="status" class="status" role="status" aria-live="polite"></div>
     </section>
@@ -76,16 +86,31 @@
           <button id="todayBtn" type="button" class="today-btn">Semaine actuelle</button>
         </div>
         <div class="week-nav">
-          <button id="prevWeek" type="button" aria-label="Semaine précédente">◀</button>
+          <button id="prevWeek" type="button" class="icon-btn" aria-label="Semaine précédente">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
           <div id="weekLabel" class="week-label"></div>
-          <button id="nextWeek" type="button" aria-label="Semaine suivante">▶</button>
+          <button id="nextWeek" type="button" class="icon-btn" aria-label="Semaine suivante">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
         </div>
+        <div id="weekStats" class="week-stats" style="display: none;" aria-live="polite"></div>
+        <div id="dayDots" class="day-dots" role="tablist" aria-label="Navigation entre jours"></div>
       <div id="schedule" class="schedule"></div>
     </section>
 
     <section class="card room-search-section">
       <h2>Salles vides</h2>
-      <button id="emptyRoomsBtn" type="button" title="Salles libres en ce moment">Salles vides maintenant</button>
+      <p class="room-search-help">Affiche les salles libres à l'heure choisie, en croisant tous les emplois du temps.</p>
+      <div class="empty-rooms-controls">
+        <label for="emptyRoomsTime" class="sr-only">Heure à vérifier</label>
+        <input id="emptyRoomsTime" type="time" step="900" />
+        <button id="emptyRoomsBtn" type="button" title="Salles libres au créneau choisi (par défaut : maintenant / prochain créneau)">Rechercher</button>
+      </div>
       <div id="emptyRoomsStatus" class="status" role="status" aria-live="polite"></div>
     </section>
   </main>
@@ -97,15 +122,15 @@
   </footer>
 
   <!-- Modal événement -->
-  <div id="eventModal" class="modal" style="display: none;">
+  <div id="eventModal" class="modal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="eventTitle">
     <div class="modal-content">
-      <button id="closeModal" class="close-btn" type="button" aria-label="Fermer">✕</button>
+      <button id="closeModal" class="close-btn" type="button" aria-label="Fermer la fenêtre">✕</button>
       <h2 id="eventTitle"></h2>
       <div id="eventDetails" class="event-details"></div>
       <button id="addToCalendarBtn" class="modal-btn" type="button">Ajouter au calendrier</button>
     </div>
   </div>
 
-  <script src="script.js"></script>
+  <script type="module" src="src/main.js"></script>
 </body>
 </html>
