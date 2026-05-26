@@ -38,6 +38,8 @@ import {
   currentPermission as notifPermission,
   requestPermission as requestNotifPermission,
   scheduleNotifications,
+  setRegistration as setNotifRegistration,
+  showTestNotification,
 } from "./features/notifications.js";
 import {
   saveSelection,
@@ -711,13 +713,30 @@ if (!notifSupported()) {
     const perm = await requestNotifPermission();
     if (perm === "granted") {
       setNotifEnabled(true);
-      scheduleNotifications(state.viewEvents);
-      showToast("Notifications activées — 15 min avant chaque cours", {
-        type: "success",
-        duration: 3500,
-      });
+      const scheduled = scheduleNotifications(state.viewEvents);
+      showToast(
+        scheduled > 0
+          ? `Notifications activées — ${scheduled} cours programmé(s) sur 24h`
+          : "Notifications activées — aucun cours dans les 24h à venir",
+        { type: "success", duration: 3500 }
+      );
+      try {
+        await showTestNotification();
+      } catch (err) {
+        const msg = err && err.message ? err.message : "erreur inconnue";
+        showToast(`Notif test échouée : ${msg}`, {
+          type: "error",
+          duration: 5000,
+        });
+        console.warn("[notif] test failed:", err);
+      }
     } else if (perm === "denied") {
-      showToast("Notifications refusées dans les réglages du navigateur", {
+      showToast(
+        "Notifications refusées. Active-les dans les réglages du navigateur/de la PWA.",
+        { type: "error", duration: 5000 }
+      );
+    } else if (perm === "unsupported") {
+      showToast("Notifications non supportées sur ce navigateur.", {
         type: "error",
       });
     }
@@ -737,6 +756,7 @@ if ("serviceWorker" in navigator) {
   window.addEventListener("load", async () => {
     try {
       const registration = await navigator.serviceWorker.register("/sw.js");
+      setNotifRegistration(registration);
 
       // Detect when a new SW is installed and ready to take over
       registration.addEventListener("updatefound", () => {

@@ -7,7 +7,7 @@
 // install — the old SW used cache.addAll() (atomic), so a single 404 left the
 // PWA running with an empty cache → blank screen on next offline open.
 
-const CACHE_NAME = 'edt-v11';
+const CACHE_NAME = 'edt-v12';
 const PRECACHE = [
   '/',
   '/index.html',
@@ -87,6 +87,25 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
+});
+
+// Click on a course notification → focus the existing PWA window, or open one.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil((async () => {
+    const clientsList = await self.clients.matchAll({
+      type: 'window',
+      includeUncontrolled: true,
+    });
+    for (const client of clientsList) {
+      if (client.url.startsWith(self.location.origin) && 'focus' in client) {
+        return client.focus();
+      }
+    }
+    if (self.clients.openWindow) {
+      return self.clients.openWindow('/');
+    }
+  })());
 });
 
 const networkFirst = async (request) => {
