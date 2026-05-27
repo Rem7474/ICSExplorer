@@ -7,13 +7,14 @@
 // install — the old SW used cache.addAll() (atomic), so a single 404 left the
 // PWA running with an empty cache → blank screen on next offline open.
 
-const CACHE_NAME = 'edt-v12';
+const CACHE_NAME = 'edt-v13';
 const PRECACHE = [
   '/',
   '/index.html',
   '/styles.css',
   '/manifest.json',
   '/favicon.svg',
+  '/favicon-maskable.svg',
   '/src/main.js',
   '/src/utils/dom.js',
   '/src/utils/dates.js',
