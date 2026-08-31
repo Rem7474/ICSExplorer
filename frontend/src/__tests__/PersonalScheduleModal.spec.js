@@ -165,4 +165,36 @@ describe("PersonalScheduleModal component", () => {
     });
     expect(wrapper.emitted("close")).toBeTruthy();
   });
+
+  it("allows selecting a whole branch directly", async () => {
+    fetchTreeNodes.mockResolvedValue([
+      { id: "10", name: "Filiere Informatique", isLeaf: false },
+    ]);
+    fetchPersonalCalendar.mockResolvedValue("BEGIN:VCALENDAR\r\nEND:VCALENDAR");
+
+    const schedule = useSchedule();
+    const wrapper = mount(PersonalScheduleModal, { props: { schedule } });
+    await flushPromises();
+
+    await wrapper.find("#loginInput").setValue("student1");
+    await wrapper.find("#passwordInput").setValue("hunter2");
+
+    const exploreBtn = wrapper.findAll("button").find((b) => b.text().includes("Explorer l'arbre"));
+    await exploreBtn.trigger("click");
+    await flushPromises();
+
+    // Click "Choisir" on the branch
+    const branchSelectBtn = wrapper.find(".node-select-btn");
+    expect(branchSelectBtn.exists()).toBe(true);
+    await branchSelectBtn.trigger("click");
+    await flushPromises();
+
+    expect(fetchPersonalCalendar).toHaveBeenCalledWith({
+      universityId: "grenoble-inp-esisar",
+      resourceId: "10",
+      login: "student1",
+      password: "hunter2",
+    });
+    expect(wrapper.emitted("close")).toBeTruthy();
+  });
 });

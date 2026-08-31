@@ -147,10 +147,26 @@ const navigateBreadcrumb = (index) => {
   exploreTree(target.id, target.name);
 };
 
+const currentActiveBranch = computed(() => {
+  if (breadcrumbs.value.length <= 1) return null;
+  return breadcrumbs.value[breadcrumbs.value.length - 1];
+});
+
+const chooseResource = (nodeOrId) => {
+  let id = "";
+  if (typeof nodeOrId === "object" && nodeOrId !== null) {
+    id = nodeOrId.ID || nodeOrId.id;
+  } else {
+    id = nodeOrId;
+  }
+  if (!id) return;
+  resourceId.value = id;
+  submitDirect(id);
+};
+
 const selectNode = (node) => {
   if (node.isLeaf) {
-    resourceId.value = node.ID || node.id;
-    submitDirect(node.ID || node.id);
+    chooseResource(node);
   } else {
     exploreTree(node.ID || node.id, node.name || node.Name);
   }
@@ -312,6 +328,22 @@ onUnmounted(() => {
           </span>
         </nav>
 
+        <!-- Current Active Branch Quick Select -->
+        <div v-if="currentActiveBranch && currentActiveBranch.id" class="current-branch-bar">
+          <div class="current-branch-info">
+            <span class="current-branch-label">Dossier actif :</span>
+            <span class="current-branch-name">{{ currentActiveBranch.name }}</span>
+          </div>
+          <button
+            type="button"
+            class="btn btn-select-current"
+            :title="'Sélectionner tout l\'emploi du temps de ' + currentActiveBranch.name"
+            @click="chooseResource(currentActiveBranch.id)"
+          >
+            📅 Choisir ce dossier complet
+          </button>
+        </div>
+
         <!-- Search box in active folder -->
         <div class="search-box">
           <input
@@ -342,9 +374,23 @@ onUnmounted(() => {
             @click="selectNode(node)"
             @keydown.enter="selectNode(node)"
           >
-            <span class="node-icon">{{ node.isLeaf ? "📅" : "📁" }}</span>
-            <span class="node-name">{{ node.name || node.Name }}</span>
-            <span class="node-badge">{{ node.isLeaf ? "Choisir" : "Ouvrir ➔" }}</span>
+            <div class="node-main">
+              <span class="node-icon">{{ node.isLeaf ? "📅" : "📁" }}</span>
+              <span class="node-name">{{ node.name || node.Name }}</span>
+            </div>
+
+            <div class="node-actions">
+              <button
+                v-if="!node.isLeaf"
+                type="button"
+                class="node-select-btn"
+                title="Sélectionner tout ce dossier"
+                @click.stop="chooseResource(node)"
+              >
+                📅 Choisir
+              </button>
+              <span class="node-badge">{{ node.isLeaf ? "Choisir" : "Ouvrir ➔" }}</span>
+            </div>
           </li>
         </ul>
 
@@ -575,6 +621,19 @@ onUnmounted(() => {
   outline: none;
 }
 
+.node-main {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  overflow: hidden;
+}
+
+.node-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .node-branch {
   border-left: 3px solid #3b82f6;
 }
@@ -593,6 +652,9 @@ onUnmounted(() => {
   font-size: 0.9rem;
   font-weight: 500;
   color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .node-badge {
@@ -607,6 +669,70 @@ onUnmounted(() => {
 .node-leaf .node-badge {
   background: rgba(16, 185, 129, 0.15);
   color: #10b981;
+}
+
+.node-select-btn {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.node-select-btn:hover {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.current-branch-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+.current-branch-info {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.current-branch-label {
+  color: var(--muted);
+}
+
+.current-branch-name {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.btn-select-current {
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s ease;
+}
+
+.btn-select-current:hover {
+  opacity: 0.9;
 }
 
 .tree-loading,
