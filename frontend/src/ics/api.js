@@ -59,6 +59,22 @@ export const fetchUniversities = async () => {
   return resp.json();
 };
 
+export const fetchTreeNodes = async ({ universityId, adeUrl, login, password, branchId, branchPath, category }) => {
+  const resp = await fetch("/api/tree", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ universityId, adeUrl, login, password, branchId, branchPath, category }),
+  });
+
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => ({}));
+    throw new Error(data.error || `Impossible de récupérer l'arborescence ADE (HTTP ${resp.status})`);
+  }
+
+  const data = await resp.json();
+  return data.nodes || [];
+};
+
 export const fetchPersonalCalendar = async ({ universityId, adeUrl, resourceId, login, password }) => {
   const resp = await fetch("/api/personal-calendar", {
     method: "POST",

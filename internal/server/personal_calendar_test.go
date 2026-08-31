@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Rem7474/ICSExplorer/internal/ade"
 	"github.com/Rem7474/ICSExplorer/internal/university"
 )
 
@@ -297,6 +298,94 @@ func TestHandlePersonalCalendar(t *testing.T) {
 		}
 		if lastCode != http.StatusTooManyRequests {
 			t.Errorf("expected the last request to be rate-limited (429), got %d", lastCode)
+		}
+	})
+}
+
+func TestHandleTree(t *testing.T) {
+	mockADE := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != "student" || pass != "secret" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if strings.HasSuffix(r.URL.Path, "etudiant/test") {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		if strings.Contains(r.URL.Path, "tree.jsp") {
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprint(w, `
+				<DIV class="treeline">
+					<a href="javascript:openBranch(10)"><img src="plus.gif"></a>
+					<SPAN class="treebranch"><a href="#">Filiere Info</a></SPAN>
+				</DIV>
+				<DIV class="treeline">
+					<SPAN class="treeleaf"><a href="javascript:check(101)">Groupe A</a></SPAN>
+				</DIV>
+			`)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer mockADE.Close()
+
+	srv, _, _ := setupTestServer(t)
+	portal := setupMockPortal(t, mockADE.URL)
+	defer portal.Close()
+
+	srv.universityDirectory = university.NewDirectory(
+		[]university.Deployment{{Slug: "test", RootURL: portal.URL, BaseURL: mockADE.URL}},
+		time.Hour,
+	)
+
+	mux := http.NewServeMux()
+	srv.registerRoutes(mux)
+	handler := srv.applyMiddlewares(mux)
+
+	t.Run("successful tree fetch returns nodes list", func(t *testing.T) {
+		body, _ := json.Marshal(map[string]string{
+			"universityId": "test-test",
+			"login":        "student",
+			"password":     "secret",
+		})
+		req := httptest.NewRequest(http.MethodPost, "/api/tree", bytes.NewReader(body))
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d. Body: %s", w.Code, w.Body.String())
+		}
+
+		var resp struct {
+			Nodes []ade.TreeNode `json:"nodes"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("failed to decode JSON: %v", err)
+		}
+		if len(resp.Nodes) != 2 {
+			t.Fatalf("expected 2 nodes, got %d: %+v", len(resp.Nodes), resp.Nodes)
+		}
+		if resp.Nodes[0].Name != "Filiere Info" || resp.Nodes[0].IsLeaf {
+			t.Errorf("unexpected node 0: %+v", resp.Nodes[0])
+		}
+		if resp.Nodes[1].Name != "Groupe A" || !resp.Nodes[1].IsLeaf {
+			t.Errorf("unexpected node 1: %+v", resp.Nodes[1])
+		}
+	})
+
+	t.Run("invalid credentials returns 401", func(t *testing.T) {
+		body, _ := json.Marshal(map[string]string{
+			"universityId": "test-test",
+			"login":        "student",
+			"password":     "wrong",
+		})
+		req := httptest.NewRequest(http.MethodPost, "/api/tree", bytes.NewReader(body))
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401, got %d", w.Code)
 		}
 	})
 }

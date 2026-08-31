@@ -8,15 +8,17 @@ vi.mock("../ics/api.js", () => ({
     { id: "grenoble-inp-esisar", name: "Grenoble INP - Esisar" },
   ]),
   fetchPersonalCalendar: vi.fn(),
+  fetchTreeNodes: vi.fn(),
 }));
 
-import { fetchPersonalCalendar } from "../ics/api.js";
+import { fetchPersonalCalendar, fetchTreeNodes } from "../ics/api.js";
 
 describe("PersonalScheduleModal component", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
     fetchPersonalCalendar.mockReset();
+    fetchTreeNodes.mockReset();
   });
 
   it("renders and loads the university list", async () => {
@@ -76,6 +78,7 @@ describe("PersonalScheduleModal component", () => {
       universityId: "grenoble-inp-esisar",
       login: "student1",
       password: "hunter2",
+      resourceId: "",
     });
   });
 
@@ -112,5 +115,54 @@ describe("PersonalScheduleModal component", () => {
 
     expect(wrapper.text()).toContain("invalid credentials");
     expect(wrapper.emitted("close")).toBeFalsy();
+  });
+
+  it("explores the ADE tree, allows filtering, and selects a leaf timetable", async () => {
+    fetchTreeNodes.mockResolvedValue([
+      { id: "10", name: "Filiere Informatique", isLeaf: false },
+      { id: "101", name: "Groupe 1", isLeaf: true },
+    ]);
+    fetchPersonalCalendar.mockResolvedValue("BEGIN:VCALENDAR\r\nEND:VCALENDAR");
+
+    const schedule = useSchedule();
+    const wrapper = mount(PersonalScheduleModal, { props: { schedule } });
+    await flushPromises();
+
+    await wrapper.find("#loginInput").setValue("student1");
+    await wrapper.find("#passwordInput").setValue("hunter2");
+
+    // Click "Explorer l'arbre"
+    const exploreBtn = wrapper.findAll("button").find((b) => b.text().includes("Explorer l'arbre"));
+    expect(exploreBtn).toBeDefined();
+    await exploreBtn.trigger("click");
+    await flushPromises();
+
+    expect(fetchTreeNodes).toHaveBeenCalledWith({
+      universityId: "grenoble-inp-esisar",
+      login: "student1",
+      password: "hunter2",
+    });
+
+    expect(wrapper.text()).toContain("Sélectionner un emploi du temps");
+    expect(wrapper.text()).toContain("Filiere Informatique");
+    expect(wrapper.text()).toContain("Groupe 1");
+
+    // Test filter/search
+    await wrapper.find(".search-input").setValue("Groupe");
+    await flushPromises();
+    expect(wrapper.text()).toContain("Groupe 1");
+
+    // Click on leaf node "Groupe 1"
+    const leafItem = wrapper.findAll(".node-item").find((n) => n.text().includes("Groupe 1"));
+    await leafItem.trigger("click");
+    await flushPromises();
+
+    expect(fetchPersonalCalendar).toHaveBeenCalledWith({
+      universityId: "grenoble-inp-esisar",
+      resourceId: "101",
+      login: "student1",
+      password: "hunter2",
+    });
+    expect(wrapper.emitted("close")).toBeTruthy();
   });
 });

@@ -19,6 +19,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/files", s.handleFilesList)
 	mux.HandleFunc("GET /api/rooms", s.handleRoomsList)
 	mux.HandleFunc("GET /api/universities", s.handleUniversitiesList)
+	mux.HandleFunc("/api/tree", s.handleTree)
 	mux.HandleFunc("/api/personal-calendar", s.handlePersonalCalendar)
 
 	// Static endpoints

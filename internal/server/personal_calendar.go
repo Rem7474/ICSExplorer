@@ -23,6 +23,102 @@ type personalCalendarRequest struct {
 	Password     string `json:"password"`
 }
 
+type treeRequest struct {
+	UniversityID string   `json:"universityId"`
+	ADEURL       string   `json:"adeUrl"`
+	BranchID     string   `json:"branchId"`
+	BranchPath   []string `json:"branchPath"`
+	Category     string   `json:"category"`
+	Login        string   `json:"login"`
+	Password     string   `json:"password"`
+}
+
+// handleTree explores the ADE hierarchy for an institution or direct token link.
+func (s *Server) handleTree(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	if !s.personalCalendarLimiter.Allow(clientIP(r)) {
+		http.Error(w, `{"error":"too many requests, please try again later"}`, http.StatusTooManyRequests)
+		return
+	}
+
+	var req treeRequest
+	if err := json.NewDecoder(io.LimitReader(r.Body, maxPersonalCalendarBodyBytes)).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+
+	req.UniversityID = strings.TrimSpace(req.UniversityID)
+	req.ADEURL = strings.TrimSpace(req.ADEURL)
+	req.BranchID = strings.TrimSpace(req.BranchID)
+	req.Category = strings.TrimSpace(req.Category)
+	req.Login = strings.TrimSpace(req.Login)
+
+	if req.UniversityID == "" && req.ADEURL == "" {
+		http.Error(w, `{"error":"either universityId or adeUrl is required"}`, http.StatusBadRequest)
+		return
+	}
+	if req.UniversityID != "" && (req.Login == "" || req.Password == "") {
+		http.Error(w, `{"error":"login and password are required for this university"}`, http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	var baseURL, academicYear, institutionPath string
+
+	if req.ADEURL != "" {
+		var err error
+		baseURL, academicYear, institutionPath, _, err = ade.ParseInstanceURL(req.ADEURL)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"error": "could not recognize this as an ADE URL: " + err.Error(),
+			})
+			return
+		}
+	} else {
+		uni, ok := s.universityDirectory.Find(ctx, req.UniversityID)
+		if !ok {
+			http.Error(w, `{"error":"unknown university"}`, http.StatusBadRequest)
+			return
+		}
+		baseURL, academicYear, institutionPath = uni.BaseURL, s.cfg.AcademicYear, uni.InstitutionPath
+	}
+
+	path := req.BranchPath
+	if len(path) == 0 && req.BranchID != "" {
+		path = []string{req.BranchID}
+	}
+
+	client := ade.NewClientForInstitution(req.Login, req.Password, academicYear, baseURL, institutionPath)
+	nodes, err := client.FetchTreeNodes(ctx, req.Category, path)
+	if err != nil {
+		s.logger.Debug("tree fetch failed", "baseURL", baseURL, "institutionPath", institutionPath, "error", err)
+		if strings.Contains(err.Error(), "401") {
+			http.Error(w, `{"error":"invalid credentials"}`, http.StatusUnauthorized)
+			return
+		}
+		http.Error(w, `{"error":"could not reach the university's ADE server"}`, http.StatusBadGateway)
+		return
+	}
+
+	if nodes == nil {
+		nodes = []ade.TreeNode{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"nodes": nodes,
+	})
+}
+
 // handleUniversitiesList returns the public list of universities ICSExplorer
 // can fetch a personal calendar from. No credentials are exposed here.
 func (s *Server) handleUniversitiesList(w http.ResponseWriter, r *http.Request) {
