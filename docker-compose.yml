@@ -1,0 +1,32 @@
+services:
+  icsexplorer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: icsexplorer:latest
+    container_name: icsexplorer
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      - PORT=8080
+      - AGALAN_LOGIN=${AGALAN_LOGIN:-}
+      - AGALAN_PASSWORD=${AGALAN_PASSWORD:-}
+      - SYNC_INTERVAL=${SYNC_INTERVAL:-30m}
+      - SYNC_ON_STARTUP=${SYNC_ON_STARTUP:-true}
+      - SYNC_CERCLE=${SYNC_CERCLE:-true}
+      - CONCURRENCY=${CONCURRENCY:-5}
+      - MAX_DATA_AGE=${MAX_DATA_AGE:-24h}
+      - MIN_FILE_SIZE_BYTES=${MIN_FILE_SIZE_BYTES:-50000}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+      - ADMIN_TOKEN=${ADMIN_TOKEN:-}
+    volumes:
+      - ./data/output:/app/data/output
+      - ./data/rooms:/app/data/rooms
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

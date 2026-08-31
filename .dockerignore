@@ -1,0 +1,12 @@
+.git
+.github
+.tmp_*
+node_modules
+frontend/node_modules
+frontend/dist
+dist
+*.log
+*.tmp
+.env
+.DS_Store
+Thumbs.db
