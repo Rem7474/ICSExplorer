@@ -389,4 +389,80 @@ func TestHandleTree(t *testing.T) {
 			t.Errorf("expected 401, got %d", w.Code)
 		}
 	})
+
+	t.Run("tree fetch with adeUrl direct token", func(t *testing.T) {
+		directMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/jsp/custom/modules/plannings/direct_planning.jsp" {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			if r.URL.Path == "/jsp/standard/gui/tree.jsp" {
+				w.WriteHeader(http.StatusOK)
+				fmt.Fprint(w, `
+					<DIV class="treeline">
+						<a href="javascript:openBranch(20)"><img src="plus.gif"></a>
+						<SPAN class="treebranch"><a href="#">Direct Branch</a></SPAN>
+					</DIV>
+					<DIV class="treeline">
+						<SPAN class="treeleaf"><a href="javascript:check(201)">Direct Leaf</a></SPAN>
+					</DIV>
+				`)
+				return
+			}
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer directMock.Close()
+
+		body, _ := json.Marshal(map[string]interface{}{
+			"adeUrl": directMock.URL + "/direct/index.jsp?data=directtok123,1",
+		})
+		req := httptest.NewRequest(http.MethodPost, "/api/tree", bytes.NewReader(body))
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d: %s", w.Code, w.Body.String())
+		}
+		var resp struct {
+			Nodes []ade.TreeNode `json:"nodes"`
+		}
+		_ = json.Unmarshal(w.Body.Bytes(), &resp)
+		if len(resp.Nodes) != 2 {
+			t.Fatalf("expected 2 nodes from direct token tree, got %d", len(resp.Nodes))
+		}
+	})
+
+	t.Run("personal calendar with adeUrl direct token and resourceId", func(t *testing.T) {
+		directMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/jsp/custom/modules/plannings/direct_planning.jsp" {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			if r.URL.Path == "/jsp/custom/modules/plannings/anonymous_cal.jsp" {
+				res := r.URL.Query().Get("resources")
+				if res == "201" {
+					w.WriteHeader(http.StatusOK)
+					fmt.Fprint(w, "BEGIN:VCALENDAR\r\nSUMMARY:Direct Course 201\r\nEND:VCALENDAR")
+					return
+				}
+			}
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer directMock.Close()
+
+		body, _ := json.Marshal(map[string]interface{}{
+			"adeUrl":     directMock.URL + "/direct/index.jsp?data=directtok123,1",
+			"resourceId": "201",
+		})
+		req := httptest.NewRequest(http.MethodPost, "/api/personal-calendar", bytes.NewReader(body))
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d: %s", w.Code, w.Body.String())
+		}
+		if !strings.Contains(w.Body.String(), "SUMMARY:Direct Course 201") {
+			t.Errorf("expected calendar content with resource 201, got: %s", w.Body.String())
+		}
+	})
 }

@@ -223,4 +223,29 @@ describe("PersonalScheduleModal component", () => {
     });
     expect(wrapper.emitted("close")).toBeTruthy();
   });
+
+  it("renders title attributes on tree nodes and breadcrumbs for hover tooltip clarity", async () => {
+    fetchTreeNodes.mockResolvedValue([
+      { id: "10", name: "M1 MANAGEMENT DES SYSTÈMES D'INFORMATION - FI", isLeaf: false },
+      { id: "101", name: "M1 MSI Groupe 1 Gestion de Projets Agiles", isLeaf: true },
+    ]);
+
+    const schedule = useSchedule();
+    const wrapper = mount(PersonalScheduleModal, { props: { schedule } });
+    await flushPromises();
+
+    await wrapper.find("#loginInput").setValue("student1");
+    await wrapper.find("#passwordInput").setValue("hunter2");
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    const branchItem = wrapper.findAll(".node-item").find((n) => n.text().includes("M1 MANAGEMENT"));
+    expect(branchItem.attributes("title")).toBe("M1 MANAGEMENT DES SYSTÈMES D'INFORMATION - FI");
+
+    const leafItem = wrapper.findAll(".node-item").find((n) => n.text().includes("M1 MSI Groupe 1"));
+    expect(leafItem.attributes("title")).toBe("M1 MSI Groupe 1 Gestion de Projets Agiles");
+
+    const branchBtn = wrapper.find(".node-select-btn");
+    expect(branchBtn.attributes("title")).toContain("M1 MANAGEMENT DES SYSTÈMES D'INFORMATION - FI");
+  });
 });

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -109,22 +110,80 @@ func TestClientFetchDirectTokenCalendar(t *testing.T) {
 			}
 		}
 		if r.URL.Path == "/jsp/custom/modules/plannings/anonymous_cal.jsp" {
+			res := r.URL.Query().Get("resources")
+			projID := r.URL.Query().Get("projectId")
+			if res == "leaf456" && projID == "2" {
+				w.WriteHeader(http.StatusOK)
+				fmt.Fprint(w, "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nSUMMARY:Course 1\r\nEND:VEVENT\r\nEND:VCALENDAR")
+				return
+			}
+			if res == "101,102" && projID == "2" {
+				w.WriteHeader(http.StatusOK)
+				fmt.Fprint(w, "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nSUMMARY:Branch Course\r\nEND:VEVENT\r\nEND:VCALENDAR")
+				return
+			}
+			if projID == "2" {
+				w.WriteHeader(http.StatusOK)
+				fmt.Fprint(w, "BEGIN:VCALENDAR\r\nSUMMARY:Direct Default\r\nEND:VCALENDAR")
+				return
+			}
+			// Other project IDs return empty calendar (0 events)
 			w.WriteHeader(http.StatusOK)
-			fmt.Fprint(w, "BEGIN:VCALENDAR\r\nSUMMARY:Direct\r\nEND:VCALENDAR")
+			fmt.Fprint(w, "BEGIN:VCALENDAR\r\nEND:VCALENDAR")
+			return
+		}
+		if r.URL.Path == "/jsp/standard/gui/tree.jsp" {
+			w.WriteHeader(http.StatusOK)
+			branchID := r.URL.Query().Get("branchId")
+			if branchID == "branch999" {
+				// Return a branch containing two leaf elements 101 and 102
+				fmt.Fprint(w, `
+					<html><body>
+						<DIV class="treeline">&nbsp;&nbsp;&nbsp;<span><a href="javascript:check('101')">Leaf 1</a></span></DIV>
+						<DIV class="treeline">&nbsp;&nbsp;&nbsp;<span><a href="javascript:check('102')">Leaf 2</a></span></DIV>
+					</body></html>
+				`)
+			} else {
+				// Leaf has no children
+				fmt.Fprint(w, `<html><body></body></html>`)
+			}
 			return
 		}
 		w.WriteHeader(http.StatusNotFound)
 	}))
 	defer mockServer.Close()
 
-	client := NewClientForInstitution("", "", "2025-2026", mockServer.URL, "direct?data=testtoken123")
-	data, err := client.FetchDirectTokenCalendar(context.Background(), "testtoken123", "")
-	if err != nil {
-		t.Fatalf("expected success, got: %v", err)
-	}
-	if string(data) != "BEGIN:VCALENDAR\r\nSUMMARY:Direct\r\nEND:VCALENDAR" {
-		t.Errorf("unexpected calendar body: %s", string(data))
-	}
+	client := NewClientForInstitution("", "", "2026-2027", mockServer.URL, "direct?data=testtoken123")
+
+	t.Run("default export with fallback project ID", func(t *testing.T) {
+		data, err := client.FetchDirectTokenCalendar(context.Background(), "testtoken123", "")
+		if err != nil {
+			t.Fatalf("expected success, got: %v", err)
+		}
+		if !strings.Contains(string(data), "BEGIN:VCALENDAR") {
+			t.Errorf("unexpected calendar body: %s", string(data))
+		}
+	})
+
+	t.Run("single leaf resource ID", func(t *testing.T) {
+		data, err := client.FetchDirectTokenCalendar(context.Background(), "testtoken123", "leaf456")
+		if err != nil {
+			t.Fatalf("expected success, got: %v", err)
+		}
+		if !strings.Contains(string(data), "SUMMARY:Course 1") {
+			t.Errorf("expected Course 1, got: %s", string(data))
+		}
+	})
+
+	t.Run("branch resource ID expands to child leaves", func(t *testing.T) {
+		data, err := client.FetchDirectTokenCalendar(context.Background(), "testtoken123", "branch999")
+		if err != nil {
+			t.Fatalf("expected success, got: %v", err)
+		}
+		if !strings.Contains(string(data), "SUMMARY:Branch Course") {
+			t.Errorf("expected Branch Course, got: %s", string(data))
+		}
+	})
 }
 
 func TestCrawlerDiscoverResources(t *testing.T) {

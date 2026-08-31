@@ -89,4 +89,47 @@ describe("ScheduleWeek component", () => {
     expect(wrapper.text()).toContain("WEI");
     expect(wrapper.text()).toContain("Cercle Esisar");
   });
+
+  it("triggers datepicker showPicker and emits jumpToWeek on date selection", async () => {
+    const monday = new Date(2026, 9, 19); // Oct 19 2026
+    const wrapper = mount(ScheduleWeek, {
+      props: {
+        events: [],
+        currentWeekStart: monday,
+        allEvents: [],
+      },
+    });
+
+    const datePickerInput = wrapper.find(".week-date-picker");
+    expect(datePickerInput.exists()).toBe(true);
+
+    // Test change event on datepicker
+    await datePickerInput.setValue("2026-11-02");
+    await datePickerInput.trigger("change");
+
+    expect(wrapper.emitted("jumpToWeek")).toBeTruthy();
+    const emittedDate = wrapper.emitted("jumpToWeek")[0][0];
+    expect(emittedDate.getFullYear()).toBe(2026);
+    expect(emittedDate.getMonth()).toBe(10); // Nov (0-indexed 10)
+    expect(emittedDate.getDate()).toBe(2);
+  });
+
+  it("handles keyboard shortcuts (ArrowLeft, ArrowRight, T)", async () => {
+    const wrapper = mount(ScheduleWeek, {
+      props: {
+        events: [],
+        currentWeekStart: new Date(),
+        allEvents: [],
+      },
+    });
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft" }));
+    expect(wrapper.emitted("prevWeek")).toBeTruthy();
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
+    expect(wrapper.emitted("nextWeek")).toBeTruthy();
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "t" }));
+    expect(wrapper.emitted("currentWeek")).toBeTruthy();
+  });
 });

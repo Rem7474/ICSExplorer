@@ -83,7 +83,7 @@ const isRoomMode = computed(() => unref(props.schedule.selectedMode) === "room")
 
 const hasPersonalConfig = computed(() => {
   const meta = personalScheduleInfo.value;
-  return Boolean(meta?.name && (meta?.universityId || meta?.resourceId || props.schedule.rawPersonalIcs || localStorage.getItem("edt_cached_personal_ics")));
+  return Boolean(meta?.name && (meta?.universityId || meta?.resourceId || props.schedule.rawPersonalIcs || localStorage.getItem("edt_cached_personal_ics") || localStorage.getItem("edtPersonalCreds")));
 });
 
 const onSelectPersonalTab = () => {

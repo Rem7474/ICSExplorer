@@ -60,4 +60,41 @@ describe("ScheduleControls component", () => {
     expect(searchDropdown.exists()).toBe(true);
     expect(searchDropdown.text()).toContain("1A-Prépa-TP1");
   });
+
+  it("displays unconfigured personal card and emits openPersonalSchedule when unconfigured", async () => {
+    localStorage.clear();
+    const schedule = useSchedule();
+    schedule.selectedMode.value = "personal";
+    schedule.personalScheduleInfo.value = null;
+
+    const wrapper = mount(ScheduleControls, {
+      props: { schedule },
+    });
+
+    expect(wrapper.find(".personal-unconfigured-card").exists()).toBe(true);
+    expect(wrapper.text()).toContain("Mon Planning Personnel ADE");
+
+    const configBtn = wrapper.find(".btn-configure");
+    expect(configBtn.exists()).toBe(true);
+    await configBtn.trigger("click");
+    expect(wrapper.emitted("openPersonalSchedule")).toBeTruthy();
+  });
+
+  it("displays configured personal card when credentials exist", async () => {
+    const schedule = useSchedule();
+    schedule.selectedMode.value = "personal";
+    schedule.personalScheduleInfo.value = {
+      name: "M1 MSI ADE UGA",
+      universityName: "Université Grenoble Alpes",
+    };
+    localStorage.setItem("edtPersonalCreds", JSON.stringify({ resourceId: "123" }));
+
+    const wrapper = mount(ScheduleControls, {
+      props: { schedule },
+    });
+
+    expect(wrapper.find(".personal-status-card").exists()).toBe(true);
+    expect(wrapper.text()).toContain("Planning Actif");
+    expect(wrapper.text()).toContain("M1 MSI ADE UGA");
+  });
 });
