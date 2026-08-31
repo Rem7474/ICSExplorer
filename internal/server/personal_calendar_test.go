@@ -21,6 +21,12 @@ func setupMockADEServer(t *testing.T) *httptest.Server {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
+		// Session-init request (see ade.Client.ensureSession): always succeeds
+		// once authenticated, no query params expected.
+		if strings.HasSuffix(r.URL.Path, "direct_planning.jsp") {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 		// Mirrors the real ADE Campus behavior discovered against Grenoble INP's
 		// deployment: valid credentials but no resource ID yields a server error,
 		// not an automatically-resolved "own calendar".

@@ -16,6 +16,11 @@ func TestClientFetchCalendarRaw(t *testing.T) {
 			return
 		}
 
+		if r.URL.Path == "/2026-2027/esisar/etudiant/jsp/standard/direct_planning.jsp" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
 		if r.URL.Path == "/directCal/2026-2027/etudiant/esisar" {
 			resource := r.URL.Query().Get("resources")
 			if resource == "1234" {
@@ -63,6 +68,11 @@ func TestClientForInstitutionFetchesOwnCalendarWithoutResourceID(t *testing.T) {
 		user, pass, ok := r.BasicAuth()
 		if !ok || user != "student" || pass != "secret" {
 			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		if r.URL.Path == "/2026-2027/otherschool/etudiant/jsp/standard/direct_planning.jsp" {
+			w.WriteHeader(http.StatusOK)
 			return
 		}
 
