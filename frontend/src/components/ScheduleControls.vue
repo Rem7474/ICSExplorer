@@ -81,6 +81,18 @@ const isPersonalMode = computed(() => unref(props.schedule.selectedMode) === "pe
 const isTeacherMode = computed(() => unref(props.schedule.selectedMode) === "teacher");
 const isRoomMode = computed(() => unref(props.schedule.selectedMode) === "room");
 
+const hasPersonalConfig = computed(() => {
+  const meta = personalScheduleInfo.value;
+  return Boolean(meta?.name && (meta?.universityId || meta?.resourceId || props.schedule.rawPersonalIcs || localStorage.getItem("edt_cached_personal_ics")));
+});
+
+const onSelectPersonalTab = () => {
+  props.schedule.selectedMode = "personal";
+  if (!hasPersonalConfig.value) {
+    emit("openPersonalSchedule");
+  }
+};
+
 const availableYears = computed(() => unref(props.schedule.availableYears) || []);
 const availableTracks = computed(() => unref(props.schedule.availableTracks) || []);
 const availableTypes = computed(() => unref(props.schedule.availableTypes) || []);
@@ -157,7 +169,7 @@ const copyShareLink = async () => {
         :class="{ active: isPersonalMode }"
         role="tab"
         :aria-selected="isPersonalMode"
-        @click="schedule.selectedMode = 'personal'"
+        @click="onSelectPersonalTab"
       >
         ⭐ Mon Planning ADE
       </button>
@@ -218,7 +230,8 @@ const copyShareLink = async () => {
 
       <!-- Personal mode dedicated view -->
       <template v-if="isPersonalMode">
-        <div class="personal-status-card span-3">
+        <!-- Configured Personal Schedule Card -->
+        <div v-if="hasPersonalConfig" class="personal-status-card span-3">
           <div class="personal-status-header">
             <div class="personal-status-main">
               <span class="personal-badge">Planning Actif</span>
@@ -270,6 +283,26 @@ const copyShareLink = async () => {
               @click="schedule.clearPersonalSchedule"
             >
               ❌ Mode promos Esisar
+            </button>
+          </div>
+        </div>
+
+        <!-- Unconfigured Personal Schedule Onboarding Card -->
+        <div v-else class="personal-unconfigured-card span-3">
+          <div class="unconfigured-content">
+            <div class="unconfigured-icon">⭐</div>
+            <div class="unconfigured-info">
+              <h3 class="unconfigured-title">Mon Planning Personnel ADE</h3>
+              <p class="unconfigured-desc">
+                Aucun emploi du temps personnel n'est configuré sur cet appareil. Connectez votre compte ADE (UGA, Grenoble INP, etc.) pour explorer et afficher votre planning personnalisé.
+              </p>
+            </div>
+            <button
+              type="button"
+              class="btn btn-primary btn-configure"
+              @click="emit('openPersonalSchedule')"
+            >
+              ✨ Configurer mon planning ADE
             </button>
           </div>
         </div>
@@ -644,6 +677,51 @@ const copyShareLink = async () => {
   flex-wrap: wrap;
 }
 
+/* Unconfigured Personal Schedule Card */
+.personal-unconfigured-card {
+  background: rgba(59, 130, 246, 0.05);
+  border: 1px dashed rgba(59, 130, 246, 0.4);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+}
+
+.unconfigured-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.unconfigured-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.unconfigured-info {
+  flex: 1;
+  min-width: 240px;
+}
+
+.unconfigured-title {
+  margin: 0 0 0.25rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.unconfigured-desc {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.btn-configure {
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+}
+
 .btn-sm {
   padding: 0.35rem 0.7rem;
   font-size: 0.82rem;
@@ -664,6 +742,10 @@ const copyShareLink = async () => {
     grid-column: span 1;
   }
   .personal-status-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .unconfigured-content {
     flex-direction: column;
     align-items: flex-start;
   }

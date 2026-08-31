@@ -101,7 +101,15 @@ const onJumpToWeek = (date) => {
 
       <!-- Status or error message -->
       <div v-if="schedule.statusMessage" class="status-banner card">
-        {{ schedule.statusMessage }}
+        <span class="status-message-text">{{ schedule.statusMessage }}</span>
+        <button
+          v-if="schedule.statusMessage.toLowerCase().includes('identifiant') || schedule.statusMessage.toLowerCase().includes('compte ade') || schedule.statusMessage.toLowerCase().includes('planning personnel')"
+          type="button"
+          class="btn btn-primary btn-sm status-action-btn"
+          @click="isPersonalScheduleModalOpen = true"
+        >
+          ✨ Configurer mon planning ADE
+        </button>
       </div>
 
       <!-- Welcome card if 0 files -->
@@ -195,10 +203,24 @@ main {
 }
 
 .status-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
   padding: 0.75rem 1rem;
   font-size: 0.9rem;
   color: var(--accent);
   border-left: 4px solid var(--accent);
+}
+
+.status-message-text {
+  flex: 1;
+}
+
+.status-action-btn {
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .schedule-main-card {
