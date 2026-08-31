@@ -39,8 +39,12 @@ describe("PersonalScheduleModal component", () => {
     expect(wrapper.emitted("close")).toBeTruthy();
   });
 
-  it("submits credentials, loads events into schedule, and does not persist them by default", async () => {
+  it("submits credentials, explores tree, and selects a timetable without persisting by default", async () => {
+    fetchTreeNodes.mockResolvedValue([
+      { id: "101", name: "Groupe 1", isLeaf: true },
+    ]);
     fetchPersonalCalendar.mockResolvedValue("BEGIN:VCALENDAR\r\nEND:VCALENDAR");
+
     const schedule = useSchedule();
     const wrapper = mount(PersonalScheduleModal, { props: { schedule } });
     await flushPromises();
@@ -50,8 +54,19 @@ describe("PersonalScheduleModal component", () => {
     await wrapper.find("form").trigger("submit.prevent");
     await flushPromises();
 
+    expect(fetchTreeNodes).toHaveBeenCalledWith({
+      universityId: "grenoble-inp-esisar",
+      login: "student1",
+      password: "hunter2",
+    });
+
+    const leafItem = wrapper.findAll(".node-item").find((n) => n.text().includes("Groupe 1"));
+    await leafItem.trigger("click");
+    await flushPromises();
+
     expect(fetchPersonalCalendar).toHaveBeenCalledWith({
       universityId: "grenoble-inp-esisar",
+      resourceId: "101",
       login: "student1",
       password: "hunter2",
     });
@@ -61,7 +76,11 @@ describe("PersonalScheduleModal component", () => {
   });
 
   it("persists credentials to localStorage only when 'remember' is checked", async () => {
+    fetchTreeNodes.mockResolvedValue([
+      { id: "101", name: "3A - Ingénieur", isLeaf: true },
+    ]);
     fetchPersonalCalendar.mockResolvedValue("BEGIN:VCALENDAR\r\nEND:VCALENDAR");
+
     const schedule = useSchedule();
     const wrapper = mount(PersonalScheduleModal, { props: { schedule } });
     await flushPromises();
@@ -72,6 +91,10 @@ describe("PersonalScheduleModal component", () => {
     await wrapper.find("form").trigger("submit.prevent");
     await flushPromises();
 
+    const leafItem = wrapper.findAll(".node-item").find((n) => n.text().includes("3A - Ingénieur"));
+    await leafItem.trigger("click");
+    await flushPromises();
+
     const saved = JSON.parse(localStorage.getItem("edtPersonalCreds"));
     expect(saved).toEqual({
       inputMode: "list",
@@ -79,13 +102,17 @@ describe("PersonalScheduleModal component", () => {
       universityName: "Grenoble INP - Esisar",
       login: "student1",
       password: "hunter2",
-      resourceId: "",
-      resourceName: "Mon Planning ADE",
+      resourceId: "101",
+      resourceName: "3A - Ingénieur",
     });
   });
 
   it("submits an adeUrl instead of universityId when in URL mode", async () => {
+    fetchTreeNodes.mockResolvedValue([
+      { id: "201", name: "Mon Planning UGA", isLeaf: true },
+    ]);
     fetchPersonalCalendar.mockResolvedValue("BEGIN:VCALENDAR\r\nEND:VCALENDAR");
+
     const schedule = useSchedule();
     const wrapper = mount(PersonalScheduleModal, { props: { schedule } });
     await flushPromises();
@@ -97,15 +124,15 @@ describe("PersonalScheduleModal component", () => {
     await wrapper.find("form").trigger("submit.prevent");
     await flushPromises();
 
-    expect(fetchPersonalCalendar).toHaveBeenCalledWith({
+    expect(fetchTreeNodes).toHaveBeenCalledWith({
       adeUrl: "https://edt.grenoble-inp.fr/2026-2027/esisar/etudiant/x",
       login: "student1",
       password: "hunter2",
     });
   });
 
-  it("shows an error message when the credentials are rejected", async () => {
-    fetchPersonalCalendar.mockRejectedValue(new Error("invalid credentials"));
+  it("shows an error message when exploring tree fails", async () => {
+    fetchTreeNodes.mockRejectedValue(new Error("invalid credentials"));
     const schedule = useSchedule();
     const wrapper = mount(PersonalScheduleModal, { props: { schedule } });
     await flushPromises();
@@ -133,10 +160,8 @@ describe("PersonalScheduleModal component", () => {
     await wrapper.find("#loginInput").setValue("student1");
     await wrapper.find("#passwordInput").setValue("hunter2");
 
-    // Click "Explorer l'arbre"
-    const exploreBtn = wrapper.findAll("button").find((b) => b.text().includes("Explorer l'arbre"));
-    expect(exploreBtn).toBeDefined();
-    await exploreBtn.trigger("click");
+    // Submit form to explore
+    await wrapper.find("form").trigger("submit.prevent");
     await flushPromises();
 
     expect(fetchTreeNodes).toHaveBeenCalledWith({
@@ -181,8 +206,7 @@ describe("PersonalScheduleModal component", () => {
     await wrapper.find("#loginInput").setValue("student1");
     await wrapper.find("#passwordInput").setValue("hunter2");
 
-    const exploreBtn = wrapper.findAll("button").find((b) => b.text().includes("Explorer l'arbre"));
-    await exploreBtn.trigger("click");
+    await wrapper.find("form").trigger("submit.prevent");
     await flushPromises();
 
     // Click "Choisir" on the branch

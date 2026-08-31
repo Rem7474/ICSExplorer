@@ -223,7 +223,6 @@ onMounted(async () => {
     login.value = saved.login;
     password.value = saved.password;
     remember.value = true;
-    await submitDirect();
   } else if (universities.value.length > 0) {
     selectedUniversityId.value = universities.value[0].id;
   }
@@ -243,9 +242,9 @@ onUnmounted(() => {
       </div>
 
       <!-- Mode 1: Authentication / Connection Form -->
-      <form v-if="!isExploringTree" class="modal-body" @submit.prevent="submitDirect()">
+      <form v-if="!isExploringTree" class="modal-body" @submit.prevent="exploreTree()">
         <p class="modal-intro">
-          Connectez-vous pour récupérer votre emploi du temps personnel ou explorer les plannings de votre école.
+          Connectez-vous pour explorer et sélectionner les plannings de votre établissement.
         </p>
 
         <div class="mode-toggle">
@@ -264,15 +263,6 @@ onUnmounted(() => {
           <select id="universitySelect" v-model="selectedUniversityId">
             <option v-for="u in universities" :key="u.id" :value="u.id">{{ u.name }}</option>
           </select>
-        </div>
-
-        <div v-if="inputMode === 'list'" class="field">
-          <label for="resourceIdInput">Identifiant de ressource ADE (optionnel)</label>
-          <input id="resourceIdInput" v-model="resourceId" type="text" placeholder="ex : 1234 (ou laissez vide pour explorer)" />
-          <p class="field-hint">
-            Si vous connaissez votre numéro de ressource ou groupe, saisissez-le ici. Sinon, utilisez le bouton
-            <strong>« Explorer l'arbre »</strong> ci-dessous.
-          </p>
         </div>
 
         <div v-else class="field">
@@ -323,11 +313,8 @@ onUnmounted(() => {
           <button v-if="remember" class="btn btn-outline" type="button" @click="forgetCredentials">
             Oublier
           </button>
-          <button class="btn btn-secondary" type="button" :disabled="isLoading" @click="exploreTree()">
-            🌳 {{ isLoading ? "Chargement..." : "Explorer l'arbre" }}
-          </button>
           <button class="btn btn-primary" type="submit" :disabled="isLoading">
-            {{ isLoading ? "Connexion..." : "Charger directement" }}
+            🌳 {{ isLoading ? "Chargement..." : "Explorer et choisir mon planning" }}
           </button>
         </div>
       </form>
