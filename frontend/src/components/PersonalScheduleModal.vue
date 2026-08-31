@@ -27,7 +27,7 @@ const errorMessage = ref("");
 
 // Tree exploration state
 const treeNodes = ref([]);
-const breadcrumbs = ref([{ id: "", name: "Arborescence ADE" }]);
+const breadcrumbs = ref([{ id: "", name: "🌐 Arborescence globale" }]);
 const searchQuery = ref("");
 
 const handleKeydown = (e) => {
@@ -92,6 +92,7 @@ const submitDirect = async (overrideResourceId = null, resourceName = "") => {
     }
 
     props.schedule.loadPersonalEvents(icsText, {
+      ...payloadToSave,
       name: finalName,
       universityId: selectedUniversityId.value,
       universityName,
@@ -133,7 +134,7 @@ const exploreTree = async (branchId = "", branchName = "") => {
     if (branchId && branchName) {
       newBreadcrumbs.push({ id: branchId, name: branchName });
     } else if (!branchId) {
-      newBreadcrumbs = [{ id: "", name: "Arborescence ADE" }];
+      newBreadcrumbs = [{ id: "", name: "🌐 Arborescence globale" }];
     }
 
     const branchPath = newBreadcrumbs
@@ -215,14 +216,20 @@ onMounted(async () => {
   }
 
   const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
-  if (saved?.login && saved?.password && (saved?.universityId || saved?.adeUrl)) {
-    inputMode.value = saved.inputMode || (saved.adeUrl ? "url" : "list");
-    selectedUniversityId.value = saved.universityId || "";
-    adeUrl.value = saved.adeUrl || "";
-    resourceId.value = saved.resourceId || "";
-    login.value = saved.login;
-    password.value = saved.password;
-    remember.value = true;
+  const activeInfo = props.schedule?.personalScheduleInfo?.value;
+  const config = saved || activeInfo;
+
+  if (config && (config.adeUrl || (config.universityId && (config.login || config.inputMode === "url")))) {
+    inputMode.value = config.inputMode || (config.adeUrl ? "url" : "list");
+    selectedUniversityId.value = config.universityId || "";
+    adeUrl.value = config.adeUrl || "";
+    resourceId.value = config.resourceId || "";
+    login.value = config.login || "";
+    password.value = config.password || "";
+    remember.value = Boolean(saved);
+
+    // Immediately open global tree exploration from the saved URL / account
+    exploreTree("", "🌐 Arborescence globale");
   } else if (universities.value.length > 0) {
     selectedUniversityId.value = universities.value[0].id;
   }
@@ -321,20 +328,31 @@ onUnmounted(() => {
 
       <!-- Mode 2: Tree Browser & Selector -->
       <div v-else class="modal-body tree-browser">
-        <!-- Breadcrumbs -->
-        <nav class="breadcrumbs" aria-label="Fil d'Ariane">
-          <span
-            v-for="(crumb, idx) in breadcrumbs"
-            :key="idx"
-            class="crumb"
-            :class="{ active: idx === breadcrumbs.length - 1 }"
-            :title="crumb.name"
-            @click="idx < breadcrumbs.length - 1 && navigateBreadcrumb(idx)"
+        <!-- Breadcrumbs with Root Reset -->
+        <div class="tree-top-bar">
+          <nav class="breadcrumbs" aria-label="Fil d'Ariane">
+            <span
+              v-for="(crumb, idx) in breadcrumbs"
+              :key="idx"
+              class="crumb"
+              :class="{ active: idx === breadcrumbs.length - 1 }"
+              :title="crumb.name"
+              @click="idx < breadcrumbs.length - 1 && navigateBreadcrumb(idx)"
+            >
+              {{ crumb.name }}
+              <span v-if="idx < breadcrumbs.length - 1" class="crumb-separator">/</span>
+            </span>
+          </nav>
+          <button
+            v-if="breadcrumbs.length > 1"
+            type="button"
+            class="btn-root-reset"
+            title="Revenir à la racine de l'arborescence globale"
+            @click="navigateBreadcrumb(0)"
           >
-            {{ crumb.name }}
-            <span v-if="idx < breadcrumbs.length - 1" class="crumb-separator">/</span>
-          </span>
-        </nav>
+            🏠 Racine globale
+          </button>
+        </div>
 
         <!-- Current Active Branch Quick Select -->
         <div v-if="currentActiveBranch && currentActiveBranch.id" class="current-branch-bar">
@@ -407,7 +425,7 @@ onUnmounted(() => {
 
         <div class="modal-footer">
           <button class="btn btn-outline" type="button" @click="isExploringTree = false">
-            ⬅ Retour aux identifiants
+            ⚙️ Modifier l'URL ou les identifiants
           </button>
         </div>
       </div>
@@ -572,14 +590,46 @@ onUnmounted(() => {
   box-sizing: border-box;
 }
 
+.tree-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 .breadcrumbs {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.35rem;
   font-size: 0.85rem;
   background: rgba(125, 125, 125, 0.08);
   padding: 0.5rem 0.75rem;
   border-radius: 6px;
+  flex: 1;
+}
+
+.btn-root-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.4rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.btn-root-reset:hover {
+  background: var(--bg);
+  border-color: #3b82f6;
+  color: #3b82f6;
 }
 
 .crumb {
