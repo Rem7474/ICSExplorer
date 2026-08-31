@@ -19,53 +19,53 @@ export const SUBJECT_NAMES = {
 const GENERAL_PALETTE = [
   {
     // Blue / Indigo
-    light: { background: "#eff6ff", border: "#3b82f6", text: "#1e3a8a", subtext: "#2563eb" },
-    dark: { background: "#1e293b", border: "#60a5fa", text: "#f8fafc", subtext: "#93c5fd" },
+    light: { background: "rgba(99, 102, 241, 0.12)", border: "#6366f1", text: "#1e1b4b", subtext: "#4338ca", accent: "#6366f1" },
+    dark: { background: "rgba(99, 102, 241, 0.18)", border: "#818cf8", text: "#f5f3ff", subtext: "#c7d2fe", accent: "#818cf8" },
   },
   {
     // Purple / Violet
-    light: { background: "#f5f3ff", border: "#8b5cf6", text: "#4c1d95", subtext: "#7c3aed" },
-    dark: { background: "#2e1065", border: "#a78bfa", text: "#f5f3ff", subtext: "#c4b5fd" },
+    light: { background: "rgba(139, 92, 246, 0.12)", border: "#8b5cf6", text: "#4c1d95", subtext: "#6d28d9", accent: "#8b5cf6" },
+    dark: { background: "rgba(139, 92, 246, 0.18)", border: "#a78bfa", text: "#f5f3ff", subtext: "#ddd6fe", accent: "#a78bfa" },
   },
   {
     // Emerald / Green
-    light: { background: "#ecfdf5", border: "#10b981", text: "#064e3b", subtext: "#059669" },
-    dark: { background: "#064e3b", border: "#34d399", text: "#ecfdf5", subtext: "#6ee7b7" },
+    light: { background: "rgba(16, 185, 129, 0.12)", border: "#10b981", text: "#064e3b", subtext: "#047857", accent: "#10b981" },
+    dark: { background: "rgba(16, 185, 129, 0.18)", border: "#34d399", text: "#ecfdf5", subtext: "#a7f3d0", accent: "#34d399" },
   },
   {
     // Amber / Warm Yellow
-    light: { background: "#fffbeb", border: "#f59e0b", text: "#78350f", subtext: "#d97706" },
-    dark: { background: "#451a03", border: "#fbbf24", text: "#fffbeb", subtext: "#fde68a" },
+    light: { background: "rgba(245, 158, 11, 0.12)", border: "#f59e0b", text: "#78350f", subtext: "#b45309", accent: "#f59e0b" },
+    dark: { background: "rgba(245, 158, 11, 0.18)", border: "#fbbf24", text: "#fffbeb", subtext: "#fde68a", accent: "#fbbf24" },
   },
   {
     // Rose / Coral
-    light: { background: "#fff1f2", border: "#f43f5e", text: "#881337", subtext: "#e11d48" },
-    dark: { background: "#4c0519", border: "#fb7185", text: "#fff1f2", subtext: "#fda4af" },
+    light: { background: "rgba(244, 63, 94, 0.12)", border: "#f43f5e", text: "#881337", subtext: "#be123c", accent: "#f43f5e" },
+    dark: { background: "rgba(244, 63, 94, 0.18)", border: "#fb7185", text: "#fff1f2", subtext: "#fecdd3", accent: "#fb7185" },
   },
   {
     // Cyan / Teal
-    light: { background: "#ecfeff", border: "#06b6d4", text: "#164e63", subtext: "#0891b2" },
-    dark: { background: "#083344", border: "#22d3ee", text: "#ecfeff", subtext: "#67e8f9" },
+    light: { background: "rgba(6, 182, 212, 0.12)", border: "#06b6d4", text: "#164e63", subtext: "#0e7490", accent: "#06b6d4" },
+    dark: { background: "rgba(6, 182, 212, 0.18)", border: "#22d3ee", text: "#ecfeff", subtext: "#cffafe", accent: "#22d3ee" },
   },
   {
     // Orange
-    light: { background: "#fff7ed", border: "#f97316", text: "#7c2d12", subtext: "#ea580c" },
-    dark: { background: "#431407", border: "#fb923c", text: "#fff7ed", subtext: "#fdba74" },
+    light: { background: "rgba(249, 115, 22, 0.12)", border: "#f97316", text: "#7c2d12", subtext: "#c2410c", accent: "#f97316" },
+    dark: { background: "rgba(249, 115, 22, 0.18)", border: "#fb923c", text: "#fff7ed", subtext: "#ffedd5", accent: "#fb923c" },
   },
   {
     // Fuchsia
-    light: { background: "#fdf4ff", border: "#d946ef", text: "#701a75", subtext: "#c026d3" },
-    dark: { background: "#4a044e", border: "#e879f9", text: "#fdf4ff", subtext: "#f0abfc" },
+    light: { background: "rgba(217, 70, 239, 0.12)", border: "#d946ef", text: "#701a75", subtext: "#a21caf", accent: "#d946ef" },
+    dark: { background: "rgba(217, 70, 239, 0.18)", border: "#e879f9", text: "#fdf4ff", subtext: "#f5d0fe", accent: "#e879f9" },
   },
   {
     // Sky Blue
-    light: { background: "#f0f9ff", border: "#0284c7", text: "#0c4a6e", subtext: "#0369a1" },
-    dark: { background: "#082f49", border: "#38bdf8", text: "#f0f9ff", subtext: "#7dd3fc" },
+    light: { background: "rgba(14, 165, 233, 0.12)", border: "#0ea5e9", text: "#0c4a6e", subtext: "#0369a1", accent: "#0ea5e9" },
+    dark: { background: "rgba(14, 165, 233, 0.18)", border: "#38bdf8", text: "#f0f9ff", subtext: "#bae6fd", accent: "#38bdf8" },
   },
   {
-    // Lime / Fresh Green
-    light: { background: "#f7fee7", border: "#84cc16", text: "#365314", subtext: "#65a30d" },
-    dark: { background: "#1a2e05", border: "#a3e635", text: "#f7fee7", subtext: "#bef264" },
+    // Teal
+    light: { background: "rgba(20, 184, 166, 0.12)", border: "#14b8a6", text: "#134e4a", subtext: "#0f766e", accent: "#14b8a6" },
+    dark: { background: "rgba(20, 184, 166, 0.18)", border: "#2dd4bf", text: "#f0fdfa", subtext: "#99f6e4", accent: "#2dd4bf" },
   },
 ];
 

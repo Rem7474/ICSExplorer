@@ -712,19 +712,23 @@ const nextAvailableEvent = computed(() => {
   border-top-width: 1px;
   border-right-width: 1px;
   border-bottom-width: 1px;
+  border-top-style: solid;
+  border-right-style: solid;
+  border-bottom-style: solid;
   cursor: pointer;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
-  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
   z-index: 2;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
 .event:hover {
-  transform: scale(1.02);
+  transform: translateY(-1px) scale(1.015);
   z-index: 5;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 6px 12px -2px rgba(0, 0, 0, 0.18);
 }
 
 .event-title {

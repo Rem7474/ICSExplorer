@@ -33,12 +33,12 @@ describe("colors utils", () => {
 
     // Test non-Esisar / personal schedule course
     const ugaLight = getSubjectColors("Gouvernance SI", false);
-    expect(ugaLight.background).toMatch(/^#/);
+    expect(ugaLight.background).toMatch(/^rgba/);
     expect(ugaLight.border).toMatch(/^#/);
     expect(ugaLight.text).toMatch(/^#/);
 
     const ugaDark = getSubjectColors("Gouvernance SI", true);
-    expect(ugaDark.background).toMatch(/^#/);
+    expect(ugaDark.background).toMatch(/^rgba/);
     expect(ugaDark.border).toMatch(/^#/);
   });
 
