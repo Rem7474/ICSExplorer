@@ -328,6 +328,7 @@ onUnmounted(() => {
             :key="idx"
             class="crumb"
             :class="{ active: idx === breadcrumbs.length - 1 }"
+            :title="crumb.name"
             @click="idx < breadcrumbs.length - 1 && navigateBreadcrumb(idx)"
           >
             {{ crumb.name }}
@@ -337,9 +338,9 @@ onUnmounted(() => {
 
         <!-- Current Active Branch Quick Select -->
         <div v-if="currentActiveBranch && currentActiveBranch.id" class="current-branch-bar">
-          <div class="current-branch-info">
+          <div class="current-branch-info" :title="currentActiveBranch.name">
             <span class="current-branch-label">Dossier actif :</span>
-            <span class="current-branch-name">{{ currentActiveBranch.name }}</span>
+            <span class="current-branch-name" :title="currentActiveBranch.name">{{ currentActiveBranch.name }}</span>
           </div>
           <button
             type="button"
@@ -378,12 +379,13 @@ onUnmounted(() => {
             :class="{ 'node-leaf': node.isLeaf, 'node-branch': !node.isLeaf }"
             tabindex="0"
             role="button"
+            :title="node.name || node.Name"
             @click="selectNode(node)"
             @keydown.enter="selectNode(node)"
           >
-            <div class="node-main">
+            <div class="node-main" :title="node.name || node.Name">
               <span class="node-icon">{{ node.isLeaf ? "📅" : "📁" }}</span>
-              <span class="node-name">{{ node.name || node.Name }}</span>
+              <span class="node-name" :title="node.name || node.Name">{{ node.name || node.Name }}</span>
             </div>
 
             <div class="node-actions">
@@ -391,7 +393,7 @@ onUnmounted(() => {
                 v-if="!node.isLeaf"
                 type="button"
                 class="node-select-btn"
-                title="Sélectionner tout ce dossier"
+                :title="'Sélectionner tout le dossier : ' + (node.name || node.Name)"
                 @click.stop="chooseResource(node)"
               >
                 📅 Choisir

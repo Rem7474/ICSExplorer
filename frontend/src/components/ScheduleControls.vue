@@ -210,10 +210,11 @@ const copyShareLink = async () => {
             v-for="res in searchResults"
             :key="res.value"
             class="search-item"
+            :title="res.label"
             @mousedown="selectSearchResult(res)"
           >
             <span class="search-tag">{{ res.type === 'student' ? 'Élève' : res.type }}</span>
-            <span class="search-label">{{ res.label }}</span>
+            <span class="search-label" :title="res.label">{{ res.label }}</span>
           </div>
         </div>
       </div>
@@ -235,7 +236,7 @@ const copyShareLink = async () => {
           <div class="personal-status-header">
             <div class="personal-status-main">
               <span class="personal-badge">Planning Actif</span>
-              <h3 class="personal-title">{{ personalScheduleInfo?.name || 'EDT Personnel' }}</h3>
+              <h3 class="personal-title" :title="personalScheduleInfo?.name || 'EDT Personnel'">{{ personalScheduleInfo?.name || 'EDT Personnel' }}</h3>
             </div>
             <div class="personal-meta-tags">
               <span v-if="personalScheduleInfo?.universityName" class="meta-tag">
