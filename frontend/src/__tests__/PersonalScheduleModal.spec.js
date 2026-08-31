@@ -250,4 +250,32 @@ describe("PersonalScheduleModal component", () => {
     const branchBtn = wrapper.find(".node-select-btn");
     expect(branchBtn.attributes("title")).toContain("M1 MANAGEMENT DES SYSTÈMES D'INFORMATION - FI");
   });
+
+  it("automatically opens tree exploration when mounting with existing configured URL / credentials", async () => {
+    localStorage.setItem(
+      "edtPersonalCreds",
+      JSON.stringify({
+        inputMode: "url",
+        adeUrl: "https://ade-uga.fr/direct/index.jsp?data=testtoken",
+      })
+    );
+
+    fetchTreeNodes.mockResolvedValue([
+      { id: "1674", name: "CAMPUS Grenoble", isLeaf: false },
+    ]);
+
+    const schedule = useSchedule();
+    const wrapper = mount(PersonalScheduleModal, { props: { schedule } });
+    await flushPromises();
+
+    expect(fetchTreeNodes).toHaveBeenCalledWith({
+      adeUrl: "https://ade-uga.fr/direct/index.jsp?data=testtoken",
+      login: "",
+      password: "",
+      branchId: undefined,
+      branchPath: undefined,
+    });
+    expect(wrapper.find(".tree-browser").exists()).toBe(true);
+    expect(wrapper.text()).toContain("CAMPUS Grenoble");
+  });
 });

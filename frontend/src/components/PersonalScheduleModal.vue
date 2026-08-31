@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, unref } from "vue";
 import { fetchUniversities, fetchPersonalCalendar, fetchTreeNodes } from "../ics/api.js";
 
 const STORAGE_KEY = "edtPersonalCreds";
@@ -227,13 +227,23 @@ onMounted(async () => {
     errorMessage.value = err.message;
   }
 
-  const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
-  const activeInfo = props.schedule?.personalScheduleInfo?.value;
+  let saved = null;
+  try {
+    saved = JSON.parse(
+      localStorage.getItem(STORAGE_KEY) ||
+      localStorage.getItem("personalAdeCredentials") ||
+      localStorage.getItem("edt_personal_meta") ||
+      localStorage.getItem("personalScheduleMeta") ||
+      "null"
+    );
+  } catch {}
+
+  const activeInfo = unref(props.schedule?.personalScheduleInfo);
   const config = saved || activeInfo;
 
-  if (config && (config.adeUrl || (config.universityId && (config.login || config.inputMode === "url")))) {
+  if (config && (config.adeUrl || config.universityId)) {
     inputMode.value = config.inputMode || (config.adeUrl ? "url" : "list");
-    selectedUniversityId.value = config.universityId || "";
+    selectedUniversityId.value = config.universityId || (universities.value[0]?.id || "");
     adeUrl.value = config.adeUrl || "";
     resourceId.value = config.resourceId || "";
     login.value = config.login || "";

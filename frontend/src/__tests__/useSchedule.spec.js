@@ -83,7 +83,7 @@ describe("useSchedule composable", () => {
     expect(schedule.events.value.length).toBe(1);
     expect(schedule.events.value[0].summary).toBe("Cours perso");
     expect(schedule.personalScheduleInfo.value.name).toBe("3A - Ingénieur - Apprenti");
-    expect(localStorage.getItem("cachedPersonalIcs")).toBe(icsText);
+    expect(localStorage.getItem("edt_cached_personal_ics")).toBe(icsText);
     expect(JSON.parse(localStorage.getItem("edtSelection"))).toEqual({ mode: "personal" });
 
     const url = new URL(window.location);

@@ -5,9 +5,9 @@ import { getRelevantWeekStart, getWeekStart, getWeekEnd } from "../utils/dates.j
 import { getTeacherIndex, getRoomIndex } from "../ics/aggregator.js";
 
 const STORAGE_KEY = "edtSelection";
-const PERSONAL_CREDENTIALS_KEY = "personalAdeCredentials";
-const PERSONAL_CACHE_KEY = "cachedPersonalIcs";
-const PERSONAL_META_KEY = "personalScheduleMeta";
+const PERSONAL_CREDENTIALS_KEY = "edtPersonalCreds";
+const PERSONAL_CACHE_KEY = "edt_cached_personal_ics";
+const PERSONAL_META_KEY = "edt_personal_meta";
 
 export function useSchedule() {
   const availableFiles = ref([]);
@@ -222,7 +222,11 @@ export function useSchedule() {
         universityId: meta.universityId || personalScheduleInfo.value?.universityId || "",
         universityName: meta.universityName || personalScheduleInfo.value?.universityName || "",
         resourceId: meta.resourceId || personalScheduleInfo.value?.resourceId || "",
-        inputMode: meta.inputMode || personalScheduleInfo.value?.inputMode || "credentials",
+        inputMode: meta.inputMode || personalScheduleInfo.value?.inputMode || "list",
+        adeUrl: meta.adeUrl || personalScheduleInfo.value?.adeUrl || "",
+        branchPath: meta.branchPath || personalScheduleInfo.value?.branchPath || [],
+        login: meta.login || personalScheduleInfo.value?.login || "",
+        password: meta.password || personalScheduleInfo.value?.password || "",
         lastUpdated,
       };
 
@@ -281,6 +285,9 @@ export function useSchedule() {
     localStorage.removeItem(PERSONAL_CREDENTIALS_KEY);
     localStorage.removeItem(PERSONAL_CACHE_KEY);
     localStorage.removeItem(PERSONAL_META_KEY);
+    localStorage.removeItem("personalAdeCredentials");
+    localStorage.removeItem("cachedPersonalIcs");
+    localStorage.removeItem("personalScheduleMeta");
     personalScheduleInfo.value = null;
     rawPersonalIcs.value = "";
 
