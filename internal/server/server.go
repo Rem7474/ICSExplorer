@@ -32,7 +32,7 @@ func New(cfg *config.Config, s *syncer.Syncer, logger *slog.Logger) *Server {
 		cfg:                     cfg,
 		syncer:                  s,
 		logger:                  logger,
-		personalCalendarLimiter: newIPRateLimiter(5, 10*time.Minute),
+		personalCalendarLimiter: newIPRateLimiter(120, 1*time.Minute),
 		universityDirectory:     university.NewDirectory(university.DefaultDeployments(), 6*time.Hour),
 	}
 

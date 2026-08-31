@@ -283,6 +283,7 @@ func TestHandlePersonalCalendar(t *testing.T) {
 	t.Run("rate limit kicks in after repeated requests", func(t *testing.T) {
 		srv2, _, _ := setupTestServer(t)
 		withMockUniversityDirectory(t, srv2)
+		srv2.personalCalendarLimiter = newIPRateLimiter(5, 10*time.Minute)
 		mux2 := http.NewServeMux()
 		srv2.registerRoutes(mux2)
 		handler2 := srv2.applyMiddlewares(mux2)

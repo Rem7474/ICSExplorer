@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+
+	"github.com/Rem7474/ICSExplorer/internal/ics"
 )
 
 // TreeNode represents a folder branch or a leaf timetable resource in ADE tree.jsp.
@@ -57,7 +59,7 @@ func (c *Client) FetchTreeNodes(ctx context.Context, category string, branchPath
 		}
 	}
 
-	return ParseTreeHTML(string(data)), nil
+	return ParseTreeHTML(string(ics.EnsureUTF8(data))), nil
 }
 
 func (c *Client) fetchDirectTokenTreeNodes(ctx context.Context, dataToken string, category string, branchPath []string) ([]TreeNode, error) {
@@ -119,7 +121,7 @@ func (c *Client) fetchDirectTokenTreeNodes(ctx context.Context, dataToken string
 		}
 	}
 
-	return ParseTreeHTML(string(body)), nil
+	return ParseTreeHTML(string(ics.EnsureUTF8(body))), nil
 }
 
 var (

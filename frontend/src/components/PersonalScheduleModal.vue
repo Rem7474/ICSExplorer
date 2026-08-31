@@ -508,6 +508,15 @@ onUnmounted(() => {
   min-height: 380px;
 }
 
+.search-box {
+  width: 100%;
+}
+
+.search-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .breadcrumbs {
   display: flex;
   flex-wrap: wrap;
