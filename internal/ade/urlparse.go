@@ -34,6 +34,11 @@ func ParseInstanceURL(raw string) (baseURL, academicYear, institutionPath, resou
 	baseURL = u.Scheme + "://" + u.Host
 	resourceID = u.Query().Get("resources")
 
+	// Direct access token URL (e.g. /direct/index.jsp?data=... or direct_planning.jsp?data=...)
+	if dataToken := u.Query().Get("data"); dataToken != "" {
+		return baseURL, "", "direct?data=" + dataToken, resourceID, nil
+	}
+
 	segments := strings.Split(strings.Trim(u.Path, "/"), "/")
 
 	for _, seg := range segments {

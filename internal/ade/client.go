@@ -107,12 +107,11 @@ func (c *Client) makeRequest(ctx context.Context, endpoint string) (*http.Respon
 }
 
 // entryURL returns the institution's ADE Campus "direct planning" page - the
-// page a browser session normally lands on first, whose GET establishes the
-// server-side session (JSESSIONID + internal projectId) that tree.jsp and
-// directCal both require.
+// entryURL returns the institution's ADE Campus entry page (e.g. /2026-2027/etudiant/esisar),
+// whose GET establishes the server-side session (JSESSIONID + internal context)
+// that tree.jsp and directCal both require.
 func (c *Client) entryURL() string {
-	school := strings.TrimPrefix(c.institutionPath, "etudiant/")
-	return fmt.Sprintf("%s/%s/%s/etudiant/jsp/standard/direct_planning.jsp", c.baseURL, c.academicYear, school)
+	return fmt.Sprintf("%s/%s/%s", c.baseURL, c.academicYear, c.institutionPath)
 }
 
 // ensureSession establishes the ADE Campus server-side session once per
@@ -175,10 +174,7 @@ func (c *Client) FetchCalendarRaw(ctx context.Context, resourceIDs string) ([]by
 	startYear := baseYear - 2
 	endYear := baseYear + 3
 
-	resourcesParam := ""
-	if resourceIDs != "" {
-		resourcesParam = "resources=" + resourceIDs + "&"
-	}
+	resourcesParam := fmt.Sprintf("resources=%s&", resourceIDs)
 
 	endpoint := fmt.Sprintf("directCal/%s/%s?%sstartDay=31&startMonth=08&startYear=%d&endDay=10&endMonth=01&endYear=%d",
 		c.academicYear, c.institutionPath, resourcesParam, startYear, endYear)
@@ -227,3 +223,51 @@ func (c *Client) FetchTreePage(ctx context.Context, path string) ([]byte, error)
 
 	return data, nil
 }
+
+// FetchDirectTokenCalendar fetches the iCalendar from an ADE Direct Planning instance
+// authenticated via an encrypted data token (e.g. /direct/index.jsp?data=...).
+func (c *Client) FetchDirectTokenCalendar(ctx context.Context, dataToken string) ([]byte, error) {
+	// 1. Establish session via direct_planning.jsp?data=...
+	directPlanningURL := fmt.Sprintf("%s/jsp/custom/modules/plannings/direct_planning.jsp?data=%s", c.baseURL, dataToken)
+	req1, err := http.NewRequestWithContext(ctx, http.MethodGet, directPlanningURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create direct planning request: %w", err)
+	}
+	req1.Header.Set("User-Agent", userAgent)
+	resp1, err := c.httpClient.Do(req1)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to ADE direct portal: %w", err)
+	}
+	resp1.Body.Close()
+
+	// 2. Query anonymous_cal.jsp
+	now := time.Now()
+	baseYear := now.Year()
+	startYear := baseYear - 1
+	endYear := baseYear + 2
+
+	calURL := fmt.Sprintf("%s/jsp/custom/modules/plannings/anonymous_cal.jsp?resources=&projectId=0&startDay=01&startMonth=09&startYear=%d&endDay=31&endMonth=08&endYear=%d&calType=ical", c.baseURL, startYear, endYear)
+	req2, err := http.NewRequestWithContext(ctx, http.MethodGet, calURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req2.Header.Set("User-Agent", userAgent)
+	req2.Header.Set("Referer", directPlanningURL)
+
+	resp2, err := c.httpClient.Do(req2)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch direct calendar: %w", err)
+	}
+	defer resp2.Body.Close()
+
+	body, err := io.ReadAll(resp2.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp2.StatusCode != http.StatusOK || !strings.Contains(string(body), "BEGIN:VCALENDAR") {
+		return nil, fmt.Errorf("ADE direct export returned unexpected status %d", resp2.StatusCode)
+	}
+
+	return body, nil
+}
+

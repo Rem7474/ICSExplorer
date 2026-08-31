@@ -39,6 +39,13 @@ func TestParseInstanceURL(t *testing.T) {
 			wantInstitutionPath: "etudiant/ense3",
 		},
 		{
+			name:                "direct token data URL style",
+			in:                  "https://ade-uga-ro-vs.grenet.fr/direct/index.jsp?data=51278da58f6a&resources=999",
+			wantBaseURL:         "https://ade-uga-ro-vs.grenet.fr",
+			wantInstitutionPath: "direct?data=51278da58f6a",
+			wantResourceID:      "999",
+		},
+		{
 			name:    "missing academic year",
 			in:      "https://edt.grenoble-inp.fr/etudiant/esisar",
 			wantErr: true,

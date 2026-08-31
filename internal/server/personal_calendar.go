@@ -118,7 +118,14 @@ func (s *Server) handlePersonalCalendar(w http.ResponseWriter, r *http.Request) 
 
 	client := ade.NewClientForInstitution(req.Login, req.Password, academicYear, baseURL, institutionPath)
 
-	raw, err := client.FetchCalendarRaw(ctx, resourceID)
+	var raw []byte
+	var err error
+	if strings.HasPrefix(institutionPath, "direct?data=") {
+		dataToken := strings.TrimPrefix(institutionPath, "direct?data=")
+		raw, err = client.FetchDirectTokenCalendar(ctx, dataToken)
+	} else {
+		raw, err = client.FetchCalendarRaw(ctx, resourceID)
+	}
 	if err != nil {
 		s.logger.Debug("personal calendar fetch failed", "baseURL", baseURL, "institutionPath", institutionPath, "academicYear", academicYear, "resourceID", resourceID, "error", err)
 		if strings.Contains(err.Error(), "401") {

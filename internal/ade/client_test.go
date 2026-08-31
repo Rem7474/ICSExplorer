@@ -16,7 +16,7 @@ func TestClientFetchCalendarRaw(t *testing.T) {
 			return
 		}
 
-		if r.URL.Path == "/2026-2027/esisar/etudiant/jsp/standard/direct_planning.jsp" {
+		if r.URL.Path == "/2026-2027/etudiant/esisar" {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
@@ -71,7 +71,7 @@ func TestClientForInstitutionFetchesOwnCalendarWithoutResourceID(t *testing.T) {
 			return
 		}
 
-		if r.URL.Path == "/2026-2027/otherschool/etudiant/jsp/standard/direct_planning.jsp" {
+		if r.URL.Path == "/2026-2027/etudiant/otherschool" {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
@@ -81,7 +81,7 @@ func TestClientForInstitutionFetchesOwnCalendarWithoutResourceID(t *testing.T) {
 			return
 		}
 		if r.URL.Query().Get("resources") != "" {
-			t.Errorf("expected no 'resources' query param, got %q", r.URL.Query().Get("resources"))
+			t.Errorf("expected empty 'resources' query param, got %q", r.URL.Query().Get("resources"))
 		}
 
 		w.WriteHeader(http.StatusOK)
@@ -96,6 +96,33 @@ func TestClientForInstitutionFetchesOwnCalendarWithoutResourceID(t *testing.T) {
 		t.Fatalf("expected success, got: %v", err)
 	}
 	if string(data) != "BEGIN:VCALENDAR\r\nSUMMARY:Perso\r\nEND:VCALENDAR" {
+		t.Errorf("unexpected calendar body: %s", string(data))
+	}
+}
+
+func TestClientFetchDirectTokenCalendar(t *testing.T) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/jsp/custom/modules/plannings/direct_planning.jsp" {
+			if r.URL.Query().Get("data") == "testtoken123" {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+		}
+		if r.URL.Path == "/jsp/custom/modules/plannings/anonymous_cal.jsp" {
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprint(w, "BEGIN:VCALENDAR\r\nSUMMARY:Direct\r\nEND:VCALENDAR")
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer mockServer.Close()
+
+	client := NewClientForInstitution("", "", "2025-2026", mockServer.URL, "direct?data=testtoken123")
+	data, err := client.FetchDirectTokenCalendar(context.Background(), "testtoken123")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if string(data) != "BEGIN:VCALENDAR\r\nSUMMARY:Direct\r\nEND:VCALENDAR" {
 		t.Errorf("unexpected calendar body: %s", string(data))
 	}
 }

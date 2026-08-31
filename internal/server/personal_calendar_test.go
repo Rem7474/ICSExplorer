@@ -21,21 +21,20 @@ func setupMockADEServer(t *testing.T) *httptest.Server {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		// Session-init request (see ade.Client.ensureSession): always succeeds
-		// once authenticated, no query params expected.
-		if strings.HasSuffix(r.URL.Path, "direct_planning.jsp") {
+		if strings.HasPrefix(r.URL.Path, "/directCal") {
+			if !r.URL.Query().Has("resources") {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("BEGIN:VCALENDAR\r\nSUMMARY:Perso\r\nEND:VCALENDAR"))
+			return
+		}
+		if strings.HasSuffix(r.URL.Path, "etudiant/test") {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		// Mirrors the real ADE Campus behavior discovered against Grenoble INP's
-		// deployment: valid credentials but no resource ID yields a server error,
-		// not an automatically-resolved "own calendar".
-		if r.URL.Query().Get("resources") == "" {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("BEGIN:VCALENDAR\r\nSUMMARY:Perso\r\nEND:VCALENDAR"))
+		w.WriteHeader(http.StatusNotFound)
 	}))
 }
 
@@ -181,17 +180,17 @@ func TestHandlePersonalCalendar(t *testing.T) {
 		}
 	})
 
-	t.Run("valid credentials without a resourceId return a helpful 400, not a leaked 500", func(t *testing.T) {
+	t.Run("valid credentials without a resourceId succeed using default resources", func(t *testing.T) {
 		handler := newPersonalCalendarHandler(t)
 		body, _ := json.Marshal(map[string]string{"universityId": "test-test", "login": "student", "password": "secret"})
 		req := httptest.NewRequest(http.MethodPost, "/api/personal-calendar", bytes.NewReader(body))
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
-		if w.Code != http.StatusBadRequest {
-			t.Fatalf("expected 400, got %d. Body: %s", w.Code, w.Body.String())
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d. Body: %s", w.Code, w.Body.String())
 		}
-		if !strings.Contains(w.Body.String(), "resource ID") {
-			t.Errorf("expected the error to explain a resource ID is needed, got: %s", w.Body.String())
+		if !strings.Contains(w.Body.String(), "SUMMARY:Perso") {
+			t.Errorf("expected calendar body to contain the mock event, got: %s", w.Body.String())
 		}
 	})
 
@@ -213,6 +212,36 @@ func TestHandlePersonalCalendar(t *testing.T) {
 		}
 		if !strings.Contains(w.Body.String(), "SUMMARY:Perso") {
 			t.Errorf("expected calendar body to contain the mock event, got: %s", w.Body.String())
+		}
+	})
+
+	t.Run("adeUrl with direct data token works without credentials", func(t *testing.T) {
+		mockDirectServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/jsp/custom/modules/plannings/direct_planning.jsp" {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			if r.URL.Path == "/jsp/custom/modules/plannings/anonymous_cal.jsp" {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("BEGIN:VCALENDAR\r\nSUMMARY:Direct Token\r\nEND:VCALENDAR"))
+				return
+			}
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer mockDirectServer.Close()
+
+		handler := newPersonalCalendarHandler(t)
+		body, _ := json.Marshal(map[string]string{
+			"adeUrl": mockDirectServer.URL + "/direct/index.jsp?data=secretToken123,1",
+		})
+		req := httptest.NewRequest(http.MethodPost, "/api/personal-calendar", bytes.NewReader(body))
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d. Body: %s", w.Code, w.Body.String())
+		}
+		if !strings.Contains(w.Body.String(), "SUMMARY:Direct Token") {
+			t.Errorf("expected calendar body to contain the direct token event, got: %s", w.Body.String())
 		}
 	})
 
