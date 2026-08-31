@@ -21,7 +21,7 @@ const props = defineProps({
 
 const emit = defineEmits(["prevWeek", "nextWeek", "currentWeek", "eventClick", "jumpToWeek"]);
 
-const { isDark } = useTheme();
+const { isDark, toggleTheme } = useTheme();
 
 const SCHEDULE_PX = 600;
 const DEFAULT_HOUR_START = 8;
@@ -144,21 +144,16 @@ function layoutDayEvents(events, dayDate) {
     const s = new Date(event.start);
     const e = new Date(event.end);
 
-    // Clamp visible start and end within day schedule window
     const clampedStart = Math.max(s.getTime(), dayScheduleStart.getTime());
     const clampedEnd = Math.min(e.getTime(), dayScheduleEnd.getTime());
 
-    const relStartHours = Math.max(0, (clampedStart - dayScheduleStart.getTime()) / 3600000);
-    const relEndHours = Math.max(relStartHours + 0.5, (clampedEnd - dayScheduleStart.getTime()) / 3600000);
-
-    const top = Math.max(0, relStartHours * pxPerHour.value);
-    const rawHeight = (relEndHours - relStartHours) * pxPerHour.value;
-    const height = Math.max(24, Math.min(SCHEDULE_PX - top, rawHeight));
+    const top = getEventTop(new Date(clampedStart));
+    const height = Math.max(22, ((clampedEnd - clampedStart) / (1000 * 60 * 60)) * pxPerHour.value);
 
     return {
       event,
       startT: clampedStart,
-      endT: Math.max(clampedStart + 1800000, clampedEnd),
+      endT: clampedEnd,
       top,
       height,
       displayTime: formatChunkTime(event, dayDate),
@@ -169,31 +164,35 @@ function layoutDayEvents(events, dayDate) {
 
   const layout = new Map();
   let cluster = [];
-  let clusterMaxEnd = -Infinity;
+  let clusterMaxEnd = -1;
 
   const flush = () => {
     if (!cluster.length) return;
-    const lanes = [];
-    const colByIdx = [];
-
+    const cols = [];
     cluster.forEach((item) => {
-      let lane = lanes.findIndex((endT) => endT <= item.startT);
-      if (lane === -1) {
-        lanes.push(item.endT);
-        lane = lanes.length - 1;
-      } else {
-        lanes[lane] = item.endT;
+      let placed = false;
+      for (let c = 0; c < cols.length; c++) {
+        if (cols[c] <= item.startT) {
+          cols[c] = item.endT;
+          layout.set(item.event, { col: c, cols: 0 });
+          placed = true;
+          break;
+        }
       }
-      colByIdx.push(lane);
+      if (!placed) {
+        layout.set(item.event, { col: cols.length, cols: 0 });
+        cols.push(item.endT);
+      }
     });
 
-    const cols = lanes.length;
-    cluster.forEach((item, idx) => {
-      layout.set(item.event, { col: colByIdx[idx], cols });
+    const totalCols = cols.length;
+    cluster.forEach((item) => {
+      const pos = layout.get(item.event);
+      if (pos) pos.cols = totalCols;
     });
 
     cluster = [];
-    clusterMaxEnd = -Infinity;
+    clusterMaxEnd = -1;
   };
 
   for (const item of items) {
@@ -216,18 +215,18 @@ function layoutDayEvents(events, dayDate) {
   });
 }
 
+function getEventTop(date) {
+  const d = new Date(date);
+  const minutes = (d.getHours() - hourStart.value) * 60 + d.getMinutes();
+  return Math.max(0, (minutes / 60) * pxPerHour.value);
+}
+
 // Current time indicator
 const currentTime = ref(new Date());
 let timeInterval = null;
 
-onMounted(() => {
-  timeInterval = setInterval(() => {
-    currentTime.value = new Date();
-  }, 60000);
-});
-
-onUnmounted(() => {
-  if (timeInterval) clearInterval(timeInterval);
+const currentTimeFormatted = computed(() => {
+  return formatTimeOnly(currentTime.value);
 });
 
 const isDayToday = (date) => {
@@ -236,7 +235,6 @@ const isDayToday = (date) => {
 
 const currentTimeTop = computed(() => {
   const h = currentTime.value.getHours();
-  const m = currentTime.value.getMinutes();
   if (h < hourStart.value || h >= hourEnd.value) return null;
   return getEventTop(currentTime.value);
 });
@@ -255,6 +253,75 @@ const scrollDayIntoView = (idx) => {
   }
 };
 
+// Touch gestures (swipe)
+let touchStartX = 0;
+let touchStartY = 0;
+
+const onTouchStart = (e) => {
+  if (e.touches && e.touches.length === 1) {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }
+};
+
+const onTouchEnd = (e) => {
+  if (e.changedTouches && e.changedTouches.length === 1) {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+
+    if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+      if (dx < 0) {
+        if (activeDayIndex.value < 4) {
+          scrollDayIntoView(activeDayIndex.value + 1);
+        } else {
+          emit("nextWeek");
+        }
+      } else {
+        if (activeDayIndex.value > 0) {
+          scrollDayIntoView(activeDayIndex.value - 1);
+        } else {
+          emit("prevWeek");
+        }
+      }
+    }
+  }
+};
+
+// Global keyboard shortcuts
+const handleGlobalKeydown = (e) => {
+  const tag = e.target?.tagName?.toLowerCase();
+  if (tag === "input" || tag === "select" || tag === "textarea") return;
+
+  if (e.key === "t" || e.key === "T") {
+    emit("currentWeek");
+  } else if (e.key === "ArrowLeft") {
+    emit("prevWeek");
+  } else if (e.key === "ArrowRight") {
+    emit("nextWeek");
+  } else if (e.key === "d" || e.key === "D") {
+    toggleTheme();
+  }
+};
+
+onMounted(() => {
+  timeInterval = setInterval(() => {
+    currentTime.value = new Date();
+  }, 30000);
+  window.addEventListener("keydown", handleGlobalKeydown);
+});
+
+onUnmounted(() => {
+  if (timeInterval) clearInterval(timeInterval);
+  window.removeEventListener("keydown", handleGlobalKeydown);
+});
+
+const onDatePickerChange = (val) => {
+  if (val) {
+    const [y, m, d] = val.split("-").map(Number);
+    emit("jumpToWeek", new Date(y, m - 1, d));
+  }
+};
+
 // Empty state details
 const nextAvailableEvent = computed(() => {
   const now = new Date();
@@ -266,17 +333,27 @@ const nextAvailableEvent = computed(() => {
   <div class="schedule-wrapper">
     <!-- Week Navigation Header -->
     <div class="week-nav-bar">
-      <button class="nav-btn" type="button" aria-label="Semaine précédente" @click="emit('prevWeek')">
-        ◀
-      </button>
-      <div class="week-label">
-        Semaine du {{ formatDateOnly(startDate) }}
+      <div class="nav-arrows">
+        <button class="nav-btn" type="button" aria-label="Semaine précédente (Flèche gauche)" title="Semaine précédente (←)" @click="emit('prevWeek')">
+          ◀
+        </button>
+        <label class="week-label" title="Cliquer pour choisir une date précise">
+          <span>📅 Semaine du {{ formatDateOnly(startDate) }}</span>
+          <input
+            type="date"
+            class="week-date-picker"
+            :value="startDate.toISOString().split('T')[0]"
+            aria-label="Choisir une date"
+            @change="onDatePickerChange($event.target.value)"
+          />
+        </label>
+        <button class="nav-btn" type="button" aria-label="Semaine suivante (Flèche droite)" title="Semaine suivante (→)" @click="emit('nextWeek')">
+          ▶
+        </button>
       </div>
-      <button class="nav-btn" type="button" aria-label="Semaine suivante" @click="emit('nextWeek')">
-        ▶
-      </button>
-      <button class="btn btn-outline today-btn" type="button" @click="emit('currentWeek')">
-        Semaine actuelle
+
+      <button class="btn btn-outline today-btn" type="button" title="Revenir à la semaine actuelle (Touche T)" @click="emit('currentWeek')">
+        📍 Aujourd'hui
       </button>
     </div>
 
@@ -307,12 +384,18 @@ const nextAvailableEvent = computed(() => {
         type="button"
         @click="emit('jumpToWeek', nextAvailableEvent.start)"
       >
-        Aller au prochain cours
+        Aller au prochain cours ➔
       </button>
     </div>
 
     <!-- Schedule Grid -->
-    <div v-else ref="scheduleContainer" class="schedule">
+    <div
+      v-else
+      ref="scheduleContainer"
+      class="schedule"
+      @touchstart="onTouchStart"
+      @touchend="onTouchEnd"
+    >
       <!-- Hour Rail -->
       <div class="hour-rail" aria-hidden="true">
         <div class="hour-rail-spacer">&nbsp;</div>
@@ -337,20 +420,25 @@ const nextAvailableEvent = computed(() => {
       >
         <div class="day-title">{{ day.dayName }}</div>
         <div class="day-schedule" :style="{ minHeight: `${SCHEDULE_PX}px` }">
-          <!-- Realtime red line indicator -->
+          <!-- Realtime red line indicator with timestamp badge -->
           <div
             v-if="isDayToday(day.date) && currentTimeTop !== null"
             class="current-time-line"
             :style="{ top: `${currentTimeTop}px` }"
             aria-hidden="true"
-          ></div>
+          >
+            <span class="current-time-badge">{{ currentTimeFormatted }}</span>
+          </div>
 
           <!-- Course Events -->
           <div
             v-for="ev in day.events"
             :key="ev.uid || ev.summary"
             class="event"
-            :class="{ 'event-cercle': isCercleEvent(ev) }"
+            :class="{
+              'event-cercle': isCercleEvent(ev),
+              'event-compact': ev.height < 48
+            }"
             tabindex="0"
             role="button"
             :style="{
@@ -370,10 +458,10 @@ const nextAvailableEvent = computed(() => {
               🎉 Cercle Esisar
             </span>
             <h4 class="event-title">{{ ev.summary }}</h4>
-            <span class="event-time">
+            <span v-if="ev.height >= 48" class="event-time">
               {{ ev.displayTime }}
             </span>
-            <span v-if="ev.location" class="event-location">
+            <span v-if="ev.location && ev.height >= 60" class="event-location">
               📍 {{ ev.location }}
             </span>
           </div>
@@ -395,6 +483,13 @@ const nextAvailableEvent = computed(() => {
   align-items: center;
   gap: 0.75rem;
   justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.nav-arrows {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .nav-btn {
@@ -412,9 +507,53 @@ const nextAvailableEvent = computed(() => {
 }
 
 .week-label {
+  position: relative;
   font-size: 1.1rem;
   font-weight: 700;
   text-align: center;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.week-label:hover {
+  background: var(--bg);
+}
+
+.week-date-picker {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+}
+
+.current-time-badge {
+  position: absolute;
+  left: 2px;
+  top: -10px;
+  background: #ef4444;
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.event.event-compact {
+  padding: 0.15rem 0.35rem;
+  justify-content: center;
+}
+
+.event.event-compact .event-title {
+  font-size: 0.75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .day-dots {

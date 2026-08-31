@@ -1,5 +1,24 @@
 const KNOWN_PREFIXES = ["IN", "SN", "PR", "LV", "XP", "AU", "EP", "MAC", "SP", "PT"];
 
+export const SUBJECT_NAMES = {
+  IN: "Informatique",
+  SN: "Signal & Numérique",
+  PR: "Maths & Sciences",
+  LV: "Langues Vivantes",
+  XP: "Projets & Expérimentations",
+  AU: "Automatique",
+  EP: "Électronique & Physique",
+  MAC: "Management & Com.",
+  SP: "Sport & EPS",
+  PT: "Projets Techniques",
+  CERCLE: "Cercle des Élèves",
+  DEFAULT: "Autre",
+};
+
+export const getSubjectFullName = (type) => {
+  return SUBJECT_NAMES[type] || type || "Autre";
+};
+
 export const isCercleEvent = (eventOrSummary) => {
   if (!eventOrSummary) return false;
   if (typeof eventOrSummary === "object") {

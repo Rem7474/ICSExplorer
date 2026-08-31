@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getSubjectType, getSubjectColors } from "../utils/colors.js";
+import { getSubjectType, getSubjectColors, getSubjectFullName } from "../utils/colors.js";
 
 describe("colors utils", () => {
   it("detects known subject types correctly", () => {
@@ -9,6 +9,14 @@ describe("colors utils", () => {
     expect(getSubjectType("PR301 Recherche")).toBe("PR");
     expect(getSubjectType("Cercle Soiree")).toBe("CERCLE");
     expect(getSubjectType("Conférence Divers")).toBe("DEFAULT");
+  });
+
+  it("returns human-readable subject names", () => {
+    expect(getSubjectFullName("IN")).toBe("Informatique");
+    expect(getSubjectFullName("SN")).toBe("Signal & Numérique");
+    expect(getSubjectFullName("LV")).toBe("Langues Vivantes");
+    expect(getSubjectFullName("CERCLE")).toBe("Cercle des Élèves");
+    expect(getSubjectFullName("UNKNOWN")).toBe("UNKNOWN");
   });
 
   it("returns appropriate subject colors for light and dark modes", () => {

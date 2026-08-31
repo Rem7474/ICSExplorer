@@ -1,7 +1,8 @@
 <script setup>
-import { ref, computed, unref } from "vue";
+import { ref, computed, unref, onMounted, onUnmounted } from "vue";
 import { fileUrl } from "../ics/api.js";
 import { useFavorites } from "../composables/useFavorites.js";
+import { useToast } from "../composables/useToast.js";
 
 const props = defineProps({
   schedule: {
@@ -13,9 +14,27 @@ const props = defineProps({
 const emit = defineEmits(["openEmptyRooms", "openPersonalSchedule"]);
 
 const { isFavorited, toggleFavorite } = useFavorites();
+const { showToast } = useToast();
 
+const searchInputRef = ref(null);
 const searchQuery = ref("");
 const showSearchResults = ref(false);
+
+const handleGlobalKeydown = (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+    e.preventDefault();
+    searchInputRef.value?.focus();
+    showSearchResults.value = true;
+  }
+};
+
+onMounted(() => {
+  window.addEventListener("keydown", handleGlobalKeydown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("keydown", handleGlobalKeydown);
+});
 
 // Generate current item key for favorites
 const currentFavItem = computed(() => {
@@ -53,6 +72,7 @@ const isCurrentPinned = computed(() => {
 const onTogglePin = () => {
   if (currentFavItem.value) {
     toggleFavorite(currentFavItem.value);
+    showToast(isCurrentPinned.value ? "Ajouté aux favoris !" : "Retiré des favoris", "info");
   }
 };
 
@@ -104,12 +124,13 @@ const selectSearchResult = (item) => {
   props.schedule.loadSchedule(item.value);
   searchQuery.value = "";
   showSearchResults.value = false;
+  showToast(`Planning chargé : ${item.label}`, "success");
 };
 
 const copyShareLink = async () => {
   try {
     await navigator.clipboard.writeText(window.location.href);
-    alert("Lien copié dans le presse-papier !");
+    showToast("Lien de partage copié dans le presse-papier !", "success");
   } catch {
     prompt("Copiez ce lien :", window.location.href);
   }
@@ -118,12 +139,57 @@ const copyShareLink = async () => {
 
 <template>
   <div class="card controls-card">
+    <!-- Mode Tabs Segmented Control -->
+    <div class="mode-tabs" role="tablist" aria-label="Mode d'affichage de l'emploi du temps">
+      <button
+        type="button"
+        class="mode-tab-btn"
+        :class="{ active: isStudentMode }"
+        role="tab"
+        :aria-selected="isStudentMode"
+        @click="schedule.selectedMode = 'student'"
+      >
+        🎓 Promos Esisar
+      </button>
+      <button
+        type="button"
+        class="mode-tab-btn"
+        :class="{ active: isPersonalMode }"
+        role="tab"
+        :aria-selected="isPersonalMode"
+        @click="schedule.selectedMode = 'personal'"
+      >
+        ⭐ Mon Planning ADE
+      </button>
+      <button
+        type="button"
+        class="mode-tab-btn"
+        :class="{ active: isTeacherMode }"
+        role="tab"
+        :aria-selected="isTeacherMode"
+        @click="schedule.selectedMode = 'teacher'"
+      >
+        👨‍🏫 Professeurs
+      </button>
+      <button
+        type="button"
+        class="mode-tab-btn"
+        :class="{ active: isRoomMode }"
+        role="tab"
+        :aria-selected="isRoomMode"
+        @click="schedule.selectedMode = 'room'"
+      >
+        🚪 Salles
+      </button>
+    </div>
+
     <div class="quick-search-row">
       <div class="search-box">
         <input
+          ref="searchInputRef"
           v-model="searchQuery"
           type="text"
-          placeholder="🔍 Recherche rapide (ex: 1A-Prépa, 3A-IN, Professeur...)"
+          placeholder="🔍 Recherche rapide (ex: 1A-Prépa, 3A-IN, Professeur...) [Ctrl+K]"
           @focus="showSearchResults = true"
           @blur="setTimeout(() => (showSearchResults = false), 200)"
         />
@@ -142,16 +208,13 @@ const copyShareLink = async () => {
     </div>
 
     <div class="controls-grid">
-      <!-- Mode selection -->
-      <div class="control-group">
-        <label for="modeSelect">Mode</label>
-        <select id="modeSelect" v-model="schedule.selectedMode">
-          <option value="student">Élève (Promos)</option>
-          <option value="personal">🎓 Mon Planning ADE</option>
-          <option value="teacher">Professeur</option>
-          <option value="room">Salle</option>
-        </select>
-      </div>
+      <!-- Hidden Accessible Select for backward compatibility / tests -->
+      <select id="modeSelect" v-model="schedule.selectedMode" class="sr-only" aria-hidden="true">
+        <option value="student">Élève (Promos)</option>
+        <option value="personal">🎓 Mon Planning ADE</option>
+        <option value="teacher">Professeur</option>
+        <option value="room">Salle</option>
+      </select>
 
       <!-- Personal mode dedicated view -->
       <template v-if="isPersonalMode">
@@ -346,6 +409,63 @@ const copyShareLink = async () => {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+
+/* Mode Tabs Segmented Control */
+.mode-tabs {
+  display: flex;
+  background: var(--bg);
+  padding: 0.3rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  gap: 0.35rem;
+  overflow-x: auto;
+}
+
+.mode-tab-btn {
+  flex: 1;
+  min-width: fit-content;
+  padding: 0.5rem 0.85rem;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.mode-tab-btn:hover {
+  color: var(--text);
+}
+
+.mode-tab-btn.active {
+  background: var(--card);
+  color: var(--accent);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+:global(.dark-mode) .mode-tab-btn.active {
+  background: #334155;
+  color: #60a5fa;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .quick-search-row {

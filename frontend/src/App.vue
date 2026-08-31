@@ -15,6 +15,7 @@ import PersonalScheduleModal from "./components/PersonalScheduleModal.vue";
 import ScheduleSkeleton from "./components/skeletons/ScheduleSkeleton.vue";
 import NextCourseSkeleton from "./components/skeletons/NextCourseSkeleton.vue";
 import WeekStatsSkeleton from "./components/skeletons/WeekStatsSkeleton.vue";
+import ToastContainer from "./components/ToastContainer.vue";
 
 const schedule = reactive(useSchedule());
 const isPersonalScheduleModalOpen = ref(false);
@@ -52,6 +53,18 @@ const onSelectFavorite = (fav) => {
     schedule.selectedRoom = fav.room;
     schedule.loadRoomSchedule(fav.room);
   }
+};
+
+const onSelectTeacherFromEvent = (teacher) => {
+  schedule.selectedMode = "teacher";
+  schedule.selectedTeacher = teacher;
+  schedule.loadTeacherSchedule(teacher);
+};
+
+const onSelectRoomFromEvent = (room) => {
+  schedule.selectedMode = "room";
+  schedule.selectedRoom = room;
+  schedule.loadRoomSchedule(room);
 };
 
 const onJumpToWeek = (date) => {
@@ -149,11 +162,14 @@ const onJumpToWeek = (date) => {
       v-if="schedule.activeModalEvent"
       :event="schedule.activeModalEvent"
       @close="schedule.closeEventModal"
+      @select-teacher="onSelectTeacherFromEvent"
+      @select-room="onSelectRoomFromEvent"
     />
 
     <EmptyRoomsModal
       v-if="schedule.isRoomModalOpen"
       @close="schedule.closeRoomModal"
+      @select-room="onSelectRoomFromEvent"
     />
 
     <PersonalScheduleModal
@@ -161,6 +177,9 @@ const onJumpToWeek = (date) => {
       :schedule="schedule"
       @close="isPersonalScheduleModalOpen = false"
     />
+
+    <!-- Global Toast Notifications -->
+    <ToastContainer />
   </div>
 </template>
 
