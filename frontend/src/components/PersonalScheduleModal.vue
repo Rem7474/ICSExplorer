@@ -46,7 +46,7 @@ const getCredentialsPayload = () => {
       };
 };
 
-const submitDirect = async (overrideResourceId = null, resourceName = "") => {
+const submitDirect = async (overrideResourceId = null, resourceName = "", branchPath = []) => {
   const usingUrl = inputMode.value === "url";
 
   if (usingUrl && !adeUrl.value) {
@@ -70,6 +70,9 @@ const submitDirect = async (overrideResourceId = null, resourceName = "") => {
     if (overrideResourceId) {
       params.resourceId = overrideResourceId;
     }
+    if (branchPath && branchPath.length > 0) {
+      params.branchPath = branchPath;
+    }
 
     const icsText = await fetchPersonalCalendar(params);
 
@@ -83,6 +86,7 @@ const submitDirect = async (overrideResourceId = null, resourceName = "") => {
       resourceId: overrideResourceId || resourceId.value,
       resourceName: finalName,
       universityName,
+      branchPath: branchPath || [],
     };
 
     if (remember.value) {
@@ -98,6 +102,7 @@ const submitDirect = async (overrideResourceId = null, resourceName = "") => {
       universityName,
       resourceId: overrideResourceId || resourceId.value,
       inputMode: inputMode.value,
+      branchPath: branchPath || [],
     });
     emit("close");
   } catch (err) {
@@ -171,18 +176,25 @@ const currentActiveBranch = computed(() => {
 const chooseResource = (nodeOrId) => {
   let id = "";
   let name = "";
+  let branchPath = [];
+
   if (typeof nodeOrId === "object" && nodeOrId !== null) {
     id = nodeOrId.ID || nodeOrId.id;
     name = nodeOrId.name || nodeOrId.Name || "";
+    branchPath = breadcrumbs.value.map((b) => b.id).filter(Boolean);
+    if (!nodeOrId.isLeaf) {
+      branchPath.push(id);
+    }
   } else {
     id = nodeOrId;
     if (currentActiveBranch.value && currentActiveBranch.value.id === id) {
       name = currentActiveBranch.value.name;
+      branchPath = breadcrumbs.value.map((b) => b.id).filter(Boolean);
     }
   }
   if (!id) return;
   resourceId.value = id;
-  submitDirect(id, name);
+  submitDirect(id, name, branchPath);
 };
 
 const selectNode = (node) => {

@@ -7,10 +7,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Rem7474/ICSExplorer/internal/ics"
 )
 
 const userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -224,35 +227,101 @@ func (c *Client) FetchTreePage(ctx context.Context, path string) ([]byte, error)
 	return data, nil
 }
 
-// collectLeafIDs recursively discovers all leaf descendants under a branch ID.
-func (c *Client) collectLeafIDs(ctx context.Context, dataToken string, branchID string) ([]string, error) {
-	nodes, err := c.fetchDirectTokenTreeNodes(ctx, dataToken, "trainee", []string{branchID})
-	if err != nil || len(nodes) == 0 {
-		return nil, err
+// CollectLeavesUnderPath opens the branchPath in a single session and recursively collects all leaf IDs.
+func (c *Client) CollectLeavesUnderPath(ctx context.Context, dataToken string, category string, branchPath []string) ([]string, error) {
+	if category == "" {
+		category = "trainee"
 	}
 
+	// 1. Establish session ONCE
+	directPlanningURL := fmt.Sprintf("%s/jsp/custom/modules/plannings/direct_planning.jsp?data=%s", c.baseURL, dataToken)
+	req1, err := http.NewRequestWithContext(ctx, http.MethodGet, directPlanningURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req1.Header.Set("User-Agent", userAgent)
+	resp1, err := c.httpClient.Do(req1)
+	if err != nil {
+		return nil, err
+	}
+	resp1.Body.Close()
+
+	// 2. Open category
+	catURL := fmt.Sprintf("%s/jsp/standard/gui/tree.jsp?category=%s&expand=false&forceLoad=false&reload=false&scroll=0",
+		c.baseURL, url.QueryEscape(category))
+	reqCat, err := http.NewRequestWithContext(ctx, http.MethodGet, catURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	reqCat.Header.Set("User-Agent", userAgent)
+	reqCat.Header.Set("Referer", directPlanningURL)
+	respCat, err := c.httpClient.Do(reqCat)
+	if err != nil {
+		return nil, err
+	}
+	respCat.Body.Close()
+
+	// 3. Open each step along branchPath
+	var lastHTML string
+	for _, bID := range branchPath {
+		bID = strings.TrimSpace(bID)
+		if bID == "" {
+			continue
+		}
+		treeURL := fmt.Sprintf("%s/jsp/standard/gui/tree.jsp?branchId=%s&expand=false&forceLoad=false&reload=false&scroll=0",
+			c.baseURL, url.QueryEscape(bID))
+		reqB, err := http.NewRequestWithContext(ctx, http.MethodGet, treeURL, nil)
+		if err != nil {
+			return nil, err
+		}
+		reqB.Header.Set("User-Agent", userAgent)
+		reqB.Header.Set("Referer", directPlanningURL)
+		respB, err := c.httpClient.Do(reqB)
+		if err != nil {
+			return nil, err
+		}
+		body, _ := io.ReadAll(respB.Body)
+		respB.Body.Close()
+		lastHTML = string(ics.EnsureUTF8(body))
+	}
+
+	targetID := ""
+	if len(branchPath) > 0 {
+		targetID = branchPath[len(branchPath)-1]
+	}
+
+	children := ParseChildrenOf(lastHTML, targetID)
 	var leaves []string
-	var walk func(path []string) error
-	walk = func(path []string) error {
-		children, err := c.fetchDirectTokenTreeNodes(ctx, dataToken, "trainee", path)
+	var walk func(currentPath []string, currentID string) error
+	walk = func(currentPath []string, currentID string) error {
+		treeURL := fmt.Sprintf("%s/jsp/standard/gui/tree.jsp?branchId=%s&expand=false&forceLoad=false&reload=false&scroll=0",
+			c.baseURL, url.QueryEscape(currentID))
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, treeURL, nil)
+		req.Header.Set("User-Agent", userAgent)
+		req.Header.Set("Referer", directPlanningURL)
+		resp, err := c.httpClient.Do(req)
 		if err != nil {
 			return err
 		}
-		for _, child := range children {
-			if child.IsLeaf {
-				leaves = append(leaves, child.ID)
-			} else if len(path) < 8 {
-				_ = walk(append(path, child.ID))
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		html := string(ics.EnsureUTF8(body))
+		subChildren := ParseChildrenOf(html, currentID)
+		for _, sc := range subChildren {
+			if sc.IsLeaf {
+				leaves = append(leaves, sc.ID)
+			} else if len(currentPath) < 8 {
+				_ = walk(append(currentPath, sc.ID), sc.ID)
 			}
 		}
 		return nil
 	}
 
-	for _, n := range nodes {
-		if n.IsLeaf {
-			leaves = append(leaves, n.ID)
+	for _, cNode := range children {
+		if cNode.IsLeaf {
+			leaves = append(leaves, cNode.ID)
 		} else {
-			_ = walk([]string{branchID, n.ID})
+			_ = walk(append(branchPath, cNode.ID), cNode.ID)
 		}
 	}
 
@@ -261,8 +330,16 @@ func (c *Client) collectLeafIDs(ctx context.Context, dataToken string, branchID 
 
 // FetchDirectTokenCalendar fetches the iCalendar from an ADE Direct Planning instance
 // authenticated via an encrypted data token (e.g. /direct/index.jsp?data=...).
-func (c *Client) FetchDirectTokenCalendar(ctx context.Context, dataToken string, resourceIDs string) ([]byte, error) {
-	// 1. Establish session via direct_planning.jsp?data=...
+func (c *Client) FetchDirectTokenCalendar(ctx context.Context, dataToken string, resourceIDs string, branchPath []string) ([]byte, error) {
+	effectiveResources := resourceIDs
+
+	// If branchPath is provided, recursively discover all descendant leaves under this branch in a single fast session
+	if len(branchPath) > 0 {
+		if leaves, err := c.CollectLeavesUnderPath(ctx, dataToken, "trainee", branchPath); err == nil && len(leaves) > 0 {
+			effectiveResources = strings.Join(leaves, ",")
+		}
+	}
+
 	directPlanningURL := fmt.Sprintf("%s/jsp/custom/modules/plannings/direct_planning.jsp?data=%s", c.baseURL, dataToken)
 	req1, err := http.NewRequestWithContext(ctx, http.MethodGet, directPlanningURL, nil)
 	if err != nil {
@@ -275,15 +352,7 @@ func (c *Client) FetchDirectTokenCalendar(ctx context.Context, dataToken string,
 	}
 	resp1.Body.Close()
 
-	effectiveResources := resourceIDs
-	if resourceIDs != "" && !strings.Contains(resourceIDs, ",") {
-		// If it's a folder / branch, collect its descendant leaves
-		if leaves, err := c.collectLeafIDs(ctx, dataToken, resourceIDs); err == nil && len(leaves) > 0 {
-			effectiveResources = strings.Join(leaves, ",")
-		}
-	}
-
-	// 2. Query anonymous_cal.jsp trying project IDs
+	// Query anonymous_cal.jsp trying project IDs
 	now := time.Now()
 	baseYear := now.Year()
 	startYear := baseYear - 1

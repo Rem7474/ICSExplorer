@@ -262,10 +262,12 @@ export function useSchedule() {
     try {
       const text = await fetchPersonalCalendar(creds);
       loadPersonalEvents(text, {
+        ...creds,
         name: personalScheduleInfo.value?.name || creds.resourceName,
         universityId: creds.universityId,
         resourceId: creds.resourceId,
         inputMode: creds.inputMode,
+        branchPath: creds.branchPath || [],
       });
       statusMessage.value = "";
     } catch (err) {

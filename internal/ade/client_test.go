@@ -156,7 +156,7 @@ func TestClientFetchDirectTokenCalendar(t *testing.T) {
 	client := NewClientForInstitution("", "", "2026-2027", mockServer.URL, "direct?data=testtoken123")
 
 	t.Run("default export with fallback project ID", func(t *testing.T) {
-		data, err := client.FetchDirectTokenCalendar(context.Background(), "testtoken123", "")
+		data, err := client.FetchDirectTokenCalendar(context.Background(), "testtoken123", "", nil)
 		if err != nil {
 			t.Fatalf("expected success, got: %v", err)
 		}
@@ -166,7 +166,7 @@ func TestClientFetchDirectTokenCalendar(t *testing.T) {
 	})
 
 	t.Run("single leaf resource ID", func(t *testing.T) {
-		data, err := client.FetchDirectTokenCalendar(context.Background(), "testtoken123", "leaf456")
+		data, err := client.FetchDirectTokenCalendar(context.Background(), "testtoken123", "leaf456", nil)
 		if err != nil {
 			t.Fatalf("expected success, got: %v", err)
 		}
@@ -176,7 +176,7 @@ func TestClientFetchDirectTokenCalendar(t *testing.T) {
 	})
 
 	t.Run("branch resource ID expands to child leaves", func(t *testing.T) {
-		data, err := client.FetchDirectTokenCalendar(context.Background(), "testtoken123", "branch999")
+		data, err := client.FetchDirectTokenCalendar(context.Background(), "testtoken123", "branch999", []string{"branch999"})
 		if err != nil {
 			t.Fatalf("expected success, got: %v", err)
 		}

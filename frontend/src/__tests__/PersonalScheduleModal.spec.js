@@ -104,6 +104,7 @@ describe("PersonalScheduleModal component", () => {
       password: "hunter2",
       resourceId: "101",
       resourceName: "3A - Ingénieur",
+      branchPath: [],
     });
   });
 
@@ -218,6 +219,7 @@ describe("PersonalScheduleModal component", () => {
     expect(fetchPersonalCalendar).toHaveBeenCalledWith({
       universityId: "grenoble-inp-esisar",
       resourceId: "10",
+      branchPath: ["10"],
       login: "student1",
       password: "hunter2",
     });

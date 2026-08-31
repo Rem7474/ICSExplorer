@@ -16,11 +16,12 @@ import (
 const maxPersonalCalendarBodyBytes = 4096
 
 type personalCalendarRequest struct {
-	UniversityID string `json:"universityId"`
-	ADEURL       string `json:"adeUrl"`
-	ResourceID   string `json:"resourceId"`
-	Login        string `json:"login"`
-	Password     string `json:"password"`
+	UniversityID string   `json:"universityId"`
+	ADEURL       string   `json:"adeUrl"`
+	ResourceID   string   `json:"resourceId"`
+	BranchPath   []string `json:"branchPath"`
+	Login        string   `json:"login"`
+	Password     string   `json:"password"`
 }
 
 type treeRequest struct {
@@ -218,7 +219,7 @@ func (s *Server) handlePersonalCalendar(w http.ResponseWriter, r *http.Request) 
 	var err error
 	if strings.HasPrefix(institutionPath, "direct?data=") {
 		dataToken := strings.TrimPrefix(institutionPath, "direct?data=")
-		raw, err = client.FetchDirectTokenCalendar(ctx, dataToken, resourceID)
+		raw, err = client.FetchDirectTokenCalendar(ctx, dataToken, resourceID, req.BranchPath)
 	} else {
 		raw, err = client.FetchCalendarRaw(ctx, resourceID)
 	}

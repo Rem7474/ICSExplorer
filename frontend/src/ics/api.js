@@ -75,11 +75,11 @@ export const fetchTreeNodes = async ({ universityId, adeUrl, login, password, br
   return data.nodes || [];
 };
 
-export const fetchPersonalCalendar = async ({ universityId, adeUrl, resourceId, login, password }) => {
+export const fetchPersonalCalendar = async ({ universityId, adeUrl, resourceId, branchPath, login, password }) => {
   const resp = await fetch("/api/personal-calendar", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ universityId, adeUrl, resourceId, login, password }),
+    body: JSON.stringify({ universityId, adeUrl, resourceId, branchPath, login, password }),
   });
 
   if (!resp.ok) {
