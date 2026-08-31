@@ -60,4 +60,26 @@ describe("useSchedule composable", () => {
     schedule.toggleSubjectFilter("IN");
     expect(schedule.selectedSubjectFilter.value).toBeNull();
   });
+
+  it("loads personal events from raw ICS text and switches to personal mode", () => {
+    const schedule = useSchedule();
+    const icsText = [
+      "BEGIN:VCALENDAR",
+      "BEGIN:VEVENT",
+      "SUMMARY:Cours perso",
+      "DTSTART:20260901T080000",
+      "DTEND:20260901T100000",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ].join("\r\n");
+
+    schedule.loadPersonalEvents(icsText, { universityId: "grenoble-inp-esisar" });
+
+    expect(schedule.selectedMode.value).toBe("personal");
+    expect(schedule.events.value.length).toBe(1);
+    expect(schedule.events.value[0].summary).toBe("Cours perso");
+
+    const url = new URL(window.location);
+    expect(url.searchParams.get("university")).toBe("grenoble-inp-esisar");
+  });
 });

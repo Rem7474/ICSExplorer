@@ -149,6 +149,32 @@ Retourne la liste JSON triée de tous les emplois du temps étudiants disponible
 ### `GET /output/{nom}.ics`
 Téléchargement direct du calendrier avec support du cache HTTP et en-tête `ETag`.
 
+### `GET /api/universities`
+Retourne la liste des établissements pour lesquels ICSExplorer peut récupérer un emploi du temps personnel (voir ci-dessous). Ne contient aucune information de connexion.
+
+### `POST /api/personal-calendar`
+Récupère l'emploi du temps **personnel** d'un étudiant en se connectant en son nom au serveur ADE de son établissement, plutôt que de dépendre d'une synchronisation globale préexistante.
+
+```json
+{ "universityId": "grenoble-inp-esisar", "login": "...", "password": "..." }
+```
+
+Réponse : le calendrier ICS de l'utilisateur (`Content-Type: text/calendar`), ou une erreur `400` (requête invalide / établissement inconnu), `401` (identifiants refusés par ADE), `429` (trop de requêtes) ou `502` (serveur ADE injoignable).
+
+Cet endpoint est **sans état** : les identifiants ne sont utilisés qu'en mémoire pour cette unique requête vers le serveur ADE de l'établissement, et ne sont jamais écrits sur disque, mis en cache ni loggés côté serveur. Le fait de les mémoriser ou non pour les prochaines visites est une décision prise côté navigateur (case "se souvenir de moi" dans le formulaire, stockage local uniquement).
+
+---
+
+## 🎓 Emploi du temps personnel (multi-établissements)
+
+En complément de la synchronisation globale (qui republie l'emploi du temps de **toute** l'école à partir d'un compte institutionnel partagé), un utilisateur peut cliquer sur **« Mon EDT personnel »** dans l'en-tête pour saisir ses propres identifiants ADE et récupérer directement son planning individuel — utile quand une URL ICS personnelle récupérée manuellement ne fonctionne pas de façon fiable.
+
+Cette fonctionnalité repose sur le même mécanisme d'authentification que le scraping Agalan (HTTP Basic Auth par requête, sans session), généralisé pour cibler n'importe quelle instance ADE Campus. Chaque établissement supporté est déclaré dans `internal/university/registry.go` avec :
+- `baseURL` : le serveur ADE de l'établissement (ex. `https://edt.grenoble-inp.fr`)
+- `institutionPath` : le segment de chemin propre à l'établissement dans l'URL d'export ADE (ex. `etudiant/esisar`)
+
+**Important** : au sein même de Grenoble INP, plusieurs écoles (Esisar, Ense3, Phelma, etc.) partagent le même serveur ADE mais avec un `institutionPath` différent — seule l'Esisar est déclarée aujourd'hui. Ajouter une école supplémentaire ne nécessite qu'une nouvelle entrée dans le registre (son propre `baseURL`/`institutionPath`), sans toucher au reste du code.
+
 ---
 
 ## 🧪 Tests & Qualité

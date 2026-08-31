@@ -58,6 +58,38 @@ func TestClientFetchCalendarRaw(t *testing.T) {
 	}
 }
 
+func TestClientForInstitutionFetchesOwnCalendarWithoutResourceID(t *testing.T) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != "student" || pass != "secret" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		if r.URL.Path != "/directCal/2026-2027/etudiant/otherschool" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if r.URL.Query().Get("resources") != "" {
+			t.Errorf("expected no 'resources' query param, got %q", r.URL.Query().Get("resources"))
+		}
+
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, "BEGIN:VCALENDAR\r\nSUMMARY:Perso\r\nEND:VCALENDAR")
+	}))
+	defer mockServer.Close()
+
+	client := NewClientForInstitution("student", "secret", "2026-2027", mockServer.URL, "etudiant/otherschool")
+
+	data, err := client.FetchCalendarRaw(context.Background(), "")
+	if err != nil {
+		t.Fatalf("expected success, got: %v", err)
+	}
+	if string(data) != "BEGIN:VCALENDAR\r\nSUMMARY:Perso\r\nEND:VCALENDAR" {
+		t.Errorf("unexpected calendar body: %s", string(data))
+	}
+}
+
 func TestCrawlerDiscoverResources(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")

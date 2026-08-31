@@ -11,31 +11,49 @@ import (
 	"time"
 )
 
-// Client handles HTTP interactions with Grenoble INP ADE servers.
+// Client handles HTTP interactions with ADE Campus servers.
 type Client struct {
-	httpClient   *http.Client
-	login        string
-	password     string
-	academicYear string
-	baseURL      string
+	httpClient      *http.Client
+	login           string
+	password        string
+	academicYear    string
+	baseURL         string
+	institutionPath string
 }
 
-// NewClient creates a new ADE client with authentication and timeout.
+// NewClient creates a new ADE client with authentication and timeout,
+// defaulting to the Grenoble INP / ESISAR instance.
 func NewClient(login, password, academicYear string) *Client {
 	return &Client{
 		httpClient: &http.Client{
 			Timeout: 45 * time.Second,
 		},
-		login:        login,
-		password:     password,
-		academicYear: academicYear,
-		baseURL:      "https://edt.grenoble-inp.fr",
+		login:           login,
+		password:        password,
+		academicYear:    academicYear,
+		baseURL:         "https://edt.grenoble-inp.fr",
+		institutionPath: "etudiant/esisar",
 	}
 }
 
-// SetBaseURL overrides the base URL (useful for testing).
+// NewClientForInstitution creates an ADE client targeting an arbitrary ADE Campus
+// instance, identified by its base URL and institution path segment (the part of
+// the export URL that follows "directCal/{year}/", e.g. "etudiant/esisar").
+func NewClientForInstitution(login, password, academicYear, baseURL, institutionPath string) *Client {
+	c := NewClient(login, password, academicYear)
+	c.SetBaseURL(baseURL)
+	c.SetInstitutionPath(institutionPath)
+	return c
+}
+
+// SetBaseURL overrides the base URL (useful for testing or targeting another institution).
 func (c *Client) SetBaseURL(url string) {
 	c.baseURL = strings.TrimRight(url, "/")
+}
+
+// SetInstitutionPath overrides the institution path segment used in the export URL.
+func (c *Client) SetInstitutionPath(path string) {
+	c.institutionPath = strings.Trim(path, "/")
 }
 
 // makeRequest prepares and sends an authenticated HTTP GET request.
@@ -81,8 +99,13 @@ func (c *Client) FetchCalendarRaw(ctx context.Context, resourceIDs string) ([]by
 	startYear := baseYear - 2
 	endYear := baseYear + 3
 
-	endpoint := fmt.Sprintf("directCal/%s/etudiant/esisar?resources=%s&startDay=31&startMonth=08&startYear=%d&endDay=10&endMonth=01&endYear=%d",
-		c.academicYear, resourceIDs, startYear, endYear)
+	resourcesParam := ""
+	if resourceIDs != "" {
+		resourcesParam = "resources=" + resourceIDs + "&"
+	}
+
+	endpoint := fmt.Sprintf("directCal/%s/%s?%sstartDay=31&startMonth=08&startYear=%d&endDay=10&endMonth=01&endYear=%d",
+		c.academicYear, c.institutionPath, resourcesParam, startYear, endYear)
 
 	resp, err := c.makeRequest(ctx, endpoint)
 	if err != nil {
@@ -91,7 +114,7 @@ func (c *Client) FetchCalendarRaw(ctx context.Context, resourceIDs string) ([]by
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusUnauthorized {
-		return nil, fmt.Errorf("ADE returned 401 Unauthorized (invalid Agalan credentials)")
+		return nil, fmt.Errorf("ADE returned 401 Unauthorized (invalid credentials)")
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("ADE returned unexpected status %d", resp.StatusCode)

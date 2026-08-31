@@ -181,6 +181,29 @@ export function useSchedule() {
     }
   };
 
+  // Loads events from raw ICS text obtained out-of-band (e.g. the personal
+  // calendar endpoint), rather than fetching a known file by name.
+  const loadPersonalEvents = (icsText, meta = {}) => {
+    try {
+      const parsed = parseIcs(icsText);
+      events.value = parsed;
+      currentWeekStart.value = getRelevantWeekStart(parsed);
+      selectedMode.value = "personal";
+      statusMessage.value = "";
+
+      const url = new URL(window.location);
+      url.searchParams.delete("file");
+      url.searchParams.delete("teacher");
+      url.searchParams.delete("room");
+      if (meta.universityId) {
+        url.searchParams.set("university", meta.universityId);
+      }
+      window.history.replaceState({}, "", url);
+    } catch (err) {
+      statusMessage.value = `Erreur: ${err.message}`;
+    }
+  };
+
   const loadTeacherSchedule = async (teacherName) => {
     if (!teacherName) return;
     isLoading.value = true;
@@ -313,6 +336,7 @@ export function useSchedule() {
     serverHealth,
     init,
     loadSchedule,
+    loadPersonalEvents,
     loadTeacherSchedule,
     loadRoomSchedule,
     nextWeek,

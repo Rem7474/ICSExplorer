@@ -51,6 +51,29 @@ export const fetchIcsText = async (fileName) => {
   return decodeTextWithFallback(response);
 };
 
+export const fetchUniversities = async () => {
+  const resp = await fetch("/api/universities", { cache: "no-store" });
+  if (!resp.ok) {
+    throw new Error(`Impossible de récupérer la liste des universités (HTTP ${resp.status})`);
+  }
+  return resp.json();
+};
+
+export const fetchPersonalCalendar = async ({ universityId, adeUrl, resourceId, login, password }) => {
+  const resp = await fetch("/api/personal-calendar", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ universityId, adeUrl, resourceId, login, password }),
+  });
+
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => ({}));
+    throw new Error(data.error || `Impossible de récupérer votre emploi du temps (HTTP ${resp.status})`);
+  }
+
+  return decodeTextWithFallback(resp);
+};
+
 export const fetchFileList = async () => {
   // Strategy 1: Dedicated backend endpoint /api/files
   try {

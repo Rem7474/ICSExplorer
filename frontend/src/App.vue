@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, computed, reactive, unref } from "vue";
+import { ref, onMounted, computed, reactive, unref } from "vue";
 import { useSchedule } from "./composables/useSchedule.js";
 
 import AppHeader from "./components/AppHeader.vue";
@@ -10,12 +10,14 @@ import WeekStats from "./components/WeekStats.vue";
 import ScheduleWeek from "./components/ScheduleWeek.vue";
 import EventModal from "./components/EventModal.vue";
 import EmptyRoomsModal from "./components/EmptyRoomsModal.vue";
+import PersonalScheduleModal from "./components/PersonalScheduleModal.vue";
 
 import ScheduleSkeleton from "./components/skeletons/ScheduleSkeleton.vue";
 import NextCourseSkeleton from "./components/skeletons/NextCourseSkeleton.vue";
 import WeekStatsSkeleton from "./components/skeletons/WeekStatsSkeleton.vue";
 
 const schedule = reactive(useSchedule());
+const isPersonalScheduleModalOpen = ref(false);
 
 onMounted(() => {
   schedule.init();
@@ -55,7 +57,10 @@ const onJumpToWeek = (date) => {
 
 <template>
   <div class="app-root">
-    <AppHeader :health="schedule.serverHealth" />
+    <AppHeader
+      :health="schedule.serverHealth"
+      @open-personal-schedule="isPersonalScheduleModalOpen = true"
+    />
 
     <main class="container">
       <!-- Upcoming course card -->
@@ -143,6 +148,12 @@ const onJumpToWeek = (date) => {
     <EmptyRoomsModal
       v-if="schedule.isRoomModalOpen"
       @close="schedule.closeRoomModal"
+    />
+
+    <PersonalScheduleModal
+      v-if="isPersonalScheduleModalOpen"
+      :schedule="schedule"
+      @close="isPersonalScheduleModalOpen = false"
     />
   </div>
 </template>

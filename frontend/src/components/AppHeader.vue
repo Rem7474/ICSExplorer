@@ -9,6 +9,8 @@ const props = defineProps({
   },
 });
 
+const emit = defineEmits(["openPersonalSchedule"]);
+
 const { isDark, toggleTheme } = useTheme();
 
 const healthBadge = computed(() => {
@@ -34,6 +36,13 @@ const healthBadge = computed(() => {
           <p>Emplois du temps en direct, salles libres et mode professeur.</p>
         </div>
         <div class="header-actions">
+          <button
+            class="personal-schedule-btn"
+            type="button"
+            @click="emit('openPersonalSchedule')"
+          >
+            🎓 Mon EDT personnel
+          </button>
           <button
             class="theme-toggle"
             type="button"
@@ -100,6 +109,23 @@ const healthBadge = computed(() => {
 .status-warning {
   background: rgba(245, 158, 11, 0.3);
   border-color: rgba(245, 158, 11, 0.6);
+}
+
+.personal-schedule-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: background 0.15s ease;
+  white-space: nowrap;
+}
+
+.personal-schedule-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .theme-toggle {

@@ -18,6 +18,8 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/sync", s.handleSync)
 	mux.HandleFunc("GET /api/files", s.handleFilesList)
 	mux.HandleFunc("GET /api/rooms", s.handleRoomsList)
+	mux.HandleFunc("GET /api/universities", s.handleUniversitiesList)
+	mux.HandleFunc("/api/personal-calendar", s.handlePersonalCalendar)
 
 	// Static endpoints
 	mux.Handle("/output/", http.StripPrefix("/output/", s.createOutputHandler()))
