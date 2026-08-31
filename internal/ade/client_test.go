@@ -118,7 +118,7 @@ func TestClientFetchDirectTokenCalendar(t *testing.T) {
 	defer mockServer.Close()
 
 	client := NewClientForInstitution("", "", "2025-2026", mockServer.URL, "direct?data=testtoken123")
-	data, err := client.FetchDirectTokenCalendar(context.Background(), "testtoken123")
+	data, err := client.FetchDirectTokenCalendar(context.Background(), "testtoken123", "")
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
 	}

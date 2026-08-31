@@ -218,7 +218,7 @@ func (s *Server) handlePersonalCalendar(w http.ResponseWriter, r *http.Request) 
 	var err error
 	if strings.HasPrefix(institutionPath, "direct?data=") {
 		dataToken := strings.TrimPrefix(institutionPath, "direct?data=")
-		raw, err = client.FetchDirectTokenCalendar(ctx, dataToken)
+		raw, err = client.FetchDirectTokenCalendar(ctx, dataToken, resourceID)
 	} else {
 		raw, err = client.FetchCalendarRaw(ctx, resourceID)
 	}

@@ -224,9 +224,44 @@ func (c *Client) FetchTreePage(ctx context.Context, path string) ([]byte, error)
 	return data, nil
 }
 
+// collectLeafIDs recursively discovers all leaf descendants under a branch ID.
+func (c *Client) collectLeafIDs(ctx context.Context, dataToken string, branchID string) ([]string, error) {
+	nodes, err := c.fetchDirectTokenTreeNodes(ctx, dataToken, "trainee", []string{branchID})
+	if err != nil || len(nodes) == 0 {
+		return nil, err
+	}
+
+	var leaves []string
+	var walk func(path []string) error
+	walk = func(path []string) error {
+		children, err := c.fetchDirectTokenTreeNodes(ctx, dataToken, "trainee", path)
+		if err != nil {
+			return err
+		}
+		for _, child := range children {
+			if child.IsLeaf {
+				leaves = append(leaves, child.ID)
+			} else if len(path) < 8 {
+				_ = walk(append(path, child.ID))
+			}
+		}
+		return nil
+	}
+
+	for _, n := range nodes {
+		if n.IsLeaf {
+			leaves = append(leaves, n.ID)
+		} else {
+			_ = walk([]string{branchID, n.ID})
+		}
+	}
+
+	return leaves, nil
+}
+
 // FetchDirectTokenCalendar fetches the iCalendar from an ADE Direct Planning instance
 // authenticated via an encrypted data token (e.g. /direct/index.jsp?data=...).
-func (c *Client) FetchDirectTokenCalendar(ctx context.Context, dataToken string) ([]byte, error) {
+func (c *Client) FetchDirectTokenCalendar(ctx context.Context, dataToken string, resourceIDs string) ([]byte, error) {
 	// 1. Establish session via direct_planning.jsp?data=...
 	directPlanningURL := fmt.Sprintf("%s/jsp/custom/modules/plannings/direct_planning.jsp?data=%s", c.baseURL, dataToken)
 	req1, err := http.NewRequestWithContext(ctx, http.MethodGet, directPlanningURL, nil)
@@ -240,34 +275,60 @@ func (c *Client) FetchDirectTokenCalendar(ctx context.Context, dataToken string)
 	}
 	resp1.Body.Close()
 
-	// 2. Query anonymous_cal.jsp
+	effectiveResources := resourceIDs
+	if resourceIDs != "" && !strings.Contains(resourceIDs, ",") {
+		// If it's a folder / branch, collect its descendant leaves
+		if leaves, err := c.collectLeafIDs(ctx, dataToken, resourceIDs); err == nil && len(leaves) > 0 {
+			effectiveResources = strings.Join(leaves, ",")
+		}
+	}
+
+	// 2. Query anonymous_cal.jsp trying project IDs
 	now := time.Now()
 	baseYear := now.Year()
 	startYear := baseYear - 1
 	endYear := baseYear + 2
 
-	calURL := fmt.Sprintf("%s/jsp/custom/modules/plannings/anonymous_cal.jsp?resources=&projectId=0&startDay=01&startMonth=09&startYear=%d&endDay=31&endMonth=08&endYear=%d&calType=ical", c.baseURL, startYear, endYear)
-	req2, err := http.NewRequestWithContext(ctx, http.MethodGet, calURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	req2.Header.Set("User-Agent", userAgent)
-	req2.Header.Set("Referer", directPlanningURL)
+	projectCandidates := []int{2, 0, 1, 3, 4}
+	var bestBody []byte
+	maxEvents := -1
 
-	resp2, err := c.httpClient.Do(req2)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch direct calendar: %w", err)
-	}
-	defer resp2.Body.Close()
+	for _, projID := range projectCandidates {
+		calURL := fmt.Sprintf("%s/jsp/custom/modules/plannings/anonymous_cal.jsp?resources=%s&projectId=%d&startDay=01&startMonth=09&startYear=%d&endDay=31&endMonth=08&endYear=%d&calType=ical",
+			c.baseURL, effectiveResources, projID, startYear, endYear)
+		req2, err := http.NewRequestWithContext(ctx, http.MethodGet, calURL, nil)
+		if err != nil {
+			continue
+		}
+		req2.Header.Set("User-Agent", userAgent)
+		req2.Header.Set("Referer", directPlanningURL)
 
-	body, err := io.ReadAll(resp2.Body)
-	if err != nil {
-		return nil, err
-	}
-	if resp2.StatusCode != http.StatusOK || !strings.Contains(string(body), "BEGIN:VCALENDAR") {
-		return nil, fmt.Errorf("ADE direct export returned unexpected status %d", resp2.StatusCode)
+		resp2, err := c.httpClient.Do(req2)
+		if err != nil {
+			continue
+		}
+		body, err := io.ReadAll(resp2.Body)
+		resp2.Body.Close()
+		if err != nil || resp2.StatusCode != http.StatusOK {
+			continue
+		}
+
+		if strings.Contains(string(body), "BEGIN:VCALENDAR") {
+			eventsCount := strings.Count(string(body), "BEGIN:VEVENT")
+			if eventsCount > maxEvents {
+				maxEvents = eventsCount
+				bestBody = body
+				if eventsCount > 0 {
+					break
+				}
+			}
+		}
 	}
 
-	return body, nil
+	if len(bestBody) == 0 {
+		return nil, fmt.Errorf("ADE direct export returned invalid or empty calendar")
+	}
+
+	return bestBody, nil
 }
 
