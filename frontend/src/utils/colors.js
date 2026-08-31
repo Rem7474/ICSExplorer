@@ -118,6 +118,25 @@ export const isCercleEvent = (eventOrSummary) => {
   );
 };
 
+export const normalizeCourseTitle = (rawSummary) => {
+  if (!rawSummary) return "";
+  let s = String(rawSummary).trim();
+
+  // Strip leading stars, hashes, dashes or bullet points (e.g. "***Strategic Management" -> "Strategic Management")
+  s = s.replace(/^[\s*#~_—\-•]+/, "");
+
+  // Strip bracketed promo tags (e.g. "[M1 MSI] ")
+  s = s.replace(/^\[[^\]]+\]\s*/, "");
+
+  // Strip session type prefixes (e.g. "CM - ", "TD : ", "TP ", "COURS ")
+  s = s.replace(/^(CM|TD|TP|COURS|CONF|CONFERENCE|EXAM|EXAMEN|EVALUATION|RATTRAPAGE|SOUTENANCE)[\s:-]+/i, "");
+
+  // Strip trailing group suffixes (e.g. " - Groupe 1", " (Grp A)", " - TD1")
+  s = s.replace(/[\s:-]+(GROUPE|GRP|GR|TD|TP)\s*[\d\w]*$/i, "");
+
+  return s.trim();
+};
+
 export const getSubjectType = (eventOrSummary) => {
   if (!eventOrSummary) return "DEFAULT";
   if (isCercleEvent(eventOrSummary)) {
@@ -134,31 +153,23 @@ export const getSubjectType = (eventOrSummary) => {
     }
   }
 
-  // 2. Clean out course type prefixes (CM, TD, TP, [Promo], etc.)
-  const cleaned = trimmed
-    .replace(/^\[[^\]]+\]\s*/i, "")
-    .replace(/^(CM|TD|TP|COURS|CONF|EXAM|EVALUATION|RATTRAPAGE)[\s:-]+/i, "")
-    .trim();
-
+  // 2. Clean out course type prefixes & symbols
+  const cleaned = normalizeCourseTitle(trimmed);
   const upper = cleaned.toUpperCase();
 
   // 3. Match universal educational domains
   if (/\b(MATH|MATHS|STAT|PROBA|ALGEBRE|ANALYSE)\b/i.test(upper)) return "PR";
-  if (/\b(INFO|INFORMATIQUE|DEV|PROGRAMMATION|ALGO|ALGORITHME|WEB|PYTHON|JAVA|DATA|BDD|CYBER|RESEAU)\b/i.test(upper)) return "IN";
-  if (/\b(MANAGEMENT|GESTION|MARKETING|FINANCE|COMPTABILITE|RH|COMMUNICATION|DROIT|JURIDIQUE|ECONOMIE|ECO|AUDIT|STRATEGIE)\b/i.test(upper)) return "MAC";
+  if (/\b(INFO|INFORMATIQUE|DEV|PROGRAMMATION|ALGO|ALGORITHME|WEB|PYTHON|JAVA|DATA|BDD|CYBER|RESEAU|BASE DE DONNEES|BASES DE DONNEES|SYSTEME D'INFORMATION|SYSTEMES D'INFORMATION)\b/i.test(upper)) return "IN";
+  if (/\b(MANAGEMENT|GESTION|MARKETING|FINANCE|COMPTABILITE|RH|COMMUNICATION|DROIT|JURIDIQUE|ECONOMIE|ECO|AUDIT|STRATEGIE|STRATEGIC)\b/i.test(upper)) return "MAC";
   if (/\b(ANGLAIS|ENGLISH|ESPAGNOL|ALLEMAND|CHINOIS|FLE|LANGUE|TOEIC)\b/i.test(upper)) return "LV";
   if (/\b(PHYSIQUE|ELECTRONIQUE|ELEC|OPTIQUE|MECANIQUE|ENERGIE)\b/i.test(upper)) return "EP";
   if (/\b(AUTOMATIQUE|ROBOTIQUE|ASSERVISSEMENT)\b/i.test(upper)) return "AU";
   if (/\b(PROJET|ATELIER|WORKSHOP|STAGE|MISSION)\b/i.test(upper)) return "XP";
   if (/\b(SPORT|EPS|FITNESS|BADMINTON|ESCALADE|VOLLEY)\b/i.test(upper)) return "SP";
 
-  // 4. Group by primary course keywords (e.g. "ARCHITECTURE SI", "GOUVERNANCE DONNEES")
-  const words = cleaned
-    .split(/[\s,;:/-]+/)
-    .filter((w) => w.length > 2 && !/^(les|des|une|pour|avec|sur|dans|cours|groupe|grp|grp1|grp2|promo)$/i.test(w));
-
-  if (words.length > 0) {
-    return words.slice(0, 2).join(" ").toUpperCase();
+  // 4. Fallback to normalized title as category key
+  if (cleaned.length > 0) {
+    return upper;
   }
 
   return "DEFAULT";
@@ -187,9 +198,10 @@ export const getSubjectColors = (eventOrSummary, isDarkMode = false) => {
     };
   }
 
-  // Deterministic harmonious palette for all other courses
-  const summary = typeof eventOrSummary === "object" ? eventOrSummary.summary || "" : String(eventOrSummary || "");
-  const hashKey = type !== "DEFAULT" ? type : summary;
+  // Deterministic harmonious palette for all other courses based on normalized title hash
+  const rawSummary = typeof eventOrSummary === "object" ? eventOrSummary.summary || "" : String(eventOrSummary || "");
+  const normalized = normalizeCourseTitle(rawSummary);
+  const hashKey = type !== "DEFAULT" ? type : normalized;
   const hash = stringToHash(hashKey);
   const theme = GENERAL_PALETTE[hash % GENERAL_PALETTE.length];
   const modeTheme = isDarkMode ? theme.dark : theme.light;

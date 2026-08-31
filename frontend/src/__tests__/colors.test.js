@@ -41,4 +41,18 @@ describe("colors utils", () => {
     expect(ugaDark.background).toMatch(/^#/);
     expect(ugaDark.border).toMatch(/^#/);
   });
+
+  it("ensures courses with identical titles or prefix variations always have the exact same color", () => {
+    const course1 = getSubjectColors("***Strategic Management", false);
+    const course2 = getSubjectColors("***Strategic Management", false);
+    expect(course1).toEqual(course2);
+
+    const bdd1 = getSubjectColors("Conception de bases de données", false);
+    const bdd2 = getSubjectColors("CM Conception de bases de données", false);
+    expect(bdd1).toEqual(bdd2);
+
+    const web1 = getSubjectColors("Introduction aux technologies web", true);
+    const web2 = getSubjectColors("TD Introduction aux technologies web - Groupe 1", true);
+    expect(web1).toEqual(web2);
+  });
 });
