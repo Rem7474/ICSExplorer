@@ -315,10 +315,36 @@ onUnmounted(() => {
   window.removeEventListener("keydown", handleGlobalKeydown);
 });
 
+const datePickerRef = ref(null);
+
+const datePickerValue = computed(() => {
+  const d = startDate.value;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+});
+
+const openDatePicker = () => {
+  if (datePickerRef.value) {
+    if (typeof datePickerRef.value.showPicker === "function") {
+      try {
+        datePickerRef.value.showPicker();
+      } catch {
+        datePickerRef.value.focus();
+        datePickerRef.value.click();
+      }
+    } else {
+      datePickerRef.value.focus();
+      datePickerRef.value.click();
+    }
+  }
+};
+
 const onDatePickerChange = (val) => {
   if (val) {
     const [y, m, d] = val.split("-").map(Number);
-    emit("jumpToWeek", new Date(y, m - 1, d));
+    emit("jumpToWeek", new Date(y, m - 1, d, 12, 0, 0));
   }
 };
 
@@ -337,16 +363,23 @@ const nextAvailableEvent = computed(() => {
         <button class="nav-btn" type="button" aria-label="Semaine précédente (Flèche gauche)" title="Semaine précédente (←)" @click="emit('prevWeek')">
           ◀
         </button>
-        <label class="week-label" title="Cliquer pour choisir une date précise">
+        <button
+          type="button"
+          class="week-label-btn"
+          title="Cliquer pour choisir une date dans le calendrier"
+          @click="openDatePicker"
+        >
           <span>📅 Semaine du {{ formatDateOnly(startDate) }}</span>
           <input
+            ref="datePickerRef"
             type="date"
             class="week-date-picker"
-            :value="startDate.toISOString().split('T')[0]"
-            aria-label="Choisir une date"
+            :value="datePickerValue"
+            aria-label="Choisir une date dans le calendrier"
             @change="onDatePickerChange($event.target.value)"
+            @click.stop
           />
-        </label>
+        </button>
         <button class="nav-btn" type="button" aria-label="Semaine suivante (Flèche droite)" title="Semaine suivante (→)" @click="emit('nextWeek')">
           ▶
         </button>
@@ -506,29 +539,34 @@ const nextAvailableEvent = computed(() => {
   border-color: var(--accent);
 }
 
-.week-label {
+.week-label-btn {
   position: relative;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 700;
   text-align: center;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  padding: 0.25rem 0.5rem;
-  border-radius: 6px;
-  transition: background 0.15s ease;
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  transition: all 0.15s ease;
 }
 
-.week-label:hover {
+.week-label-btn:hover {
   background: var(--bg);
+  border-color: var(--accent);
 }
 
 .week-date-picker {
   position: absolute;
   inset: 0;
   opacity: 0;
-  cursor: pointer;
+  pointer-events: none;
   width: 100%;
+  height: 100%;
 }
 
 .current-time-badge {
