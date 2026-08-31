@@ -76,9 +76,11 @@ describe("PersonalScheduleModal component", () => {
     expect(saved).toEqual({
       inputMode: "list",
       universityId: "grenoble-inp-esisar",
+      universityName: "Grenoble INP - Esisar",
       login: "student1",
       password: "hunter2",
       resourceId: "",
+      resourceName: "Mon Planning ADE",
     });
   });
 

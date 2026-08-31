@@ -29,6 +29,7 @@ const currentKey = computed(() => {
   const room = unref(schedule.selectedRoom);
   const file = unref(schedule.selectedFile);
 
+  if (mode === "personal") return "personal_edt";
   if (mode === "teacher" && teacher) return `teacher_${teacher}`;
   if (mode === "room" && room) return `room_${room}`;
   if (file && typeof file === "string") return `file_${file}`;
@@ -36,7 +37,10 @@ const currentKey = computed(() => {
 });
 
 const onSelectFavorite = (fav) => {
-  if (fav.mode === "student") {
+  if (fav.mode === "personal") {
+    schedule.selectedMode = "personal";
+    schedule.refreshPersonalSchedule();
+  } else if (fav.mode === "student") {
     schedule.selectedMode = "student";
     schedule.loadSchedule(fav.file);
   } else if (fav.mode === "teacher") {
@@ -59,6 +63,7 @@ const onJumpToWeek = (date) => {
   <div class="app-root">
     <AppHeader
       :health="schedule.serverHealth"
+      :is-personal-active="schedule.selectedMode === 'personal'"
       @open-personal-schedule="isPersonalScheduleModalOpen = true"
     />
 
@@ -75,6 +80,7 @@ const onJumpToWeek = (date) => {
       <ScheduleControls
         :schedule="schedule"
         @open-empty-rooms="schedule.openRoomModal"
+        @open-personal-schedule="isPersonalScheduleModalOpen = true"
       />
 
       <!-- Favorites Bar -->

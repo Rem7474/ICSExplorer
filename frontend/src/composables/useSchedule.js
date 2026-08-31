@@ -1,17 +1,20 @@
 import { ref, computed, watch } from "vue";
-import { fetchFileList, fetchIcsText, fileUrl } from "../ics/api.js";
+import { fetchFileList, fetchIcsText, fetchPersonalCalendar, fileUrl } from "../ics/api.js";
 import { parseIcs } from "../ics/parser.js";
 import { getRelevantWeekStart, getWeekStart, getWeekEnd } from "../utils/dates.js";
 import { getTeacherIndex, getRoomIndex } from "../ics/aggregator.js";
 
 const STORAGE_KEY = "edtSelection";
+const PERSONAL_CREDENTIALS_KEY = "personalAdeCredentials";
+const PERSONAL_CACHE_KEY = "cachedPersonalIcs";
+const PERSONAL_META_KEY = "personalScheduleMeta";
 
 export function useSchedule() {
   const availableFiles = ref([]);
   const availableTeachers = ref([]);
   const availableRooms = ref([]);
   
-  const selectedMode = ref("student"); // "student" | "teacher" | "room"
+  const selectedMode = ref("student"); // "student" | "personal" | "teacher" | "room"
   const selectedYear = ref("");
   const selectedTrack = ref("");
   const selectedType = ref("");
@@ -19,6 +22,9 @@ export function useSchedule() {
   
   const selectedTeacher = ref("");
   const selectedRoom = ref("");
+
+  const personalScheduleInfo = ref(null);
+  const rawPersonalIcs = ref("");
   
   const events = ref([]);
   const currentWeekStart = ref(getWeekStart(new Date()));
@@ -108,9 +114,12 @@ export function useSchedule() {
 
       // Restore selection from URL or localStorage
       const urlParams = new URLSearchParams(window.location.search);
+      const urlMode = urlParams.get("mode");
       const urlFile = urlParams.get("file");
       const urlTeacher = urlParams.get("teacher");
       const urlRoom = urlParams.get("room");
+
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
 
       if (urlTeacher) {
         selectedMode.value = "teacher";
@@ -124,15 +133,28 @@ export function useSchedule() {
         selectedMode.value = "student";
         autoSelectFromFile(urlFile);
         await loadSchedule(urlFile);
+      } else if (urlMode === "personal" || saved.mode === "personal") {
+        const cachedIcs = localStorage.getItem(PERSONAL_CACHE_KEY);
+        const meta = JSON.parse(localStorage.getItem(PERSONAL_META_KEY) || "null");
+
+        if (cachedIcs) {
+          loadPersonalEvents(cachedIcs, meta || {});
+          if (localStorage.getItem(PERSONAL_CREDENTIALS_KEY)) {
+            refreshPersonalSchedule().catch(() => {});
+          }
+        } else if (localStorage.getItem(PERSONAL_CREDENTIALS_KEY)) {
+          await refreshPersonalSchedule();
+        } else if (files.length > 0) {
+          selectedMode.value = "student";
+          autoSelectFromFile(files[0]);
+          await loadSchedule(files[0]);
+        }
       } else {
-        // LocalStorage fallback
-        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
         if (saved.file && files.includes(saved.file)) {
           selectedMode.value = "student";
           autoSelectFromFile(saved.file);
           await loadSchedule(saved.file);
         } else if (files.length > 0) {
-          // Default first file
           selectedMode.value = "student";
           autoSelectFromFile(files[0]);
           await loadSchedule(files[0]);
@@ -171,6 +193,7 @@ export function useSchedule() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode: "student", file: fileName }));
       const url = new URL(window.location);
       url.searchParams.set("file", fileName);
+      url.searchParams.delete("mode");
       url.searchParams.delete("teacher");
       url.searchParams.delete("room");
       window.history.replaceState({}, "", url);
@@ -181,27 +204,108 @@ export function useSchedule() {
     }
   };
 
-  // Loads events from raw ICS text obtained out-of-band (e.g. the personal
-  // calendar endpoint), rather than fetching a known file by name.
+  // Loads events from raw ICS text obtained out-of-band (e.g. personal calendar)
   const loadPersonalEvents = (icsText, meta = {}) => {
     try {
       const parsed = parseIcs(icsText);
       events.value = parsed;
       currentWeekStart.value = getRelevantWeekStart(parsed);
       selectedMode.value = "personal";
+      rawPersonalIcs.value = icsText;
       statusMessage.value = "";
 
+      const now = new Date();
+      const lastUpdated = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+      const fullMeta = {
+        name: meta.name || personalScheduleInfo.value?.name || "Mon Planning ADE",
+        universityId: meta.universityId || personalScheduleInfo.value?.universityId || "",
+        universityName: meta.universityName || personalScheduleInfo.value?.universityName || "",
+        resourceId: meta.resourceId || personalScheduleInfo.value?.resourceId || "",
+        inputMode: meta.inputMode || personalScheduleInfo.value?.inputMode || "credentials",
+        lastUpdated,
+      };
+
+      personalScheduleInfo.value = fullMeta;
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode: "personal" }));
+      localStorage.setItem(PERSONAL_CACHE_KEY, icsText);
+      localStorage.setItem(PERSONAL_META_KEY, JSON.stringify(fullMeta));
+
       const url = new URL(window.location);
+      url.searchParams.set("mode", "personal");
       url.searchParams.delete("file");
       url.searchParams.delete("teacher");
       url.searchParams.delete("room");
-      if (meta.universityId) {
-        url.searchParams.set("university", meta.universityId);
-      }
       window.history.replaceState({}, "", url);
     } catch (err) {
-      statusMessage.value = `Erreur: ${err.message}`;
+      statusMessage.value = `Erreur de traitement du calendrier: ${err.message}`;
     }
+  };
+
+  const refreshPersonalSchedule = async () => {
+    let creds = null;
+    try {
+      creds = JSON.parse(localStorage.getItem(PERSONAL_CREDENTIALS_KEY) || "null");
+    } catch {
+      creds = null;
+    }
+
+    if (!creds) {
+      statusMessage.value = "Aucun identifiant sauvegardé pour actualiser le planning personnel.";
+      return;
+    }
+
+    isLoading.value = true;
+    statusMessage.value = "Actualisation du planning ADE...";
+
+    try {
+      const text = await fetchPersonalCalendar(creds);
+      loadPersonalEvents(text, {
+        name: personalScheduleInfo.value?.name || creds.resourceName,
+        universityId: creds.universityId,
+        resourceId: creds.resourceId,
+        inputMode: creds.inputMode,
+      });
+      statusMessage.value = "";
+    } catch (err) {
+      statusMessage.value = `Impossible d'actualiser le planning : ${err.message}`;
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  const clearPersonalSchedule = () => {
+    localStorage.removeItem(PERSONAL_CREDENTIALS_KEY);
+    localStorage.removeItem(PERSONAL_CACHE_KEY);
+    localStorage.removeItem(PERSONAL_META_KEY);
+    personalScheduleInfo.value = null;
+    rawPersonalIcs.value = "";
+
+    selectedMode.value = "student";
+    if (availableFiles.value.length > 0) {
+      autoSelectFromFile(availableFiles.value[0]);
+      loadSchedule(availableFiles.value[0]);
+    }
+  };
+
+  const downloadPersonalIcs = () => {
+    const text = rawPersonalIcs.value || localStorage.getItem(PERSONAL_CACHE_KEY);
+    if (!text) return;
+
+    const blob = new Blob([text], { type: "text/calendar;charset=utf-8" });
+    const blobUrl = URL.createObjectURL(blob);
+    const baseName = (personalScheduleInfo.value?.name || "mon_planning_ade")
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, "_");
+
+    const link = document.createElement("a");
+    link.href = blobUrl;
+    link.download = `${baseName}.ics`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(blobUrl);
   };
 
   const loadTeacherSchedule = async (teacherName) => {
@@ -339,6 +443,10 @@ export function useSchedule() {
     loadPersonalEvents,
     loadTeacherSchedule,
     loadRoomSchedule,
+    personalScheduleInfo,
+    refreshPersonalSchedule,
+    clearPersonalSchedule,
+    downloadPersonalIcs,
     nextWeek,
     prevWeek,
     goToCurrentWeek,

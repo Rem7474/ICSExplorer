@@ -7,6 +7,10 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  isPersonalActive: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const emit = defineEmits(["openPersonalSchedule"]);
@@ -38,10 +42,12 @@ const healthBadge = computed(() => {
         <div class="header-actions">
           <button
             class="personal-schedule-btn"
+            :class="{ 'personal-active': isPersonalActive }"
             type="button"
             @click="emit('openPersonalSchedule')"
           >
             🎓 Mon EDT personnel
+            <span v-if="isPersonalActive" class="active-dot" title="Planning actif">●</span>
           </button>
           <button
             class="theme-toggle"
@@ -126,6 +132,17 @@ const healthBadge = computed(() => {
 
 .personal-schedule-btn:hover {
   background: rgba(255, 255, 255, 0.3);
+}
+
+.personal-schedule-btn.personal-active {
+  background: rgba(16, 185, 129, 0.3);
+  border-color: rgba(16, 185, 129, 0.8);
+}
+
+.active-dot {
+  color: #10b981;
+  font-size: 0.8rem;
+  margin-left: 0.25rem;
 }
 
 .theme-toggle {

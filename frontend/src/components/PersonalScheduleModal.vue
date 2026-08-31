@@ -46,7 +46,7 @@ const getCredentialsPayload = () => {
       };
 };
 
-const submitDirect = async (overrideResourceId = null) => {
+const submitDirect = async (overrideResourceId = null, resourceName = "") => {
   const usingUrl = inputMode.value === "url";
 
   if (usingUrl && !adeUrl.value) {
@@ -73,16 +73,31 @@ const submitDirect = async (overrideResourceId = null) => {
 
     const icsText = await fetchPersonalCalendar(params);
 
+    const univ = universities.value.find((u) => u.id === selectedUniversityId.value);
+    const universityName = usingUrl ? "ADE Direct" : (univ ? univ.name : selectedUniversityId.value);
+    const finalName = resourceName || (overrideResourceId ? `Planning ${overrideResourceId}` : "Mon Planning ADE");
+
+    const payloadToSave = {
+      inputMode: inputMode.value,
+      ...params,
+      resourceId: overrideResourceId || resourceId.value,
+      resourceName: finalName,
+      universityName,
+    };
+
     if (remember.value) {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ inputMode: inputMode.value, ...params, resourceId: overrideResourceId || resourceId.value })
-      );
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payloadToSave));
     } else {
       localStorage.removeItem(STORAGE_KEY);
     }
 
-    props.schedule.loadPersonalEvents(icsText, { universityId: selectedUniversityId.value });
+    props.schedule.loadPersonalEvents(icsText, {
+      name: finalName,
+      universityId: selectedUniversityId.value,
+      universityName,
+      resourceId: overrideResourceId || resourceId.value,
+      inputMode: inputMode.value,
+    });
     emit("close");
   } catch (err) {
     errorMessage.value = err.message;
@@ -154,14 +169,19 @@ const currentActiveBranch = computed(() => {
 
 const chooseResource = (nodeOrId) => {
   let id = "";
+  let name = "";
   if (typeof nodeOrId === "object" && nodeOrId !== null) {
     id = nodeOrId.ID || nodeOrId.id;
+    name = nodeOrId.name || nodeOrId.Name || "";
   } else {
     id = nodeOrId;
+    if (currentActiveBranch.value && currentActiveBranch.value.id === id) {
+      name = currentActiveBranch.value.name;
+    }
   }
   if (!id) return;
   resourceId.value = id;
-  submitDirect(id);
+  submitDirect(id, name);
 };
 
 const selectNode = (node) => {
