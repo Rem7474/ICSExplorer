@@ -59,7 +59,12 @@ func (c *Client) FetchTreeNodes(ctx context.Context, category string, branchPath
 		}
 	}
 
-	return ParseTreeHTML(string(ics.EnsureUTF8(data))), nil
+	var targetParentID string
+	if len(branchPath) > 0 {
+		targetParentID = strings.TrimSpace(branchPath[len(branchPath)-1])
+	}
+
+	return ParseChildrenOf(string(ics.EnsureUTF8(data)), targetParentID), nil
 }
 
 func (c *Client) fetchDirectTokenTreeNodes(ctx context.Context, dataToken string, category string, branchPath []string) ([]TreeNode, error) {
@@ -121,7 +126,12 @@ func (c *Client) fetchDirectTokenTreeNodes(ctx context.Context, dataToken string
 		}
 	}
 
-	return ParseTreeHTML(string(ics.EnsureUTF8(body))), nil
+	var targetParentID string
+	if len(branchPath) > 0 {
+		targetParentID = strings.TrimSpace(branchPath[len(branchPath)-1])
+	}
+
+	return ParseChildrenOf(string(ics.EnsureUTF8(body)), targetParentID), nil
 }
 
 var (
@@ -129,38 +139,105 @@ var (
 	reLeaf   = regexp.MustCompile(`(?is)check\(['"]?([0-9]+)['"]?[^>]*\)[^>]*>([^<]+)</a>`)
 )
 
-// ParseTreeHTML parses an ADE tree.jsp HTML payload and extracts folders and leaf resources.
-func ParseTreeHTML(html string) []TreeNode {
-	var nodes []TreeNode
-	seen := make(map[string]bool)
+type parsedLine struct {
+	ID     string
+	Name   string
+	IsLeaf bool
+	Depth  int
+}
 
+// ParseChildrenOf parses an ADE tree.jsp HTML payload and extracts direct children of targetParentID.
+func ParseChildrenOf(html string, targetParentID string) []TreeNode {
+	var allLines []parsedLine
 	divs := strings.Split(html, "<DIV class=\"treeline\">")
+
 	for _, d := range divs[1:] {
+		nbspCount := strings.Count(d, "&nbsp;")
+		depth := nbspCount / 3
+
 		if m := reBranch.FindStringSubmatch(d); len(m) > 2 {
-			id := m[1]
-			name := strings.TrimSpace(m[2])
-			key := "b:" + id
-			if !seen[key] && name != "" {
-				seen[key] = true
-				nodes = append(nodes, TreeNode{
-					ID:     id,
-					Name:   name,
-					IsLeaf: false,
-				})
-			}
+			allLines = append(allLines, parsedLine{
+				ID:     m[1],
+				Name:   strings.TrimSpace(m[2]),
+				IsLeaf: false,
+				Depth:  depth,
+			})
 		} else if m := reLeaf.FindStringSubmatch(d); len(m) > 2 {
-			id := m[1]
-			name := strings.TrimSpace(m[2])
-			key := "l:" + id
-			if !seen[key] && name != "" {
-				seen[key] = true
-				nodes = append(nodes, TreeNode{
-					ID:     id,
-					Name:   name,
-					IsLeaf: true,
+			allLines = append(allLines, parsedLine{
+				ID:     m[1],
+				Name:   strings.TrimSpace(m[2]),
+				IsLeaf: true,
+				Depth:  depth,
+			})
+		}
+	}
+
+	if len(allLines) == 0 {
+		return []TreeNode{}
+	}
+
+	// Root level: return items at minimum depth
+	if targetParentID == "" {
+		minDepth := allLines[0].Depth
+		for _, l := range allLines {
+			if l.Depth < minDepth {
+				minDepth = l.Depth
+			}
+		}
+		var top []TreeNode
+		seen := make(map[string]bool)
+		for _, l := range allLines {
+			if l.Depth == minDepth && !seen[l.ID] {
+				seen[l.ID] = true
+				top = append(top, TreeNode{
+					ID:     l.ID,
+					Name:   l.Name,
+					IsLeaf: l.IsLeaf,
 				})
 			}
 		}
+		return top
 	}
-	return nodes
+
+	// Sub-branch level: find target parent
+	parentIdx := -1
+	parentDepth := -1
+	for i, l := range allLines {
+		if l.ID == targetParentID {
+			parentIdx = i
+			parentDepth = l.Depth
+			break
+		}
+	}
+
+	if parentIdx == -1 {
+		// Fallback to top-level if parent not in HTML
+		return ParseChildrenOf(html, "")
+	}
+
+	var children []TreeNode
+	seen := make(map[string]bool)
+	targetChildDepth := parentDepth + 1
+
+	for i := parentIdx + 1; i < len(allLines); i++ {
+		l := allLines[i]
+		if l.Depth <= parentDepth {
+			break // Exited parent subtree
+		}
+		if l.Depth == targetChildDepth && !seen[l.ID] {
+			seen[l.ID] = true
+			children = append(children, TreeNode{
+				ID:     l.ID,
+				Name:   l.Name,
+				IsLeaf: l.IsLeaf,
+			})
+		}
+	}
+
+	return children
+}
+
+// ParseTreeHTML parses an ADE tree.jsp HTML payload and extracts folders and leaf resources.
+func ParseTreeHTML(html string) []TreeNode {
+	return ParseChildrenOf(html, "")
 }

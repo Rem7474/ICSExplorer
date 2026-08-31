@@ -46,6 +46,33 @@ func TestParseTreeHTML(t *testing.T) {
 	}
 }
 
+func TestParseChildrenOf(t *testing.T) {
+	html := `
+	<DIV class="treeline">&nbsp;&nbsp;&nbsp;<a href="javascript:openBranch(3)"><img src="moins.gif"></a><SPAN class="treebranch"><a href="#">Esisar</a></SPAN></DIV>
+	<DIV class="treeline">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="javascript:openBranch(8707)"><img src="plus.gif"></a><SPAN class="treebranch"><a href="#">1 - Premier Cycle</a></SPAN></DIV>
+	<DIV class="treeline">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="javascript:openBranch(5962)"><img src="plus.gif"></a><SPAN class="treebranch"><a href="#">3 - Cycle Ingénieur - Apprenti</a></SPAN></DIV>
+	<DIV class="treeline">&nbsp;&nbsp;&nbsp;<a href="javascript:openBranch(1595)"><img src="plus.gif"></a><SPAN class="treebranch"><a href="#">S.mart</a></SPAN></DIV>
+	`
+
+	// Root level items (depth = 1, e.g. 3 nbsp)
+	root := ParseChildrenOf(html, "")
+	if len(root) != 2 {
+		t.Fatalf("expected 2 root nodes, got %d: %+v", len(root), root)
+	}
+	if root[0].ID != "3" || root[1].ID != "1595" {
+		t.Errorf("unexpected root nodes: %+v", root)
+	}
+
+	// Children of branch 3 (depth = 2, e.g. 6 nbsp)
+	children3 := ParseChildrenOf(html, "3")
+	if len(children3) != 2 {
+		t.Fatalf("expected 2 children of branch 3, got %d: %+v", len(children3), children3)
+	}
+	if children3[0].ID != "8707" || children3[1].ID != "5962" {
+		t.Errorf("unexpected children of 3: %+v", children3)
+	}
+}
+
 func TestClientFetchTreeNodes(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/2026-2027/etudiant/esisar" {
