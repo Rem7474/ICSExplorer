@@ -1,80 +1,124 @@
-const CACHE_NAME = 'edt-v20';
+const CACHE_VERSION = 'edt-v21';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/favicon.svg',
-  '/manifest.json'
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon-maskable-192.png',
+  '/icon-maskable-512.png',
 ];
 
+// ─── Install: cache static shell ────────────────────────────────────────────
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return Promise.allSettled(
+    caches.open(CACHE_VERSION).then((cache) =>
+      Promise.allSettled(
         STATIC_ASSETS.map((url) =>
-          fetch(url).then((response) => {
-            if (response.ok) return cache.put(url, response);
-          }).catch(() => {})
+          fetch(url)
+            .then((r) => { if (r.ok) cache.put(url, r); })
+            .catch(() => {})
         )
-      );
-    }).then(() => self.skipWaiting())
+      )
+    ).then(() => self.skipWaiting())
   );
 });
 
+// ─── Activate: purge old caches ──────────────────────────────────────────────
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
-        keys.map((key) => {
-          if (key !== CACHE_NAME) {
-            return caches.delete(key);
-          }
-        })
+        keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k))
       )
     ).then(() => self.clients.claim())
   );
 });
 
+// ─── Fetch strategy ─────────────────────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
+  const { request } = event;
+  const url = new URL(request.url);
 
-  // Network-first for API, health, output ICS data and HTML
+  // Only handle same-origin + http(s)
+  if (!url.protocol.startsWith('http') || url.origin !== self.location.origin) return;
+
+  // ── API / data endpoints: Network-first, fall back to cache ──
   if (
     url.pathname.startsWith('/api/') ||
     url.pathname.startsWith('/output/') ||
-    url.pathname.startsWith('/rooms/') ||
-    event.request.mode === 'navigate'
+    url.pathname.startsWith('/rooms/')
   ) {
     event.respondWith(
-      fetch(event.request)
+      fetch(request)
         .then((response) => {
-          if (response.ok && (url.pathname.endsWith('.ics') || url.pathname.endsWith('.json'))) {
+          if (response.ok) {
             const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+            caches.open(CACHE_VERSION).then((cache) => cache.put(request, clone));
           }
           return response;
         })
-        .catch(() => caches.match(event.request))
+        .catch(() => caches.match(request))
     );
     return;
   }
 
-  // Stale-while-revalidate for assets
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const fetchPromise = fetch(event.request).then((networkResponse) => {
-        if (networkResponse.ok) {
-          const clone = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-        }
-        return networkResponse;
-      }).catch(() => cached);
+  // ── Navigation (HTML pages): Network-first, fall back to cached shell ──
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_VERSION).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match('/index.html'))
+    );
+    return;
+  }
 
-      return cached || fetchPromise;
+  // ── Vite assets (JS/CSS/images): Cache-first, update in background ──
+  if (
+    url.pathname.startsWith('/assets/') ||
+    url.pathname.endsWith('.png') ||
+    url.pathname.endsWith('.svg') ||
+    url.pathname.endsWith('.webp') ||
+    url.pathname.endsWith('.woff2')
+  ) {
+    event.respondWith(
+      caches.open(CACHE_VERSION).then((cache) =>
+        cache.match(request).then((cached) => {
+          const networkFetch = fetch(request).then((response) => {
+            if (response.ok) cache.put(request, response.clone());
+            return response;
+          }).catch(() => cached);
+          return cached || networkFetch;
+        })
+      )
+    );
+    return;
+  }
+
+  // ── Default: stale-while-revalidate ──
+  event.respondWith(
+    caches.match(request).then((cached) => {
+      const networkFetch = fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            caches.open(CACHE_VERSION).then((cache) => cache.put(request, response.clone()));
+          }
+          return response;
+        })
+        .catch(() => cached);
+      return cached || networkFetch;
     })
   );
 });
 
-// Notifications
+// ─── Notification click ─────────────────────────────────────────────────────
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil(
@@ -86,3 +130,4 @@ self.addEventListener('notificationclick', (event) => {
     })
   );
 });
+

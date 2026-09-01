@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, computed, reactive, unref } from "vue";
+import { ref, onMounted, computed, reactive, unref } from "vue";
 import { useSchedule } from "./composables/useSchedule.js";
 
 import AppHeader from "./components/AppHeader.vue";
@@ -10,12 +10,15 @@ import WeekStats from "./components/WeekStats.vue";
 import ScheduleWeek from "./components/ScheduleWeek.vue";
 import EventModal from "./components/EventModal.vue";
 import EmptyRoomsModal from "./components/EmptyRoomsModal.vue";
+import PersonalScheduleModal from "./components/PersonalScheduleModal.vue";
 
 import ScheduleSkeleton from "./components/skeletons/ScheduleSkeleton.vue";
 import NextCourseSkeleton from "./components/skeletons/NextCourseSkeleton.vue";
 import WeekStatsSkeleton from "./components/skeletons/WeekStatsSkeleton.vue";
+import ToastContainer from "./components/ToastContainer.vue";
 
 const schedule = reactive(useSchedule());
+const isPersonalScheduleModalOpen = ref(false);
 
 onMounted(() => {
   schedule.init();
@@ -27,6 +30,7 @@ const currentKey = computed(() => {
   const room = unref(schedule.selectedRoom);
   const file = unref(schedule.selectedFile);
 
+  if (mode === "personal") return "personal_edt";
   if (mode === "teacher" && teacher) return `teacher_${teacher}`;
   if (mode === "room" && room) return `room_${room}`;
   if (file && typeof file === "string") return `file_${file}`;
@@ -34,7 +38,10 @@ const currentKey = computed(() => {
 });
 
 const onSelectFavorite = (fav) => {
-  if (fav.mode === "student") {
+  if (fav.mode === "personal") {
+    schedule.selectedMode = "personal";
+    schedule.refreshPersonalSchedule();
+  } else if (fav.mode === "student") {
     schedule.selectedMode = "student";
     schedule.loadSchedule(fav.file);
   } else if (fav.mode === "teacher") {
@@ -48,6 +55,18 @@ const onSelectFavorite = (fav) => {
   }
 };
 
+const onSelectTeacherFromEvent = (teacher) => {
+  schedule.selectedMode = "teacher";
+  schedule.selectedTeacher = teacher;
+  schedule.loadTeacherSchedule(teacher);
+};
+
+const onSelectRoomFromEvent = (room) => {
+  schedule.selectedMode = "room";
+  schedule.selectedRoom = room;
+  schedule.loadRoomSchedule(room);
+};
+
 const onJumpToWeek = (date) => {
   schedule.currentWeekStart = new Date(date);
 };
@@ -55,7 +74,11 @@ const onJumpToWeek = (date) => {
 
 <template>
   <div class="app-root">
-    <AppHeader :health="schedule.serverHealth" />
+    <AppHeader
+      :health="schedule.serverHealth"
+      :is-personal-active="schedule.selectedMode === 'personal'"
+      @open-personal-schedule="isPersonalScheduleModalOpen = true"
+    />
 
     <main class="container">
       <!-- Upcoming course card -->
@@ -70,6 +93,7 @@ const onJumpToWeek = (date) => {
       <ScheduleControls
         :schedule="schedule"
         @open-empty-rooms="schedule.openRoomModal"
+        @open-personal-schedule="isPersonalScheduleModalOpen = true"
       />
 
       <!-- Favorites Bar -->
@@ -77,7 +101,15 @@ const onJumpToWeek = (date) => {
 
       <!-- Status or error message -->
       <div v-if="schedule.statusMessage" class="status-banner card">
-        {{ schedule.statusMessage }}
+        <span class="status-message-text">{{ schedule.statusMessage }}</span>
+        <button
+          v-if="schedule.statusMessage.toLowerCase().includes('identifiant') || schedule.statusMessage.toLowerCase().includes('compte ade') || schedule.statusMessage.toLowerCase().includes('planning personnel')"
+          type="button"
+          class="btn btn-primary btn-sm status-action-btn"
+          @click="isPersonalScheduleModalOpen = true"
+        >
+          ✨ Configurer mon planning ADE
+        </button>
       </div>
 
       <!-- Welcome card if 0 files -->
@@ -138,12 +170,24 @@ const onJumpToWeek = (date) => {
       v-if="schedule.activeModalEvent"
       :event="schedule.activeModalEvent"
       @close="schedule.closeEventModal"
+      @select-teacher="onSelectTeacherFromEvent"
+      @select-room="onSelectRoomFromEvent"
     />
 
     <EmptyRoomsModal
       v-if="schedule.isRoomModalOpen"
       @close="schedule.closeRoomModal"
+      @select-room="onSelectRoomFromEvent"
     />
+
+    <PersonalScheduleModal
+      v-if="isPersonalScheduleModalOpen"
+      :schedule="schedule"
+      @close="isPersonalScheduleModalOpen = false"
+    />
+
+    <!-- Global Toast Notifications -->
+    <ToastContainer />
   </div>
 </template>
 
@@ -159,10 +203,24 @@ main {
 }
 
 .status-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
   padding: 0.75rem 1rem;
   font-size: 0.9rem;
   color: var(--accent);
   border-left: 4px solid var(--accent);
+}
+
+.status-message-text {
+  flex: 1;
+}
+
+.status-action-btn {
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .schedule-main-card {

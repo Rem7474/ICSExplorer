@@ -9,6 +9,55 @@ export const getRoomCode = (location) => {
   return m ? m[1].replace(/\s+/g, "") : "";
 };
 
+const parseRoom = (code) => {
+  const building = code[0];
+  const digits = code.slice(1).replace(/-/g, "");
+  const m = digits.match(/\d/);
+  const floor = m ? Number.parseInt(m[0], 10) : null;
+  return { building, floor, code };
+};
+
+const renderRoomGrid = (rooms) => {
+  const byBuilding = new Map();
+  for (const code of rooms) {
+    const { building, floor } = parseRoom(code);
+    if (!byBuilding.has(building)) byBuilding.set(building, new Map());
+    const floors = byBuilding.get(building);
+    const key = floor ?? "?";
+    if (!floors.has(key)) floors.set(key, []);
+    floors.get(key).push(code);
+  }
+
+  const buildings = [...byBuilding.keys()].sort();
+  const columns = buildings
+    .map((b) => {
+      const floors = byBuilding.get(b);
+      const floorKeys = [...floors.keys()].sort((a, z) => {
+        if (a === "?") return 1;
+        if (z === "?") return -1;
+        return z - a;
+      });
+      const rows = floorKeys
+        .map((f) => {
+          const chips = floors
+            .get(f)
+            .sort()
+            .map(
+              (code) =>
+                `<span class="room-chip room-chip-${b}">${escapeHtml(code)}</span>`
+            )
+            .join(" ");
+          const label = f === "?" ? "?" : `Étage ${f}`;
+          return `<div class="room-floor"><div class="room-floor-label">${label}</div><div class="room-floor-chips">${chips}</div></div>`;
+        })
+        .join("");
+      return `<div class="room-building room-building-${b}"><div class="room-building-header">Bât. ${b}</div>${rows}</div>`;
+    })
+    .join("");
+
+  return `<div class="room-grid">${columns}</div>`;
+};
+
 const smartDefaultCheckTime = (now = new Date()) => {
   const hour = now.getHours();
   const minute = now.getMinutes();
@@ -100,8 +149,7 @@ export const initEmptyRoomsFeature = ({
         return;
       }
 
-      const list = empty.map((code) => `<span class="room-chip">${escapeHtml(code)}</span>`).join(" ");
-      statusEl.innerHTML = `<strong>${empty.length} salle(s) libre(s) ${escapeHtml(label)}</strong> (sur ${total}) :<div class="room-chips">${list}</div>`;
+      statusEl.innerHTML = `<strong>${empty.length} salle(s) libre(s) ${escapeHtml(label)}</strong> (sur ${total}) :${renderRoomGrid(empty)}`;
     } catch (e) {
       console.error(e);
       statusEl.textContent = "Erreur lors de la recherche des salles vides.";

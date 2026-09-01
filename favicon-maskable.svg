@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#7C3AED;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0891B2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Fond plein (sans rx) : l'OS applique sa propre forme (cercle, squircle, etc.) -->
+  <rect width="192" height="192" fill="url(#bgGradient)"/>
+
+  <!-- Contenu placé dans la zone de sécurité maskable (~80% centrée) -->
+  <g transform="translate(96 96) scale(0.78) translate(-96 -96)">
+    <!-- Calendrier -->
+    <g transform="translate(40, 50)">
+      <rect x="0" y="0" width="112" height="120" rx="8" fill="white" opacity="0.95"/>
+      <rect x="0" y="0" width="112" height="24" rx="8" fill="#7C3AED"/>
+      <line x1="0" y1="24" x2="112" y2="24" stroke="#E0E0E0" stroke-width="1"/>
+
+      <circle cx="8" cy="40" r="6" fill="#F0E8F8"/>
+      <circle cx="27" cy="40" r="6" fill="#F0E8F8"/>
+      <circle cx="46" cy="40" r="6" fill="#F0E8F8"/>
+      <circle cx="65" cy="40" r="6" fill="#F0E8F8"/>
+      <circle cx="84" cy="40" r="6" fill="#F0E8F8"/>
+      <circle cx="103" cy="40" r="6" fill="#7C3AED" opacity="0.4"/>
+
+      <circle cx="8" cy="59" r="6" fill="#F0E8F8"/>
+      <circle cx="27" cy="59" r="6" fill="#7C3AED" opacity="0.2"/>
+      <circle cx="46" cy="59" r="6" fill="#F0E8F8"/>
+      <circle cx="65" cy="59" r="6" fill="#F0E8F8"/>
+      <circle cx="84" cy="59" r="6" fill="#F0E8F8"/>
+      <circle cx="103" cy="59" r="6" fill="#F0E8F8"/>
+
+      <circle cx="8" cy="78" r="6" fill="#F0E8F8"/>
+      <circle cx="27" cy="78" r="6" fill="#F0E8F8"/>
+      <circle cx="46" cy="78" r="6" fill="#7C3AED" opacity="0.6"/>
+      <circle cx="65" cy="78" r="6" fill="#F0E8F8"/>
+      <circle cx="84" cy="78" r="6" fill="#F0E8F8"/>
+      <circle cx="103" cy="78" r="6" fill="#F0E8F8"/>
+
+      <circle cx="8" cy="97" r="6" fill="#7C3AED" opacity="0.3"/>
+      <circle cx="27" cy="97" r="6" fill="#F0E8F8"/>
+      <circle cx="46" cy="97" r="6" fill="#F0E8F8"/>
+      <circle cx="65" cy="97" r="6" fill="#F0E8F8"/>
+      <circle cx="84" cy="97" r="6" fill="#F0E8F8"/>
+      <circle cx="103" cy="97" r="6" fill="#F0E8F8"/>
+    </g>
+
+    <!-- Horloge -->
+    <g transform="translate(130, 130)">
+      <circle cx="0" cy="0" r="28" fill="white" opacity="0.95"/>
+      <circle cx="0" cy="0" r="26" fill="none" stroke="#0891B2" stroke-width="2"/>
+      <line x1="0" y1="0" x2="0" y2="-12" stroke="#0891B2" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="0" y1="0" x2="15" y2="-3" stroke="#7C3AED" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="0" cy="0" r="3" fill="#0891B2"/>
+    </g>
+  </g>
+</svg>

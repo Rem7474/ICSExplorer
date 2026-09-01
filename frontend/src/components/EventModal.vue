@@ -1,7 +1,8 @@
 <script setup>
-import { onMounted, onUnmounted } from "vue";
+import { computed, onMounted, onUnmounted } from "vue";
 import { formatDateTime, formatTimeOnly } from "../utils/dates.js";
 import { isCercleEvent } from "../utils/colors.js";
+import { useToast } from "../composables/useToast.js";
 
 const props = defineProps({
   event: {
@@ -10,7 +11,9 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["close"]);
+const emit = defineEmits(["close", "selectTeacher", "selectRoom"]);
+
+const { showToast } = useToast();
 
 const handleKeydown = (e) => {
   if (e.key === "Escape") {
@@ -25,6 +28,40 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener("keydown", handleKeydown);
 });
+
+const extractedRooms = computed(() => {
+  if (!props.event?.location) return [];
+  return props.event.location
+    .split(/[,;\/]/)
+    .map((r) => r.trim())
+    .filter((r) => Boolean(r) && r.length >= 2);
+});
+
+const extractedTeachers = computed(() => {
+  if (!props.event?.description) return [];
+  const lines = props.event.description.split("\n");
+  const teachers = [];
+  lines.forEach((l) => {
+    const trimmed = l.trim();
+    if (/(?:prof|intervenant|enseignant|m\.|mme)\s*[:]?\s*(.+)/i.test(trimmed)) {
+      const match = trimmed.match(/(?:prof|intervenant|enseignant|m\.|mme)\s*[:]?\s*(.+)/i);
+      if (match && match[1]) teachers.push(match[1].trim());
+    }
+  });
+  return [...new Set(teachers)];
+});
+
+const onGoToTeacher = (teacher) => {
+  emit("selectTeacher", teacher);
+  emit("close");
+  showToast(`Basculement sur le planning de ${teacher}`, "info");
+};
+
+const onGoToRoom = (room) => {
+  emit("selectRoom", room);
+  emit("close");
+  showToast(`Basculement sur le planning de la salle ${room}`, "info");
+};
 
 const downloadSingleEvent = () => {
   if (!props.event) return;
@@ -57,6 +94,7 @@ const downloadSingleEvent = () => {
   a.download = `${props.event.summary || "cours"}.ics`;
   a.click();
   URL.revokeObjectURL(url);
+  showToast("Événement téléchargé !", "success");
 };
 
 const copyDetails = async () => {
@@ -64,8 +102,10 @@ const copyDetails = async () => {
   const text = `${props.event.summary}\nDate: ${formatDateTime(props.event.start)} - ${formatTimeOnly(props.event.end)}\nLieu: ${props.event.location || 'N/A'}\n${props.event.description || ''}`;
   try {
     await navigator.clipboard.writeText(text);
-    alert("Détails copiés !");
-  } catch {}
+    showToast("Détails du cours copiés dans le presse-papier !", "success");
+  } catch {
+    showToast("Impossible d'accéder au presse-papier", "error");
+  }
 };
 </script>
 
@@ -98,7 +138,37 @@ const copyDetails = async () => {
 
         <div v-if="event.location" class="detail-row">
           <span class="detail-label">📍 Lieu :</span>
-          <span class="detail-value">{{ event.location }}</span>
+          <div class="detail-value-wrapper">
+            <span class="detail-value">{{ event.location }}</span>
+            <div v-if="extractedRooms.length > 0" class="rebound-buttons">
+              <button
+                v-for="r in extractedRooms"
+                :key="r"
+                type="button"
+                class="rebound-badge"
+                title="Consulter le planning de cette salle"
+                @click="onGoToRoom(r)"
+              >
+                🚪 Planning Salle {{ r }} ➔
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="extractedTeachers.length > 0" class="detail-row">
+          <span class="detail-label">👨‍🏫 Enseignant :</span>
+          <div class="rebound-buttons">
+            <button
+              v-for="t in extractedTeachers"
+              :key="t"
+              type="button"
+              class="rebound-badge"
+              title="Consulter le planning de cet enseignant"
+              @click="onGoToTeacher(t)"
+            >
+              👨‍🏫 Planning {{ t }} ➔
+            </button>
+          </div>
         </div>
 
         <div v-if="event.description" class="detail-row description-row">
@@ -229,6 +299,39 @@ const copyDetails = async () => {
 
 .detail-value {
   color: var(--text);
+}
+
+.detail-value-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.rebound-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.rebound-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.3);
+  color: var(--accent);
+  padding: 0.25rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.rebound-badge:hover {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
 }
 
 .description-row {

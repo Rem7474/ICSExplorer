@@ -9,14 +9,17 @@ import (
 
 	"github.com/Rem7474/ICSExplorer/internal/config"
 	"github.com/Rem7474/ICSExplorer/internal/syncer"
+	"github.com/Rem7474/ICSExplorer/internal/university"
 )
 
 // Server encapsulates the HTTP server, routing, and background services.
 type Server struct {
-	cfg        *config.Config
-	syncer     *syncer.Syncer
-	logger     *slog.Logger
-	httpServer *http.Server
+	cfg                     *config.Config
+	syncer                  *syncer.Syncer
+	logger                  *slog.Logger
+	httpServer              *http.Server
+	personalCalendarLimiter *ipRateLimiter
+	universityDirectory     *university.Directory
 }
 
 // New creates a new HTTP Server instance.
@@ -26,9 +29,11 @@ func New(cfg *config.Config, s *syncer.Syncer, logger *slog.Logger) *Server {
 	}
 
 	srv := &Server{
-		cfg:    cfg,
-		syncer: s,
-		logger: logger,
+		cfg:                     cfg,
+		syncer:                  s,
+		logger:                  logger,
+		personalCalendarLimiter: newIPRateLimiter(120, 1*time.Minute),
+		universityDirectory:     university.NewDirectory(university.DefaultDeployments(), 6*time.Hour),
 	}
 
 	mux := http.NewServeMux()

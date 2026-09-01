@@ -312,6 +312,72 @@ main {
   font-variant-numeric: tabular-nums;
 }
 
+/* Couleurs par bâtiment */
+.room-chip-A { background: #DBEAFE; border-color: #3B82F6; color: #1E3A8A; }
+.room-chip-B { background: #DCFCE7; border-color: #22C55E; color: #14532D; }
+.room-chip-C { background: #FFEDD5; border-color: #F97316; color: #7C2D12; }
+.room-chip-D { background: #F3E8FF; border-color: #A855F7; color: #581C87; }
+
+html.dark-mode .room-chip-A { background: #1E3A8A; border-color: #60A5FA; color: #DBEAFE; }
+html.dark-mode .room-chip-B { background: #14532D; border-color: #4ADE80; color: #DCFCE7; }
+html.dark-mode .room-chip-C { background: #7C2D12; border-color: #FB923C; color: #FFEDD5; }
+html.dark-mode .room-chip-D { background: #581C87; border-color: #C084FC; color: #F3E8FF; }
+
+.room-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+
+.room-building {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.5rem 0.6rem;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.room-building-header {
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+.room-building-A .room-building-header { color: #1D4ED8; border-bottom-color: #93C5FD; }
+.room-building-B .room-building-header { color: #15803D; border-bottom-color: #86EFAC; }
+.room-building-C .room-building-header { color: #C2410C; border-bottom-color: #FDBA74; }
+.room-building-D .room-building-header { color: #7E22CE; border-bottom-color: #D8B4FE; }
+
+html.dark-mode .room-building-A .room-building-header { color: #93C5FD; border-bottom-color: #1E3A8A; }
+html.dark-mode .room-building-B .room-building-header { color: #86EFAC; border-bottom-color: #14532D; }
+html.dark-mode .room-building-C .room-building-header { color: #FDBA74; border-bottom-color: #7C2D12; }
+html.dark-mode .room-building-D .room-building-header { color: #D8B4FE; border-bottom-color: #581C87; }
+
+.room-floor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.room-floor-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.room-floor-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
 .week-stats {
   margin-bottom: 1rem;
   display: flex;
@@ -1122,8 +1188,8 @@ main {
   .day-title {
     font-size: 1rem;
     padding: 0.5rem;
-    margin-left: -0.5rem;
-    margin-right: -0.5rem;
+    margin-left: 0;
+    margin-right: 0;
     margin-bottom: 0.5rem;
   }
 

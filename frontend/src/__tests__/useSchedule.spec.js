@@ -60,4 +60,47 @@ describe("useSchedule composable", () => {
     schedule.toggleSubjectFilter("IN");
     expect(schedule.selectedSubjectFilter.value).toBeNull();
   });
+
+  it("loads personal events from raw ICS text, sets meta, and switches to personal mode", () => {
+    const schedule = useSchedule();
+    const icsText = [
+      "BEGIN:VCALENDAR",
+      "BEGIN:VEVENT",
+      "SUMMARY:Cours perso",
+      "DTSTART:20260901T080000",
+      "DTEND:20260901T100000",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ].join("\r\n");
+
+    schedule.loadPersonalEvents(icsText, {
+      name: "3A - Ingénieur - Apprenti",
+      universityId: "grenoble-inp-esisar",
+      universityName: "Grenoble INP - Esisar",
+    });
+
+    expect(schedule.selectedMode.value).toBe("personal");
+    expect(schedule.events.value.length).toBe(1);
+    expect(schedule.events.value[0].summary).toBe("Cours perso");
+    expect(schedule.personalScheduleInfo.value.name).toBe("3A - Ingénieur - Apprenti");
+    expect(localStorage.getItem("edt_cached_personal_ics")).toBe(icsText);
+    expect(JSON.parse(localStorage.getItem("edtSelection"))).toEqual({ mode: "personal" });
+
+    const url = new URL(window.location);
+    expect(url.searchParams.get("mode")).toBe("personal");
+  });
+
+  it("clears personal schedule and switches back to student mode", () => {
+    const schedule = useSchedule();
+    schedule.selectedMode.value = "personal";
+    schedule.availableFiles.value = ["1A-Prepa.ics"];
+    localStorage.setItem("cachedPersonalIcs", "BEGIN:VCALENDAR...");
+    localStorage.setItem("personalAdeCredentials", "{}");
+
+    schedule.clearPersonalSchedule();
+
+    expect(schedule.selectedMode.value).toBe("student");
+    expect(localStorage.getItem("cachedPersonalIcs")).toBeNull();
+    expect(localStorage.getItem("personalAdeCredentials")).toBeNull();
+  });
 });

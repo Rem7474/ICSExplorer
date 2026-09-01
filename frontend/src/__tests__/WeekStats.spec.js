@@ -32,8 +32,9 @@ describe("WeekStats component", () => {
     });
 
     expect(wrapper.exists()).toBe(true);
-    expect(wrapper.text()).toContain("Total : 4.0h");
+    expect(wrapper.text()).toContain("Total semaine : 4.0h");
     expect(wrapper.text()).toContain("IN");
     expect(wrapper.text()).toContain("SN");
+    expect(wrapper.text()).toContain("Informatique");
   });
 });

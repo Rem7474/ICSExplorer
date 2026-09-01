@@ -15,6 +15,13 @@ const { favorites, removeFavorite } = useFavorites();
 const selectFavorite = (fav) => {
   emit("select", fav);
 };
+
+const getFavIcon = (fav) => {
+  if (fav.mode === "personal") return "⭐";
+  if (fav.mode === "teacher") return "👨‍🏫";
+  if (fav.mode === "room") return "🚪";
+  return "🎓";
+};
 </script>
 
 <template>
@@ -28,6 +35,7 @@ const selectFavorite = (fav) => {
         :class="{ active: fav.key === currentKey }"
         @click="selectFavorite(fav)"
       >
+        <span class="fav-icon">{{ getFavIcon(fav) }}</span>
         <span class="fav-name">{{ fav.label }}</span>
         <button
           class="fav-remove"
