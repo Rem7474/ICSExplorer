@@ -1,98 +1,105 @@
-# 📅 ICSExplorer — Emploi du Temps ESISAR (v2.0)
+﻿# 📅 ICSExplorer — Emplois du temps universitaires
 
 ![Vue.js](https://img.shields.io/badge/Vue.js-3.5-4FC08D?style=for-the-badge&logo=vuedotjs&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-6.0-646CFF?style=for-the-badge&logo=vite&logoColor=white)
 ![Go](https://img.shields.io/badge/Go-1.24-00ADD8?style=for-the-badge&logo=go&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Multi--stage-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 ![CI/CD](https://img.shields.io/badge/GitHub_Actions-CI%2FCD-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)
+![PWA](https://img.shields.io/badge/PWA-Installable-5A0FC8?style=for-the-badge&logo=pwa&logoColor=white)
 
-Application moderne et conteneurisée pour consulter, rechercher et synchroniser les emplois du temps de l'école **Esisar (Grenoble INP)**.
-Elle intègre un **frontend réactif en Vue 3**, un **scraper/serveur haute performance en Go**, une suite de **tests complets**, et un pipeline **CI/CD production-ready**.
+Application moderne et conteneurisée pour consulter, rechercher et synchroniser les emplois du temps universitaires au format ICS (iCalendar).
+Conçue initialement pour **Grenoble INP — Esisar**, elle supporte désormais **n'importe quelle instance ADE Campus** via son mode planning personnel.
 
 ---
 
-## ✨ Fonctionnalités Clés
+## ✨ Fonctionnalités
 
-### 🎨 Frontend Réactif (Vue 3 + Vite)
-- **Skeletons UI animés (Shimmer)** : Zéro effet de saccade (CLS) pendant le chargement des plannings, de la carte prochain cours et des statistiques.
-- **Recherche instantanée & Auto-complétion** : Accès direct à sa filière, un professeur ou une salle sans passer obligatoirement par les 4 sélecteurs en cascade.
-- **Filtres interactifs par matière** : Clic sur une puce matière (ex: `IN`, `SN`, `LV`, `Sport`) dans les statistiques hebdomadaires pour isoler / filtrer les cours correspondants sur la grille.
-- **Grille avec gestion des collisions** : Affichage côte à côte optimisé pour les cours en parallèle (colonne sub-layout).
-- **Navigation mobile optimisée** : Défilement swipe horizontal avec points d'étape par jour et affichage de la ligne rouge de l'heure en temps réel.
-- **Thème sombre / clair persistant** avec respect automatique des préférences système (`prefers-color-scheme`).
-- **Feuille de style d'impression (`@media print`)** : Export PDF ou impression propre en A4 paysage sans boutons ni en-têtes superflus.
-- **PWA installable & Offline** : Cache Service Worker (stratégies network-first et stale-while-revalidate) et notifications de cours.
-- **Salles libres instantanées** : Outil de détection des salles disponibles à un créneau horaire en croisant l'ensemble des plannings.
+### 🗓️ Grille hebdomadaire
+- **Vue semaine** avec défilement swipe mobile, ligne rouge temps réel et navigation clavier (`←` `→` `T`)
+- **Gestion des chevauchements** : affichage côte à côte optimisé pour les cours parallèles
+- **Skeletons UI animés** (shimmer) zéro-CLS pendant le chargement
+- **Modal de détail** au clic sur un cours (titre, horaires, salle, description complète)
+
+### 🎨 Coloration intelligente des cours
+- **Détection automatique de la discipline** par mots-clés (Informatique, Management, Langues, Mathématiques, Physique, Sport…) — fonctionne pour tous les établissements
+- **Palette harmonieuse de 10 couleurs** attribuée de façon **déterministe** par titre de cours normalisé : deux occurrences du même cours auront toujours la même couleur, quelle que soit la semaine
+- **Normalisation des titres** : préfixes `CM/TD/TP`, symboles `***`, numéros de groupe `- Groupe 1` sont ignorés pour assurer la cohérence des couleurs
+- Adaptation complète **mode clair / mode sombre** (translucide avec bordure d'accent vive)
+
+### 📊 Statistiques hebdomadaires
+- Barre de répartition du temps par discipline (% et durée)
+- **Filtre interactif** : cliquer sur une discipline isole les cours correspondants dans la grille
+
+### 🌐 Planning personnel — Explorer n'importe quelle instance ADE
+- Coller l'**URL de planning direct ADE** de son établissement (format `index.jsp?data=…`) suffit
+- **Explorateur d'arborescence** : navigation dans les catégories/filières/groupes de l'instance ADE choisie, avec fil d'Ariane
+- Sélection d'un dossier ou d'une feuille pour charger l'emploi du temps correspondant directement
+- **"Changer de planning"** rouvre l'explorateur à la racine de l'instance déjà configurée sans ressaisie d'URL
+- Identifiants stockés localement uniquement (jamais transmis au serveur autre qu'ADE)
+
+### 🏫 Salle libres
+- Détection des salles disponibles à un créneau donné en croisant tous les plannings de l'établissement
 
 ### ⚡ Backend Go & Scraper ADE
-- **Scraping dynamique de l'arbre ADE (`tree.jsp`)** : Exploration récursive tolérante aux espaces (`\s*-\s*`), détection dynamique de l'année scolaire (`YYYY-YYYY+1`), et fallback automatique sur les listes statiques (`data/IDS.txt`, `data/Rooms-IDS.txt`).
-- **Worker Pool concurrent** : Téléchargement parallèle contrôlé (concurrence paramétrable via `CONCURRENCY`) avec retries exponentiels.
-- **Formatage & Nettoyage iCalendar (RFC 5545)** : Simplification automatique des `SUMMARY`, `LOCATION` (`_CM`, `(V)`), et reformulation propre de la `DESCRIPTION` (Kholles avec colleur/horaires, cours de soutien CPGE/IUT, projets, groupes TP/TD).
-- **Fusion de l'agenda Cercle** : Téléchargement et intégration optionnelle des événements de l'agenda Google Calendar public du Cercle des élèves.
-- **Surveillance de Fraîcheur & API Health** : Endpoint `/api/health` renvoyant `200 OK` si les données sont saines et fraîches (< 24h) ou `503 Service Unavailable` avec diagnostic JSON en cas d'anomalie.
-- **Scheduler intégré** : Synchronisation périodique automatique sans dépendre de cron externe.
+- **Scraping dynamique de l'arbre ADE** (`tree.jsp`) : exploration récursive, détection automatique de l'année scolaire
+- **Worker Pool concurrent** : téléchargement parallèle contrôlé avec retries exponentiels
+- **Formatage iCalendar (RFC 5545)** : nettoyage des `SUMMARY`, `LOCATION`, `DESCRIPTION`
+- **Fusion agenda Cercle** : intégration optionnelle de l'agenda Google Calendar public du Cercle des élèves
+- **API Health** (`/api/health`) : `200 OK` si données fraîches (<24h), `503` avec diagnostic JSON sinon
+- **Scheduler intégré** : synchronisation périodique sans cron externe
+
+### 📱 PWA Installable & Offline
+- **Icônes PNG 192×192 et 512×512** (`any` + `maskable` pour Android adaptatif)
+- `display_override: ["window-controls-overlay", "standalone"]` pour l'expérience desktop
+- **Service Worker v21** : cache-first pour les assets Vite, network-first pour l'API, fallback offline complet
+- Installable sur Android, iOS et desktop (Chrome/Edge)
 
 ---
 
-## 🏗️ Architecture du Projet
+## 🏗️ Architecture
 
 ```mermaid
 graph TD
-    ADE["Serveur ADE Grenoble INP"] -->|directCal / tree.jsp| Scraper["Backend Go (Syncer & Worker Pool)"]
+    ADE["Serveur ADE Campus (quelconque)"] -->|tree.jsp / anonymous_cal.jsp| Scraper["Backend Go (Syncer & Worker Pool)"]
     Cercle["Google Calendar Cercle"] -->|basic.ics| Scraper
     Scraper -->|RFC 5545 Normalizer| OutputDir["data/output/ (*.ics + files.json)"]
-    
+
     subgraph "Serveur HTTP Go (:8080)"
-        API["API REST (/api/health, /api/status, /api/sync)"]
-        StaticServer["Serveur Statique /output/ + SPA"]
+        API["API REST (/api/health, /api/status, /api/sync, /api/personal-calendar)"]
+        StaticServer["Serveur Statique /output/ + SPA Vue 3"]
     end
-    
+
     OutputDir --> StaticServer
-    StaticServer --> Frontend["Frontend Vue 3 (Vite + Skeletons UI)"]
+    StaticServer --> Frontend["Frontend Vue 3 (Vite + PWA)"]
     API --> Frontend
+    ADE2["Instance ADE quelconque (URL token)"] -->|Session HTTP| API
 ```
 
 ---
 
 ## 🚀 Démarrage Rapide
 
-### 1. Déploiement avec Docker Compose (Recommandé)
+### 1. Docker Compose (Recommandé)
 
 ```bash
-# 1. Cloner le dépôt
 git clone https://github.com/Rem7474/ICSExplorer.git
 cd ICSExplorer
-
-# 2. Configurer les variables d'environnement
 cp .env.example .env
-# Éditer .env avec vos identifiants Agalan (Grenoble INP) si vous souhaitez synchroniser avec ADE
-
-# 3. Lancer le conteneur en arrière-plan
+# Éditer .env avec vos identifiants Agalan (Grenoble INP) si nécessaire
 docker compose up -d
-
-# 4. Vérifier les logs et l'état
-docker compose logs -f
 ```
 
-L'application est disponible sur **`http://localhost:8080`**.
-
----
+Application disponible sur **`http://localhost:8080`**.
 
 ### 2. Développement Local
 
-#### Prérequis :
-- **Go 1.22+**
-- **Node.js 20+** et **npm**
-
-#### Lancement en mode développement :
+**Prérequis :** Go 1.22+ · Node.js 20+ · npm
 
 ```bash
-# Compiler et lancer le frontend en mode dev (avec proxy vers l'API Go)
-cd frontend
-npm install
-npm run dev
+# Frontend (proxy → API Go)
+cd frontend && npm install && npm run dev
 
-# Dans un autre terminal, lancer le backend Go
+# Backend (autre terminal)
 go run ./cmd/server
 ```
 
@@ -100,116 +107,102 @@ go run ./cmd/server
 
 ## ⚙️ Configuration (`.env`)
 
-| Variable | Description | Valeur par défaut |
+| Variable | Description | Défaut |
 |---|---|---|
-| `PORT` | Port d'écoute du serveur HTTP | `8080` |
+| `PORT` | Port HTTP | `8080` |
 | `AGALAN_LOGIN` | Identifiant Agalan (Grenoble INP) | *vide* |
-| `AGALAN_PASSWORD` | Mot de passe Agalan (Grenoble INP) | *vide* |
-| `SYNC_INTERVAL` | Intervalle de synchronisation automatique | `30m` |
-| `SYNC_ON_STARTUP` | Lancer une synchro au démarrage | `true` |
-| `SYNC_CERCLE` | Télécharger et fusionner les événements Cercle | `true` |
-| `CONCURRENCY` | Nombre de workers concurrents de téléchargement | `5` |
-| `MAX_DATA_AGE` | Seuil d'obsolescence pour `/api/health` | `24h` |
-| `MIN_FILE_SIZE_BYTES` | Taille minimale attendue pour un ICS | `50000` |
-| `LOG_LEVEL` | Niveau de log (`debug`, `info`, `warn`, `error`) | `info` |
-| `LOG_FORMAT` | Format des logs (`text`, `json`) | `json` (en prod) |
-| `ADMIN_TOKEN` | Jeton Bearer optionnel pour sécuriser `POST /api/sync` | *vide* |
+| `AGALAN_PASSWORD` | Mot de passe Agalan | *vide* |
+| `SYNC_INTERVAL` | Intervalle de synchronisation auto | `30m` |
+| `SYNC_ON_STARTUP` | Synchro au démarrage | `true` |
+| `SYNC_CERCLE` | Fusionner l'agenda Cercle | `true` |
+| `CONCURRENCY` | Workers de téléchargement concurrent | `5` |
+| `MAX_DATA_AGE` | Seuil d'obsolescence `/api/health` | `24h` |
+| `MIN_FILE_SIZE_BYTES` | Taille minimale ICS attendue | `50000` |
+| `LOG_LEVEL` | Niveau de log (`debug`/`info`/`warn`/`error`) | `info` |
+| `LOG_FORMAT` | Format (`text`/`json`) | `json` |
+| `ADMIN_TOKEN` | Bearer token pour `POST /api/sync` | *vide* |
 
 ---
 
-## 📡 Endpoints API REST
+## 📡 API REST
 
-### `GET /api/health`
-Vérifie la santé et la fraîcheur des fichiers calendriers.
-- **Code 200 OK** : Données à jour et intègres.
-- **Code 503 Service Unavailable** : Données obsolètes ou fichier manquant.
+| Endpoint | Méthode | Description |
+|---|---|---|
+| `/api/health` | GET | Santé & fraîcheur des données (`200` OK / `503` KO) |
+| `/api/status` | GET | Statistiques de synchronisation et configuration |
+| `/api/sync` | POST | Déclenche une synchro (Bearer token si `ADMIN_TOKEN` configuré) |
+| `/api/files` | GET | Liste JSON des emplois du temps disponibles |
+| `/output/{nom}.ics` | GET | Téléchargement ICS avec cache HTTP & ETag |
+| `/api/personal-calendar` | POST | Récupère le planning personnel via une instance ADE (voir ci-dessous) |
+
+### `POST /api/personal-calendar`
+
+Récupère l'emploi du temps d'un étudiant en se connectant à une instance ADE Campus quelconque.
 
 ```json
 {
-  "status": "healthy",
-  "fresh": true,
-  "last_sync": "2026-08-30T18:00:00Z",
-  "last_sync_age": "5m",
-  "files_count": 85,
-  "max_data_age": "24h0m0s",
-  "uptime": "12h30m",
-  "uptime_seconds": 45000
+  "adeUrl": "https://ade-uga-ro-vs.grenet.fr/direct/index.jsp?data=TOKEN…,1",
+  "login": "prenom.nom@univ.fr",
+  "password": "••••",
+  "resourceIds": ["28978"],
+  "branchPath": ["1674", "27615", "28793"]
 }
 ```
 
-### `GET /api/status`
-Retourne les statistiques détaillées de synchronisation et la configuration active.
+- `adeUrl` : URL de planning direct ADE de l'établissement
+- `resourceIds` : IDs des ressources feuilles (groupes/filières) à exporter
+- `branchPath` : chemin des nœuds parents à ouvrir dans la session pour atteindre les ressources
+- Réponse : calendrier ICS (`text/calendar`) ou `401` (identifiants refusés) / `502` (serveur ADE injoignable)
 
-### `POST /api/sync`
-Déclenche une synchronisation en arrière-plan. (Protégé par `Authorization: Bearer <ADMIN_TOKEN>` si configuré).
+> **Confidentialité** : les identifiants ne sont utilisés qu'en mémoire pour la requête ADE et ne sont jamais écrits sur disque, mis en cache ni loggés côté serveur.
 
-### `GET /api/files`
-Retourne la liste JSON triée de tous les emplois du temps étudiants disponibles.
+### `POST /api/personal-calendar/tree`
 
-### `GET /output/{nom}.ics`
-Téléchargement direct du calendrier avec support du cache HTTP et en-tête `ETag`.
-
-### `GET /api/universities`
-Retourne la liste des établissements pour lesquels ICSExplorer peut récupérer un emploi du temps personnel (voir ci-dessous). Ne contient aucune information de connexion.
-
-### `POST /api/personal-calendar`
-Récupère l'emploi du temps **personnel** d'un étudiant en se connectant en son nom au serveur ADE de son établissement, plutôt que de dépendre d'une synchronisation globale préexistante.
+Explore l'arborescence d'une instance ADE Campus.
 
 ```json
-{ "universityId": "grenoble-inp-esisar", "login": "...", "password": "..." }
+{
+  "adeUrl": "https://...",
+  "login": "...",
+  "password": "...",
+  "category": "trainee",
+  "branchPath": ["1674", "27615"]
+}
 ```
 
-Réponse : le calendrier ICS de l'utilisateur (`Content-Type: text/calendar`), ou une erreur `400` (requête invalide / établissement inconnu), `401` (identifiants refusés par ADE), `429` (trop de requêtes) ou `502` (serveur ADE injoignable).
-
-Cet endpoint est **sans état** : les identifiants ne sont utilisés qu'en mémoire pour cette unique requête vers le serveur ADE de l'établissement, et ne sont jamais écrits sur disque, mis en cache ni loggés côté serveur. Le fait de les mémoriser ou non pour les prochaines visites est une décision prise côté navigateur (case "se souvenir de moi" dans le formulaire, stockage local uniquement).
-
----
-
-## 🎓 Emploi du temps personnel (multi-établissements)
-
-En complément de la synchronisation globale (qui republie l'emploi du temps de **toute** l'école à partir d'un compte institutionnel partagé), un utilisateur peut cliquer sur **« Mon EDT personnel »** dans l'en-tête pour saisir ses propres identifiants ADE et récupérer directement son planning individuel — utile quand une URL ICS personnelle récupérée manuellement ne fonctionne pas de façon fiable.
-
-Cette fonctionnalité repose sur le même mécanisme d'authentification que le scraping Agalan (HTTP Basic Auth par requête, sans session), généralisé pour cibler n'importe quelle instance ADE Campus. Chaque établissement supporté est déclaré dans `internal/university/registry.go` avec :
-- `baseURL` : le serveur ADE de l'établissement (ex. `https://edt.grenoble-inp.fr`)
-- `institutionPath` : le segment de chemin propre à l'établissement dans l'URL d'export ADE (ex. `etudiant/esisar`)
-
-**Important** : au sein même de Grenoble INP, plusieurs écoles (Esisar, Ense3, Phelma, etc.) partagent le même serveur ADE mais avec un `institutionPath` différent — seule l'Esisar est déclarée aujourd'hui. Ajouter une école supplémentaire ne nécessite qu'une nouvelle entrée dans le registre (son propre `baseURL`/`institutionPath`), sans toucher au reste du code.
+Réponse : tableau JSON de nœuds `{ id, name, isLeaf }`.
 
 ---
 
 ## 🧪 Tests & Qualité
 
 ```bash
-# Exécuter tous les tests (Backend Go + Frontend Vitest)
+# Tous les tests (Go + Vitest)
 make test
 
-# Tests unitaires Backend uniquement
+# Backend Go uniquement
 go test -v ./...
 
-# Tests unitaires Frontend uniquement
+# Frontend uniquement
 cd frontend && npm test
 
 # Linter Go
 golangci-lint run ./...
 ```
 
+**Couverture actuelle :**
+- ✅ 58 tests Vitest (frontend Vue 3 + composables + utils)
+- ✅ Packages Go : `ade`, `server`, `syncer`, `university`, `ics`, `config`, `guard`
+
 ---
 
-## 🔄 Pipeline CI/CD
+## 🔄 CI/CD (GitHub Actions)
 
-Le projet intègre des workflows **GitHub Actions** complets :
-1. **`.github/workflows/ci.yml`** :
-   - Exécution des tests Go avec détection de race conditions (`-race`).
-   - Exécution des tests Vitest & validation du build Vite.
-   - Linting Go (`golangci-lint`).
-   - Build de l'image Docker & scan de vulnérabilités avec **Trivy**.
-2. **`.github/workflows/release.yml`** :
-   - Build Docker multi-architecture (`linux/amd64`, `linux/arm64`) avec Docker Buildx.
-   - Publication automatique sur GitHub Container Registry (`ghcr.io`).
-   - Compilation et publication des binaires standalone (Linux, macOS, Windows) lors de la création d'un tag `v*.*.*`.
+1. **`ci.yml`** : tests Go (race detector), Vitest, build Vite, lint, build Docker + scan Trivy
+2. **`release.yml`** : build multi-arch (`amd64`/`arm64`), publication sur `ghcr.io`, binaires standalone (Linux/macOS/Windows) sur tag `v*.*.*`
 
 ---
 
 ## 📄 Licence
 
-Distribué sous licence **GPL-3.0**. Consultez [LICENSE](LICENSE) pour plus d'informations.
+Distribué sous licence **GPL-3.0**. Voir [LICENSE](LICENSE).
