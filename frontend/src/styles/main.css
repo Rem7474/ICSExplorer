@@ -1,0 +1,202 @@
+:root {
+  color-scheme: light;
+  --bg: #f5f7fb;
+  --card: #ffffff;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --accent: #2563eb;
+  --accent-dark: #1d4ed8;
+  --border: #e5e7eb;
+  --skeleton-bg: #e2e8f0;
+  --skeleton-shimmer: rgba(255, 255, 255, 0.6);
+  
+  /* Constantes calendrier */
+  --hour-start: 8;
+  --hour-end: 18;
+  --hours-total: 10;
+  --px-per-hour: 60px;
+  --schedule-height: 600px;
+  
+  /* Couleurs des cours (mode clair) */
+  --color-IN: rgba(99, 102, 241, 0.12); --border-IN: #6366f1;
+  --color-SN: rgba(14, 165, 233, 0.12); --border-SN: #0ea5e9;
+  --color-PR: rgba(244, 63, 94, 0.12); --border-PR: #f43f5e;
+  --color-LV: rgba(6, 182, 212, 0.12); --border-LV: #06b6d4;
+  --color-XP: rgba(168, 85, 247, 0.12); --border-XP: #a855f7;
+  --color-AU: rgba(245, 158, 11, 0.12); --border-AU: #f59e0b;
+  --color-EP: rgba(59, 130, 246, 0.12); --border-EP: #3b82f6;
+  --color-MAC: rgba(16, 185, 129, 0.12); --border-MAC: #10b981;
+  --color-SP: rgba(236, 72, 153, 0.12); --border-SP: #ec4899;
+  --color-PT: rgba(20, 184, 166, 0.12); --border-PT: #14b8a6;
+}
+
+html.dark-mode {
+  color-scheme: dark;
+  --bg: #0f172a;
+  --card: #1e293b;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --accent: #3b82f6;
+  --accent-dark: #1e40af;
+  --border: #334155;
+  --skeleton-bg: #334155;
+  --skeleton-shimmer: rgba(255, 255, 255, 0.1);
+  
+  /* Couleurs des cours (mode sombre) */
+  --color-IN: rgba(99, 102, 241, 0.18); --border-IN: #818cf8;
+  --color-SN: rgba(14, 165, 233, 0.18); --border-SN: #38bdf8;
+  --color-PR: rgba(244, 63, 94, 0.18); --border-PR: #fb7185;
+  --color-LV: rgba(6, 182, 212, 0.18); --border-LV: #22d3ee;
+  --color-XP: rgba(168, 85, 247, 0.18); --border-XP: #c084fc;
+  --color-AU: rgba(245, 158, 11, 0.18); --border-AU: #fbbf24;
+  --color-EP: rgba(59, 130, 246, 0.18); --border-EP: #60a5fa;
+  --color-MAC: rgba(16, 185, 129, 0.18); --border-MAC: #34d399;
+  --color-SP: rgba(236, 72, 153, 0.18); --border-SP: #f472b6;
+  --color-PT: rgba(20, 184, 166, 0.18); --border-PT: #2dd4bf;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container {
+  width: min(1180px, 94%);
+  margin: 0 auto;
+}
+
+/* ===== Card Styling ===== */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+/* ===== Shimmer Animation for Skeletons ===== */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--skeleton-bg) 25%, var(--skeleton-shimmer) 50%, var(--skeleton-bg) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s infinite linear;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background: var(--skeleton-bg);
+  }
+}
+
+/* ===== Buttons & Inputs ===== */
+button, select, input {
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: white;
+}
+.btn-primary:hover {
+  background: var(--accent-dark);
+}
+
+.btn-outline {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text);
+}
+.btn-outline:hover {
+  background: rgba(125, 125, 125, 0.08);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ===== Print Stylesheet (@media print) ===== */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  .header, .controls-card, .favorites-row, .next-course-card, .footer, .btn, .theme-toggle, .week-nav button {
+    display: none !important;
+  }
+
+  .card {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .container {
+    width: 100% !important;
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  .schedule {
+    display: grid !important;
+    grid-template-columns: repeat(5, 1fr) !important;
+    gap: 4px !important;
+    page-break-inside: avoid;
+  }
+
+  .day-group {
+    border: 1px solid #ccc !important;
+  }
+
+  .day-title {
+    background: #eee !important;
+    color: black !important;
+    font-weight: bold;
+  }
+
+  .event {
+    border: 1px solid #999 !important;
+    page-break-inside: avoid;
+  }
+
+  @page {
+    size: landscape;
+    margin: 10mm;
+  }
+}

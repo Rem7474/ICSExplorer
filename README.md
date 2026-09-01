@@ -1,271 +1,208 @@
-# 📅 EDTEsisar — Emploi du Temps Esisar
+﻿# 📅 ICSExplorer — Emplois du temps universitaires
 
-![HTML5](https://img.shields.io/badge/html5-%23E34F26.svg?style=for-the-badge&logo=html5&logoColor=white)
-![CSS3](https://img.shields.io/badge/css3-%231572B6.svg?style=for-the-badge&logo=css3&logoColor=white)
-![JavaScript](https://img.shields.io/badge/javascript-%23323330.svg?style=for-the-badge&logo=javascript&logoColor=%23F7DF1E)
-![PWA](https://img.shields.io/badge/PWA-%235A0FC8.svg?style=for-the-badge&logo=pwa&logoColor=white)
+![Vue.js](https://img.shields.io/badge/Vue.js-3.5-4FC08D?style=for-the-badge&logo=vuedotjs&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-6.0-646CFF?style=for-the-badge&logo=vite&logoColor=white)
+![Go](https://img.shields.io/badge/Go-1.24-00ADD8?style=for-the-badge&logo=go&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Multi--stage-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+![CI/CD](https://img.shields.io/badge/GitHub_Actions-CI%2FCD-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)
+![PWA](https://img.shields.io/badge/PWA-Installable-5A0FC8?style=for-the-badge&logo=pwa&logoColor=white)
 
-Application web moderne pour consulter les emplois du temps de l'école Esisar à partir des fichiers ICS publiés sur `edt.remcorp.fr`. Architecture modulaire en ES modules natifs (zéro build, zéro dépendance), PWA installable avec support hors-ligne.
-
-**Production :** [https://edt.remcorp.fr](https://edt.remcorp.fr)
-
-## ✨ Fonctionnalités
-
-### Consultation
-- **Trois modes** : par groupe d'élève, par professeur, ou par salle.
-- **Vue hebdomadaire** avec navigation flèches + bouton « Semaine actuelle ».
-- « Semaine actuelle » est intelligent : si tous les cours de la semaine sont finis (ou vacances en cours), saute automatiquement à la semaine du prochain cours.
-- **Colonne d'heures** sur le côté du planning (desktop).
-- **Indicateur temps réel** : ligne rouge au niveau de l'heure actuelle.
-- **Chevauchements** : deux cours en parallèle s'affichent côte à côte (layout par colonnes, algorithme de clusters).
-- **Carte « Prochain cours »** sticky en haut du planning, visible sur tous les écrans.
-- **10 types de cours** avec couleurs distinctes (IN, SN, PR, LV, XP, AU, EP, MAC, SP, PT) générées en HSL et variées par code matière.
-
-### Recherche & multi-EDT
-- **Recherche par salle** sur l'ensemble des EDT élèves (agrégation cross-fichiers).
-- **Salles vides** à un créneau donné (sélecteur d'heure + smart-default 8h30 / 14h / maintenant).
-- **Favoris** : épingle jusqu'à 8 EDT (le tien, celui d'un binôme, une salle, un prof…) — bascule en un tap.
-
-### Données
-- **Stats semaine** : total d'heures + chips par matière (triées décroissant).
-- **Téléchargement ICS** du fichier brut.
-- **Abonnement webcal://** : ajoute le calendrier dans Google Calendar / Apple Calendar / Outlook avec **mises à jour automatiques**.
-- **Détection ETag** : toast quand l'EDT a changé côté serveur depuis la dernière consultation.
-- **Notifications** opt-in 15 min avant chaque cours (via Service Worker).
-- **Refresh automatique** au retour de focus et toutes les 5 min en arrière-plan.
-
-### Expérience mobile
-- **Vue swipe** : un jour par écran, scroll-snap natif, démarre sur aujourd'hui.
-- **Indicateurs ronds** au-dessus du planning : tap pour sauter à un jour, le point actif suit le swipe.
-- Re-render au changement d'orientation / breakpoint.
-
-### Personnalisation
-- **Mode sombre/clair** persistant.
-- **Persistence** localStorage + URL partageable.
-- **Modal détails** accessible (`role=dialog`, focus trap, `Escape` ferme).
-
-### Sécurité & a11y
-- Échappement HTML systématique sur tout contenu ICS injecté (anti-XSS).
-- Boutons SVG avec `aria-label`.
-- Évènements navigables au clavier (`Enter` / `Espace`).
-- `aria-live` sur les messages d'état.
-
-## 🚀 Installation
-
-### Accès direct
-
-PWA hébergée sur [https://edt.remcorp.fr](https://edt.remcorp.fr). Installable depuis Chrome / Safari (« Ajouter à l'écran d'accueil »).
-
-### Déploiement
-
-Application 100 % statique :
-
-```bash
-git clone https://github.com/votre-org/EDTEsisar.git
-# Servir le dossier avec n'importe quel serveur statique
-python -m http.server 8000
-# ou
-npx serve
-```
-
-Hébergement compatible : GitHub Pages, Netlify, Vercel, Apache, nginx, n'importe quel hébergeur statique. **Aucune compilation requise.**
-
-Côté serveur il faut juste :
-1. Servir le contenu du repo à la racine du domaine.
-2. Exposer un dossier `/output/` contenant les fichiers `*.ics` (avec autoindex Apache/nginx **ou** un `files.json` listant les fichiers — voir [Configuration](#-configuration)).
-
-## 🛠️ Stack technique
-
-### Frontend (pur navigateur, zéro dépendance)
-- **HTML5** sémantique.
-- **CSS3** : variables CSS thématisables, Grid + Flexbox, scroll-snap natif pour le swipe mobile.
-- **JavaScript Vanilla** en **ES modules natifs** (`<script type="module">`, pas de bundler).
-- Parser ICS natif, fetch API, localStorage.
-
-### PWA
-- **Service Worker** avec trois stratégies de cache :
-  - Network-first pour `index.html` (toujours frais en ligne)
-  - Network-first pour `/output/` et `*.ics` (données dynamiques)
-  - Stale-while-revalidate pour les assets JS / CSS
-- **Install résilient** : `Promise.allSettled` + `cache.put` individuel — un fichier en 404 ne casse plus l'install.
-- **Auto-update** : détection nouvelle version + reload via `controllerchange`.
-- **Notifications** via `ServiceWorkerRegistration.showNotification()` (compatible iOS PWA 16.4+).
-
-## 📁 Structure du projet
-
-```
-EDTEsisar/
-├── index.html                # Page principale
-├── styles.css                # Styles globaux
-├── sw.js                     # Service Worker (cache + notifications)
-├── manifest.json             # Manifest PWA
-├── favicon.svg               # Icône
-├── README.md
-└── src/                      # ES modules
-    ├── main.js               # Point d'entrée, wiring DOM + état
-    ├── utils/
-    │   ├── dom.js            # escapeHtml, $, setSelectOptions
-    │   ├── dates.js          # formatters, getWeekStart/End, getRelevantWeekStart
-    │   ├── colors.js         # HSL subject colors avec cache
-    │   └── collections.js    # getUnique
-    ├── ics/
-    │   ├── parser.js         # parseIcs, parseIcsDate, extractTeacherNames
-    │   ├── api.js            # fetchIcsText, fetchFileList (+ JSON fallback)
-    │   └── aggregator.js     # getAggregatedEvents, getTeacherIndex (TTL 10min)
-    ├── ui/
-    │   ├── schedule.js       # Rendu calendrier + collision + dots + empty state
-    │   ├── controls.js       # Cascade Année→Parcours→Type→Suite
-    │   ├── modal.js          # Modal a11y (Escape, focus trap)
-    │   └── toast.js          # Notifications in-app
-    ├── state/
-    │   └── persistence.js    # localStorage + URL params
-    └── features/
-        ├── empty-rooms.js    # Salles vides à un créneau
-        ├── week-stats.js     # Stats hebdomadaires
-        ├── favorites.js      # Pills favoris persistées
-        ├── etag-watcher.js   # Détection MAJ ICS
-        └── notifications.js  # Notifications opt-in via SW
-```
-
-## 🎨 Système de couleurs
-
-10 types de matières avec couleurs HSL générées dynamiquement à partir des variables CSS de base. Le code matière (`SN123`, `IN201`…) varie la teinte / saturation / luminosité pour distinguer les modules au sein d'un même type.
-
-| Type | Nom |
-|------|-----|
-| IN | Informatique |
-| SN | Sciences Numériques |
-| PR | Initiation Recherche |
-| LV | Langue Vivante |
-| XP | Experience Pro |
-| AU | Automatique |
-| EP | Electronique |
-| MAC | MAC |
-| SP | Sport |
-| PT | Projet |
-
-Les couleurs respectent automatiquement le thème (clair / sombre).
-
-## 📱 Responsive
-
-| Breakpoint | Layout |
-|---|---|
-| Desktop (> 1024px) | 5 colonnes lundi–vendredi + colonne d'heures |
-| Tablette (769–1024px) | 4 colonnes + colonne d'heures |
-| Petite tablette (481–768px) | 2 colonnes + colonne d'heures fine |
-| Mobile (≤ 480px) | 1 jour visible, swipe horizontal entre jours, indicateurs ronds |
-
-Bascule **automatique** au resize / rotation (matchMedia listener).
-
-## 🔧 Configuration
-
-### Source de données
-
-Éditer `src/ics/api.js` :
-
-```js
-export const outputBase = "https://edt.remcorp.fr/output/";
-```
-
-### Liste des fichiers — deux options
-
-1. **Autoindex Apache/nginx** (par défaut) — le serveur expose `/output/` comme un listing HTML, l'app extrait les liens `*.ics`.
-2. **Fichier `files.json`** (fallback automatique) — si l'autoindex est désactivé, l'app tente `https://edt.remcorp.fr/output/files.json` au format :
-   ```json
-   ["1A-IN-eleve.ics", "1A-SN-eleve.ics", "2A-IN-eleve.ics"]
-   ```
-   Générable côté serveur avec un cron :
-   ```bash
-   cd /var/www/output && ls *.ics | jq -R -s 'split("\n") | map(select(. != ""))' > files.json
-   ```
-
-### Heures de planning
-
-Modifier `src/ui/schedule.js` :
-
-```js
-const DEFAULT_HOUR_START = 8;
-const DEFAULT_HOUR_END = 18;
-```
-
-Les heures s'élargissent automatiquement si un événement déborde.
-
-### Couleurs
-
-Variables CSS dans `styles.css` :
-
-```css
-:root {
-  --accent: #2563eb;
-  --accent-dark: #1d4ed8;
-  --border-IN: #7C3AED;
-  /* ... un --border-XX par type de matière */
-}
-```
-
-Les couleurs des événements sont dérivées de ces bases avec des variations par code module.
-
-### Service Worker
-
-À chaque déploiement, bump `CACHE_NAME` dans `sw.js` :
-
-```js
-const CACHE_NAME = 'edt-v13';  // Incrémenter
-```
-
-Le SW notifie automatiquement la nouvelle version au client (toast + reload).
-
-## 🤝 Contribution
-
-1. Fork le projet
-2. Crée une branche (`git checkout -b feature/AmazingFeature`)
-3. Commit (`git commit -m 'feat: add AmazingFeature'`)
-4. Push (`git push origin feature/AmazingFeature`)
-5. Ouvre une Pull Request
-
-## 📝 Roadmap
-
-### Fait
-- [x] Architecture modulaire ES modules
-- [x] Mode sombre avec respect du thème système
-- [x] PWA installable + support offline
-- [x] Layout collision (chevauchements en colonnes)
-- [x] Vue swipe mobile + indicateurs jours
-- [x] Salles vides cross-EDT
-- [x] Notifications 15 min avant cours (SW-based)
-- [x] Favoris multi-EDT
-- [x] Détection ETag (MAJ silencieuse)
-- [x] Abonnement webcal://
-- [x] Export ICS individuel d'un cours
-- [x] Stats hebdomadaires par matière
-- [x] Toasts in-app
-- [x] Modal accessible (focus trap + Escape)
-- [x] Auto-refresh au focus
-
-### À faire
-- [ ] Filtre par matière dans l'EDT chargé (chips cliquables)
-- [ ] Print stylesheet A4 paysage
-- [ ] Notifications push via serveur (vraiment background, hors « PWA en mémoire »)
-- [ ] Vue mensuelle
-- [ ] Tests unitaires (Vitest) sur le parser ICS
-- [ ] Icône PNG dédiée pour iOS (actuellement SVG + fallback screenshot)
-
-## 🐛 Bugs connus
-
-Aucun bug critique connu. Pour signaler un problème, ouvrez une issue avec :
-- Navigateur + OS + version
-- Mode PWA installée ou navigateur ?
-- Message exact des toasts d'erreur (le cas échéant)
-- Capture console (F12)
-
-## 📄 Licence
-
-MIT — voir le fichier `LICENSE`.
-
-## 👨‍💻 Auteur
-
-Développé pour les étudiants de l'Esisar.
+Application moderne et conteneurisée pour consulter, rechercher et synchroniser les emplois du temps universitaires au format ICS (iCalendar).
+Conçue initialement pour **Grenoble INP — Esisar**, elle supporte désormais **n'importe quelle instance ADE Campus** via son mode planning personnel.
 
 ---
 
-⭐ **Mets une étoile si le projet t'a servi !**
+## ✨ Fonctionnalités
+
+### 🗓️ Grille hebdomadaire
+- **Vue semaine** avec défilement swipe mobile, ligne rouge temps réel et navigation clavier (`←` `→` `T`)
+- **Gestion des chevauchements** : affichage côte à côte optimisé pour les cours parallèles
+- **Skeletons UI animés** (shimmer) zéro-CLS pendant le chargement
+- **Modal de détail** au clic sur un cours (titre, horaires, salle, description complète)
+
+### 🎨 Coloration intelligente des cours
+- **Détection automatique de la discipline** par mots-clés (Informatique, Management, Langues, Mathématiques, Physique, Sport…) — fonctionne pour tous les établissements
+- **Palette harmonieuse de 10 couleurs** attribuée de façon **déterministe** par titre de cours normalisé : deux occurrences du même cours auront toujours la même couleur, quelle que soit la semaine
+- **Normalisation des titres** : préfixes `CM/TD/TP`, symboles `***`, numéros de groupe `- Groupe 1` sont ignorés pour assurer la cohérence des couleurs
+- Adaptation complète **mode clair / mode sombre** (translucide avec bordure d'accent vive)
+
+### 📊 Statistiques hebdomadaires
+- Barre de répartition du temps par discipline (% et durée)
+- **Filtre interactif** : cliquer sur une discipline isole les cours correspondants dans la grille
+
+### 🌐 Planning personnel — Explorer n'importe quelle instance ADE
+- Coller l'**URL de planning direct ADE** de son établissement (format `index.jsp?data=…`) suffit
+- **Explorateur d'arborescence** : navigation dans les catégories/filières/groupes de l'instance ADE choisie, avec fil d'Ariane
+- Sélection d'un dossier ou d'une feuille pour charger l'emploi du temps correspondant directement
+- **"Changer de planning"** rouvre l'explorateur à la racine de l'instance déjà configurée sans ressaisie d'URL
+- Identifiants stockés localement uniquement (jamais transmis au serveur autre qu'ADE)
+
+### 🏫 Salle libres
+- Détection des salles disponibles à un créneau donné en croisant tous les plannings de l'établissement
+
+### ⚡ Backend Go & Scraper ADE
+- **Scraping dynamique de l'arbre ADE** (`tree.jsp`) : exploration récursive, détection automatique de l'année scolaire
+- **Worker Pool concurrent** : téléchargement parallèle contrôlé avec retries exponentiels
+- **Formatage iCalendar (RFC 5545)** : nettoyage des `SUMMARY`, `LOCATION`, `DESCRIPTION`
+- **Fusion agenda Cercle** : intégration optionnelle de l'agenda Google Calendar public du Cercle des élèves
+- **API Health** (`/api/health`) : `200 OK` si données fraîches (<24h), `503` avec diagnostic JSON sinon
+- **Scheduler intégré** : synchronisation périodique sans cron externe
+
+### 📱 PWA Installable & Offline
+- **Icônes PNG 192×192 et 512×512** (`any` + `maskable` pour Android adaptatif)
+- `display_override: ["window-controls-overlay", "standalone"]` pour l'expérience desktop
+- **Service Worker v21** : cache-first pour les assets Vite, network-first pour l'API, fallback offline complet
+- Installable sur Android, iOS et desktop (Chrome/Edge)
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+graph TD
+    ADE["Serveur ADE Campus (quelconque)"] -->|tree.jsp / anonymous_cal.jsp| Scraper["Backend Go (Syncer & Worker Pool)"]
+    Cercle["Google Calendar Cercle"] -->|basic.ics| Scraper
+    Scraper -->|RFC 5545 Normalizer| OutputDir["data/output/ (*.ics + files.json)"]
+
+    subgraph "Serveur HTTP Go (:8080)"
+        API["API REST (/api/health, /api/status, /api/sync, /api/personal-calendar)"]
+        StaticServer["Serveur Statique /output/ + SPA Vue 3"]
+    end
+
+    OutputDir --> StaticServer
+    StaticServer --> Frontend["Frontend Vue 3 (Vite + PWA)"]
+    API --> Frontend
+    ADE2["Instance ADE quelconque (URL token)"] -->|Session HTTP| API
+```
+
+---
+
+## 🚀 Démarrage Rapide
+
+### 1. Docker Compose (Recommandé)
+
+```bash
+git clone https://github.com/Rem7474/ICSExplorer.git
+cd ICSExplorer
+cp .env.example .env
+# Éditer .env avec vos identifiants Agalan (Grenoble INP) si nécessaire
+docker compose up -d
+```
+
+Application disponible sur **`http://localhost:8080`**.
+
+### 2. Développement Local
+
+**Prérequis :** Go 1.22+ · Node.js 20+ · npm
+
+```bash
+# Frontend (proxy → API Go)
+cd frontend && npm install && npm run dev
+
+# Backend (autre terminal)
+go run ./cmd/server
+```
+
+---
+
+## ⚙️ Configuration (`.env`)
+
+| Variable | Description | Défaut |
+|---|---|---|
+| `PORT` | Port HTTP | `8080` |
+| `AGALAN_LOGIN` | Identifiant Agalan (Grenoble INP) | *vide* |
+| `AGALAN_PASSWORD` | Mot de passe Agalan | *vide* |
+| `SYNC_INTERVAL` | Intervalle de synchronisation auto | `30m` |
+| `SYNC_ON_STARTUP` | Synchro au démarrage | `true` |
+| `SYNC_CERCLE` | Fusionner l'agenda Cercle | `true` |
+| `CONCURRENCY` | Workers de téléchargement concurrent | `5` |
+| `MAX_DATA_AGE` | Seuil d'obsolescence `/api/health` | `24h` |
+| `MIN_FILE_SIZE_BYTES` | Taille minimale ICS attendue | `50000` |
+| `LOG_LEVEL` | Niveau de log (`debug`/`info`/`warn`/`error`) | `info` |
+| `LOG_FORMAT` | Format (`text`/`json`) | `json` |
+| `ADMIN_TOKEN` | Bearer token pour `POST /api/sync` | *vide* |
+
+---
+
+## 📡 API REST
+
+| Endpoint | Méthode | Description |
+|---|---|---|
+| `/api/health` | GET | Santé & fraîcheur des données (`200` OK / `503` KO) |
+| `/api/status` | GET | Statistiques de synchronisation et configuration |
+| `/api/sync` | POST | Déclenche une synchro (Bearer token si `ADMIN_TOKEN` configuré) |
+| `/api/files` | GET | Liste JSON des emplois du temps disponibles |
+| `/output/{nom}.ics` | GET | Téléchargement ICS avec cache HTTP & ETag |
+| `/api/personal-calendar` | POST | Récupère le planning personnel via une instance ADE (voir ci-dessous) |
+
+### `POST /api/personal-calendar`
+
+Récupère l'emploi du temps d'un étudiant en se connectant à une instance ADE Campus quelconque.
+
+```json
+{
+  "adeUrl": "https://ade-uga-ro-vs.grenet.fr/direct/index.jsp?data=TOKEN…,1",
+  "login": "prenom.nom@univ.fr",
+  "password": "••••",
+  "resourceIds": ["28978"],
+  "branchPath": ["1674", "27615", "28793"]
+}
+```
+
+- `adeUrl` : URL de planning direct ADE de l'établissement
+- `resourceIds` : IDs des ressources feuilles (groupes/filières) à exporter
+- `branchPath` : chemin des nœuds parents à ouvrir dans la session pour atteindre les ressources
+- Réponse : calendrier ICS (`text/calendar`) ou `401` (identifiants refusés) / `502` (serveur ADE injoignable)
+
+> **Confidentialité** : les identifiants ne sont utilisés qu'en mémoire pour la requête ADE et ne sont jamais écrits sur disque, mis en cache ni loggés côté serveur.
+
+### `POST /api/personal-calendar/tree`
+
+Explore l'arborescence d'une instance ADE Campus.
+
+```json
+{
+  "adeUrl": "https://...",
+  "login": "...",
+  "password": "...",
+  "category": "trainee",
+  "branchPath": ["1674", "27615"]
+}
+```
+
+Réponse : tableau JSON de nœuds `{ id, name, isLeaf }`.
+
+---
+
+## 🧪 Tests & Qualité
+
+```bash
+# Tous les tests (Go + Vitest)
+make test
+
+# Backend Go uniquement
+go test -v ./...
+
+# Frontend uniquement
+cd frontend && npm test
+
+# Linter Go
+golangci-lint run ./...
+```
+
+**Couverture actuelle :**
+- ✅ 58 tests Vitest (frontend Vue 3 + composables + utils)
+- ✅ Packages Go : `ade`, `server`, `syncer`, `university`, `ics`, `config`, `guard`
+
+---
+
+## 🔄 CI/CD (GitHub Actions)
+
+1. **`ci.yml`** : tests Go (race detector), Vitest, build Vite, lint, build Docker + scan Trivy
+2. **`release.yml`** : build multi-arch (`amd64`/`arm64`), publication sur `ghcr.io`, binaires standalone (Linux/macOS/Windows) sur tag `v*.*.*`
+
+---
+
+## 📄 Licence
+
+Distribué sous licence **GPL-3.0**. Voir [LICENSE](LICENSE).
