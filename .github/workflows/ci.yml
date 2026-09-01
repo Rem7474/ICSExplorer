@@ -2,9 +2,9 @@ name: CI Pipeline
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, dev]
   pull_request:
-    branches: [main, master]
+    branches: [main, master, dev]
 
 jobs:
   backend-tests:
@@ -24,7 +24,8 @@ jobs:
         run: go mod download
 
       - name: Run Go Tests with Race Detector
-        run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+        # Cover only ./internal/... — cmd/server is a thin entrypoint with no tests
+        run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./internal/...
 
       - name: GolangCI-Lint
         uses: golangci/golangci-lint-action@v6
@@ -86,3 +87,4 @@ jobs:
           exit-code: '0'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
+
