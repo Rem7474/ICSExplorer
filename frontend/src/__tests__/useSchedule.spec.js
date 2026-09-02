@@ -55,14 +55,47 @@ describe("useSchedule composable", () => {
     expect(schedule.currentWeekStart.value).toBeInstanceOf(Date);
   });
 
-  it("toggles subject filter properly", () => {
+  it("toggles subject visibility / deselection properly", () => {
     const schedule = useSchedule();
 
-    expect(schedule.selectedSubjectFilter.value).toBeNull();
+    expect(schedule.disabledSubjects.value).toEqual([]);
     schedule.toggleSubjectFilter("IN");
+    expect(schedule.disabledSubjects.value).toEqual(["IN"]);
     expect(schedule.selectedSubjectFilter.value).toBe("IN");
+
+    schedule.toggleSubjectFilter("MAC");
+    expect(schedule.disabledSubjects.value).toEqual(["IN", "MAC"]);
+
     schedule.toggleSubjectFilter("IN");
+    expect(schedule.disabledSubjects.value).toEqual(["MAC"]);
+
+    schedule.resetSubjectFilters();
+    expect(schedule.disabledSubjects.value).toEqual([]);
     expect(schedule.selectedSubjectFilter.value).toBeNull();
+  });
+
+  it("filters out deselected subjects from displayedWeekEvents", () => {
+    const schedule = useSchedule();
+    const now = new Date();
+    // Two events during current week
+    schedule.events.value = [
+      { summary: "IN101 Algo", start: now, end: new Date(now.getTime() + 3600000) },
+      { summary: "Management Projet", start: now, end: new Date(now.getTime() + 3600000) },
+    ];
+
+    expect(schedule.displayedWeekEvents.value.length).toBe(2);
+    // Deselect IN
+    schedule.toggleSubjectFilter("IN");
+    expect(schedule.displayedWeekEvents.value.length).toBe(1);
+    expect(schedule.displayedWeekEvents.value[0].summary).toBe("Management Projet");
+
+    // Deselect MAC as well
+    schedule.toggleSubjectFilter("MAC");
+    expect(schedule.displayedWeekEvents.value.length).toBe(0);
+
+    // Reset
+    schedule.resetSubjectFilters();
+    expect(schedule.displayedWeekEvents.value.length).toBe(2);
   });
 
   it("loads personal events from raw ICS text, sets meta, and switches to personal mode", () => {

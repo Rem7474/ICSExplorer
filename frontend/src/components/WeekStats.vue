@@ -8,13 +8,17 @@ const props = defineProps({
     type: [Array, Object],
     default: () => [],
   },
+  disabledSubjects: {
+    type: [Array, Object],
+    default: () => [],
+  },
   activeFilter: {
     type: String,
     default: null,
   },
 });
 
-const emit = defineEmits(["filter"]);
+const emit = defineEmits(["filter", "reset"]);
 
 const { isDark } = useTheme();
 
@@ -23,9 +27,20 @@ const rawEvents = computed(() => {
   return Array.isArray(evs) ? evs : [];
 });
 
+const disabledList = computed(() => {
+  const d = unref(props.disabledSubjects);
+  if (Array.isArray(d)) return d;
+  if (d instanceof Set) return Array.from(d);
+  return [];
+});
+
+const isDisabled = (type) => disabledList.value.includes(type);
+const disabledCount = computed(() => disabledList.value.length);
+
 // Compute stats
 const stats = computed(() => {
   let totalMinutes = 0;
+  let activeMinutes = 0;
   const bySubject = new Map();
 
   for (const ev of rawEvents.value) {
@@ -36,6 +51,10 @@ const stats = computed(() => {
 
     const summary = ev.summary || "Autre";
     const type = getSubjectType(summary);
+
+    if (!isDisabled(type)) {
+      activeMinutes += duration;
+    }
 
     if (!bySubject.has(type)) {
       bySubject.set(type, { type, minutes: 0, count: 0 });
@@ -54,6 +73,7 @@ const stats = computed(() => {
   return {
     totalMinutes,
     totalHours: (totalMinutes / 60).toFixed(1),
+    activeHours: (activeMinutes / 60).toFixed(1),
     subjects: subjectList,
   };
 });
@@ -68,10 +88,17 @@ const formatDuration = (minutes) => {
 <template>
   <div v-if="rawEvents.length > 0" class="week-stats">
     <div class="stats-header">
-      <span class="total-hours">📊 Total semaine : <strong>{{ stats.totalHours }}h</strong></span>
-      <span v-if="activeFilter" class="filter-active-notice">
+      <span class="total-hours">
+        📊 Total semaine : <strong>{{ stats.activeHours }}h</strong>
+        <span v-if="disabledCount > 0" class="total-muted"> (sur {{ stats.totalHours }}h)</span>
+      </span>
+      <span v-if="disabledCount > 0" class="filter-active-notice">
+        {{ disabledCount }} matière{{ disabledCount > 1 ? 's' : '' }} masquée{{ disabledCount > 1 ? 's' : '' }}
+        <button class="clear-filter-btn" type="button" @click="emit('reset')">✕ Tout réactiver</button>
+      </span>
+      <span v-else-if="activeFilter" class="filter-active-notice">
         Filtre : <strong>{{ getSubjectFullName(activeFilter) }} ({{ activeFilter }})</strong>
-        <button class="clear-filter-btn" @click="emit('filter', activeFilter)">✕ Retirer</button>
+        <button class="clear-filter-btn" type="button" @click="emit('filter', activeFilter)">✕ Retirer</button>
       </span>
     </div>
 
@@ -81,11 +108,12 @@ const formatDuration = (minutes) => {
         v-for="sub in stats.subjects"
         :key="sub.type"
         class="bar-segment"
+        :class="{ 'segment-disabled': isDisabled(sub.type) }"
         :style="{
           width: `${sub.percentage}%`,
           backgroundColor: getSubjectColors(sub.type, isDark).border,
         }"
-        :title="`${sub.fullName} (${sub.type}) : ${formatDuration(sub.minutes)} (${sub.percentage}%)`"
+        :title="`${sub.fullName} (${sub.type}) : ${formatDuration(sub.minutes)} (${sub.percentage}%)${isDisabled(sub.type) ? ' [Masqué]' : ''}`"
       ></div>
     </div>
 
@@ -95,13 +123,19 @@ const formatDuration = (minutes) => {
         :key="sub.type"
         type="button"
         class="chip"
-        :class="{ active: activeFilter === sub.type }"
+        :class="{
+          'is-disabled': isDisabled(sub.type),
+          active: activeFilter === sub.type
+        }"
         :style="{
           backgroundColor: getSubjectColors(sub.type, isDark).background,
           borderColor: getSubjectColors(sub.type, isDark).border,
           color: getSubjectColors(sub.type, isDark).text,
         }"
-        :title="`Filtrer les cours ${sub.fullName} (${sub.type}) - ${sub.percentage}% du temps`"
+        :title="isDisabled(sub.type)
+          ? `Cliquer pour réactiver ${sub.fullName} (${sub.type})`
+          : `Cliquer pour masquer ${sub.fullName} (${sub.type}) - ${sub.percentage}% du temps`"
+        :aria-pressed="!isDisabled(sub.type)"
         @click="emit('filter', sub.type)"
       >
         <span class="chip-code">{{ sub.type }}</span>
@@ -204,8 +238,33 @@ const formatDuration = (minutes) => {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
 }
 
+.total-muted {
+  font-size: 0.85em;
+  color: var(--muted);
+  font-weight: 500;
+}
+
 .chip.active {
   box-shadow: 0 0 0 2px var(--accent);
+}
+
+.chip.is-disabled {
+  opacity: 0.45;
+  filter: grayscale(1);
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.chip.is-disabled:hover {
+  opacity: 0.85;
+  filter: grayscale(0.2);
+  transform: translateY(-1px);
+  border-style: solid;
+}
+
+.bar-segment.segment-disabled {
+  opacity: 0.18;
+  filter: grayscale(1);
 }
 
 .chip-code {

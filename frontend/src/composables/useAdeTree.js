@@ -1,4 +1,4 @@
-﻿import { ref, computed } from "vue";
+import { ref, computed } from "vue";
 import { fetchUniversities, fetchPersonalCalendar, fetchTreeNodes } from "../ics/api.js";
 
 const STORAGE_KEY = "edtPersonalCreds";
@@ -171,7 +171,7 @@ export function useAdeTree({ onCalendarLoaded } = {}) {
 
   /** Choose a resource node or a bare resource ID and submit. */
   const chooseResource = (nodeOrId) => {
-    let id = "";
+    let id;
     let name = "";
     let branchPath = [];
 

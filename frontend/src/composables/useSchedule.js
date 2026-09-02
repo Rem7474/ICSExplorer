@@ -1,5 +1,5 @@
-import { ref, computed, watch } from "vue";
-import { fetchFileList, fetchIcsText, fetchPersonalCalendar, fileUrl } from "../ics/api.js";
+import { ref, computed } from "vue";
+import { fetchFileList, fetchIcsText, fetchPersonalCalendar } from "../ics/api.js";
 import { parseIcs } from "../ics/parser.js";
 import { getRelevantWeekStart, getWeekStart, getWeekEnd } from "../utils/dates.js";
 import { getTeacherIndex, getRoomIndex } from "../ics/aggregator.js";
@@ -29,7 +29,8 @@ export function useSchedule() {
   
   const events = ref([]);
   const currentWeekStart = ref(getWeekStart(new Date()));
-  const selectedSubjectFilter = ref(null);
+  const disabledSubjects = ref([]);
+  const selectedSubjectFilter = computed(() => disabledSubjects.value[0] || null);
   
   const isLoading = ref(false);
   const isAggregatorLoading = ref(false);
@@ -85,16 +86,24 @@ export function useSchedule() {
   });
 
   const displayedWeekEvents = computed(() => {
-    if (!selectedSubjectFilter.value) return weekEvents.value;
+    if (!disabledSubjects.value.length) return weekEvents.value;
     return weekEvents.value.filter((ev) => {
-      return getSubjectType(ev.summary || "") === selectedSubjectFilter.value;
+      const type = getSubjectType(ev.summary || "");
+      return !disabledSubjects.value.includes(type);
     });
   });
 
-  // Next upcoming course
+  // Next upcoming course (excluding deselected/hidden subjects)
   const nextCourse = computed(() => {
     const now = new Date();
-    return events.value.find((ev) => new Date(ev.end) > now) || null;
+    return events.value.find((ev) => {
+      if (new Date(ev.end) <= now) return false;
+      if (disabledSubjects.value.length > 0) {
+        const type = getSubjectType(ev.summary || "");
+        if (disabledSubjects.value.includes(type)) return false;
+      }
+      return true;
+    }) || null;
   });
 
   // Actions
@@ -180,6 +189,7 @@ export function useSchedule() {
   const loadSchedule = async (fileName) => {
     if (!fileName) return;
     isLoading.value = true;
+    disabledSubjects.value = [];
     statusMessage.value = "Chargement de l'emploi du temps...";
 
     try {
@@ -207,6 +217,7 @@ export function useSchedule() {
   // Loads events from raw ICS text obtained out-of-band (e.g. personal calendar)
   const loadPersonalEvents = (icsText, meta = {}) => {
     try {
+      disabledSubjects.value = [];
       const parsed = parseIcs(icsText);
       events.value = parsed;
       currentWeekStart.value = getRelevantWeekStart(parsed);
@@ -248,7 +259,7 @@ export function useSchedule() {
   };
 
   const refreshPersonalSchedule = async () => {
-    let creds = null;
+    let creds;
     try {
       creds = JSON.parse(localStorage.getItem(PERSONAL_CREDENTIALS_KEY) || "null");
     } catch {
@@ -320,6 +331,7 @@ export function useSchedule() {
   const loadTeacherSchedule = async (teacherName) => {
     if (!teacherName) return;
     isLoading.value = true;
+    disabledSubjects.value = [];
     statusMessage.value = "Agrégation des cours du professeur...";
 
     try {
@@ -345,6 +357,7 @@ export function useSchedule() {
   const loadRoomSchedule = async (roomName) => {
     if (!roomName) return;
     isLoading.value = true;
+    disabledSubjects.value = [];
     statusMessage.value = "Recherche des cours dans la salle...";
 
     try {
@@ -384,7 +397,17 @@ export function useSchedule() {
   };
 
   const toggleSubjectFilter = (type) => {
-    selectedSubjectFilter.value = selectedSubjectFilter.value === type ? null : type;
+    if (!type) return;
+    const index = disabledSubjects.value.indexOf(type);
+    if (index === -1) {
+      disabledSubjects.value.push(type);
+    } else {
+      disabledSubjects.value.splice(index, 1);
+    }
+  };
+
+  const resetSubjectFilters = () => {
+    disabledSubjects.value = [];
   };
 
   const openRoomModal = () => {
@@ -414,7 +437,7 @@ export function useSchedule() {
         const data = await resp.json();
         statusMessage.value = data.message || "Erreur de synchronisation";
       }
-    } catch (e) {
+    } catch {
       statusMessage.value = "Impossible de contacter l'API";
     }
   };
@@ -440,6 +463,7 @@ export function useSchedule() {
     weekEvents,
     displayedWeekEvents,
     nextCourse,
+    disabledSubjects,
     selectedSubjectFilter,
     isLoading,
     isAggregatorLoading,
@@ -460,6 +484,7 @@ export function useSchedule() {
     prevWeek,
     goToCurrentWeek,
     toggleSubjectFilter,
+    resetSubjectFilters,
     openRoomModal,
     closeRoomModal,
     openEventModal,
