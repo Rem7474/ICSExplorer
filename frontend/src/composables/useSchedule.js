@@ -3,6 +3,7 @@ import { fetchFileList, fetchIcsText, fetchPersonalCalendar, fileUrl } from "../
 import { parseIcs } from "../ics/parser.js";
 import { getRelevantWeekStart, getWeekStart, getWeekEnd } from "../utils/dates.js";
 import { getTeacherIndex, getRoomIndex } from "../ics/aggregator.js";
+import { getSubjectType } from "../utils/colors.js";
 
 const STORAGE_KEY = "edtSelection";
 const PERSONAL_CREDENTIALS_KEY = "edtPersonalCreds";
@@ -86,8 +87,7 @@ export function useSchedule() {
   const displayedWeekEvents = computed(() => {
     if (!selectedSubjectFilter.value) return weekEvents.value;
     return weekEvents.value.filter((ev) => {
-      const summary = ev.summary || "";
-      return summary.startsWith(selectedSubjectFilter.value);
+      return getSubjectType(ev.summary || "") === selectedSubjectFilter.value;
     });
   });
 
