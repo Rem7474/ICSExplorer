@@ -13,7 +13,7 @@ build-backend:
 test: test-backend test-frontend
 
 test-backend:
-	go test -v ./...
+	go test -v -race ./internal/...
 
 test-frontend:
 	cd frontend && npm test

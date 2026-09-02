@@ -1,7 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useSchedule } from "../composables/useSchedule.js";
 
 describe("useSchedule composable", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
   it("initializes with safe default empty state without crashing", () => {
     const schedule = useSchedule();
 
@@ -102,5 +106,40 @@ describe("useSchedule composable", () => {
     expect(schedule.selectedMode.value).toBe("student");
     expect(localStorage.getItem("cachedPersonalIcs")).toBeNull();
     expect(localStorage.getItem("personalAdeCredentials")).toBeNull();
+  });
+
+  it("refreshPersonalSchedule does nothing and sets statusMessage when no credentials are saved", async () => {
+    const schedule = useSchedule();
+    localStorage.removeItem("edtPersonalCreds");
+
+    await schedule.refreshPersonalSchedule();
+
+    expect(schedule.statusMessage.value).toContain("Aucun identifiant");
+    expect(schedule.isLoading.value).toBe(false);
+  });
+
+  it("refreshPersonalSchedule sets error statusMessage on network failure", async () => {
+    const schedule = useSchedule();
+
+    // Save fake credentials so refresh attempts the fetch
+    localStorage.setItem(
+      "edtPersonalCreds",
+      JSON.stringify({ adeUrl: "https://example.com", login: "u", password: "p", branchPath: [] })
+    );
+
+    // Mock fetchPersonalCalendar to throw
+    vi.mock("../ics/api.js", () => ({
+      fetchFileList: vi.fn().mockResolvedValue([]),
+      fetchIcsText: vi.fn(),
+      fetchPersonalCalendar: vi.fn().mockRejectedValue(new Error("Network error")),
+      fetchTreeNodes: vi.fn(),
+      fetchUniversities: vi.fn().mockResolvedValue([]),
+      fileUrl: vi.fn(),
+    }));
+
+    await schedule.refreshPersonalSchedule();
+
+    expect(schedule.isLoading.value).toBe(false);
+    expect(schedule.statusMessage.value).toContain("Impossible d'actualiser");
   });
 });

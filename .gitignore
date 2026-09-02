@@ -19,7 +19,12 @@ icsexplorer.exe
 coverage/
 coverage.txt
 coverage.out
+cover
 *.out
+
+# Debug / local CI artifacts
+job_data.json
+pr_body.md
 .system_generated/
 
 # Logs

@@ -1,9 +1,10 @@
-run:
+﻿run:
   timeout: 5m
   tests: true
 
 linters:
   enable:
+    # Default quality linters
     - errcheck
     - gosimple
     - govet
@@ -12,12 +13,33 @@ linters:
     - unused
     - gofmt
     - misspell
+    # Security
+    - gosec
+    # Quality & best practices
+    - gocritic
+    - bodyclose
+    - noctx
+    - unconvert
+    - unparam
 
 linters-settings:
   govet:
     enable-all: false
   misspell:
     locale: US
+  gosec:
+    excludes:
+      - G304  # File path provided as taint input -- acceptable for ICS file serving
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
 
 issues:
   exclude-use-default: true
+  exclude-rules:
+    # Test files: relax some rules
+    - path: "_test\\.go"
+      linters:
+        - gosec
+        - unparam

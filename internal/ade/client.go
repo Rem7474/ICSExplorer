@@ -109,7 +109,6 @@ func (c *Client) makeRequest(ctx context.Context, endpoint string) (*http.Respon
 	return resp, nil
 }
 
-// entryURL returns the institution's ADE Campus "direct planning" page - the
 // entryURL returns the institution's ADE Campus entry page (e.g. /2026-2027/etudiant/esisar),
 // whose GET establishes the server-side session (JSESSIONID + internal context)
 // that tree.jsp and directCal both require.
@@ -227,6 +226,10 @@ func (c *Client) FetchTreePage(ctx context.Context, path string) ([]byte, error)
 	return data, nil
 }
 
+// maxTreeDepth limits recursive branch traversal in CollectLeavesUnderPath to
+// avoid runaway recursion on unexpectedly deep or cyclic ADE tree structures.
+const maxTreeDepth = 8
+
 // CollectLeavesUnderPath opens the branchPath in a single session and recursively collects all leaf IDs.
 func (c *Client) CollectLeavesUnderPath(ctx context.Context, dataToken string, category string, branchPath []string) ([]string, error) {
 	if category == "" {
@@ -272,7 +275,7 @@ func (c *Client) CollectLeavesUnderPath(ctx context.Context, dataToken string, c
 			c.baseURL, url.QueryEscape(bID))
 		reqB, err := http.NewRequestWithContext(ctx, http.MethodGet, treeURL, nil)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to create branch request for %s: %w", bID, err)
 		}
 		reqB.Header.Set("User-Agent", userAgent)
 		reqB.Header.Set("Referer", directPlanningURL)
@@ -296,7 +299,10 @@ func (c *Client) CollectLeavesUnderPath(ctx context.Context, dataToken string, c
 	walk = func(currentPath []string, currentID string) error {
 		treeURL := fmt.Sprintf("%s/jsp/standard/gui/tree.jsp?branchId=%s&expand=false&forceLoad=false&reload=false&scroll=0",
 			c.baseURL, url.QueryEscape(currentID))
-		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, treeURL, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, treeURL, nil)
+		if err != nil {
+			return fmt.Errorf("failed to create walk request for %s: %w", currentID, err)
+		}
 		req.Header.Set("User-Agent", userAgent)
 		req.Header.Set("Referer", directPlanningURL)
 		resp, err := c.httpClient.Do(req)
@@ -310,8 +316,10 @@ func (c *Client) CollectLeavesUnderPath(ctx context.Context, dataToken string, c
 		for _, sc := range subChildren {
 			if sc.IsLeaf {
 				leaves = append(leaves, sc.ID)
-			} else if len(currentPath) < 8 {
-				_ = walk(append(currentPath, sc.ID), sc.ID)
+			} else if len(currentPath) < maxTreeDepth {
+				if err := walk(append(currentPath, sc.ID), sc.ID); err != nil {
+					return err
+				}
 			}
 		}
 		return nil
@@ -321,7 +329,9 @@ func (c *Client) CollectLeavesUnderPath(ctx context.Context, dataToken string, c
 		if cNode.IsLeaf {
 			leaves = append(leaves, cNode.ID)
 		} else {
-			_ = walk(append(branchPath, cNode.ID), cNode.ID)
+			if err := walk(append(branchPath, cNode.ID), cNode.ID); err != nil {
+				return nil, err
+			}
 		}
 	}
 

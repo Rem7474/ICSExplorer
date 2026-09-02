@@ -1,260 +1,29 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, unref } from "vue";
-import { fetchUniversities, fetchPersonalCalendar, fetchTreeNodes } from "../ics/api.js";
-
-const STORAGE_KEY = "edtPersonalCreds";
+import { onMounted, onUnmounted, unref } from "vue";
+import { useAdeTree } from "../composables/useAdeTree.js";
+import AdeTreeExplorer from "./AdeTreeExplorer.vue";
 
 const props = defineProps({
-  schedule: {
-    type: Object,
-    required: true,
-  },
+  schedule: { type: Object, required: true },
 });
 
 const emit = defineEmits(["close"]);
 
-const universities = ref([]);
-const selectedUniversityId = ref("");
-const inputMode = ref("list"); // "list" | "url"
-const adeUrl = ref("");
-const resourceId = ref("");
-const login = ref("");
-const password = ref("");
-const remember = ref(false);
-const isLoading = ref(false);
-const isExploringTree = ref(false);
-const errorMessage = ref("");
-
-// Tree exploration state
-const treeNodes = ref([]);
-const breadcrumbs = ref([{ id: "", name: "🌐 Arborescence globale" }]);
-const searchQuery = ref("");
+const tree = useAdeTree({
+  onCalendarLoaded: (icsText, meta) => {
+    props.schedule.loadPersonalEvents(icsText, meta);
+    emit("close");
+  },
+});
 
 const handleKeydown = (e) => {
   if (e.key === "Escape") emit("close");
 };
 
-const getCredentialsPayload = () => {
-  const usingUrl = inputMode.value === "url";
-  return usingUrl
-    ? { adeUrl: adeUrl.value, login: login.value, password: password.value }
-    : {
-        universityId: selectedUniversityId.value,
-        resourceId: resourceId.value || undefined,
-        login: login.value,
-        password: password.value,
-      };
-};
-
-const submitDirect = async (overrideResourceId = null, resourceName = "", branchPath = []) => {
-  const usingUrl = inputMode.value === "url";
-
-  if (usingUrl && !adeUrl.value) {
-    errorMessage.value = "Veuillez coller l'URL de votre planning ADE.";
-    return;
-  }
-  if (!usingUrl && !selectedUniversityId.value) {
-    errorMessage.value = "Veuillez choisir un établissement.";
-    return;
-  }
-  if (!usingUrl && (!login.value || !password.value)) {
-    errorMessage.value = "Veuillez remplir vos identifiants.";
-    return;
-  }
-
-  isLoading.value = true;
-  errorMessage.value = "";
-
-  try {
-    const params = getCredentialsPayload();
-    if (overrideResourceId) {
-      params.resourceId = overrideResourceId;
-    }
-    if (branchPath && branchPath.length > 0) {
-      params.branchPath = branchPath;
-    }
-
-    const icsText = await fetchPersonalCalendar(params);
-
-    const univ = universities.value.find((u) => u.id === selectedUniversityId.value);
-    const universityName = usingUrl ? "ADE Direct" : (univ ? univ.name : selectedUniversityId.value);
-    const finalName = resourceName || (overrideResourceId ? `Planning ${overrideResourceId}` : "Mon Planning ADE");
-
-    const payloadToSave = {
-      inputMode: inputMode.value,
-      ...params,
-      resourceId: overrideResourceId || resourceId.value,
-      resourceName: finalName,
-      universityName,
-      branchPath: branchPath || [],
-    };
-
-    if (remember.value) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(payloadToSave));
-    } else {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-
-    props.schedule.loadPersonalEvents(icsText, {
-      ...payloadToSave,
-      name: finalName,
-      universityId: selectedUniversityId.value,
-      universityName,
-      resourceId: overrideResourceId || resourceId.value,
-      inputMode: inputMode.value,
-      branchPath: branchPath || [],
-    });
-    emit("close");
-  } catch (err) {
-    errorMessage.value = err.message;
-  } finally {
-    isLoading.value = false;
-  }
-};
-
-const exploreTree = async (branchId = "", branchName = "") => {
-  const usingUrl = inputMode.value === "url";
-
-  if (usingUrl && !adeUrl.value) {
-    errorMessage.value = "Veuillez coller l'URL de votre planning ADE.";
-    return;
-  }
-  if (!usingUrl && !selectedUniversityId.value) {
-    errorMessage.value = "Veuillez choisir un établissement.";
-    return;
-  }
-  if (!usingUrl && (!login.value || !password.value)) {
-    errorMessage.value = "Veuillez renseigner vos identifiants pour explorer l'arbre.";
-    return;
-  }
-
-  isLoading.value = true;
-  errorMessage.value = "";
-  searchQuery.value = "";
-
-  try {
-    const creds = getCredentialsPayload();
-
-    let newBreadcrumbs = [...breadcrumbs.value];
-    if (branchId && branchName) {
-      newBreadcrumbs.push({ id: branchId, name: branchName });
-    } else if (!branchId) {
-      newBreadcrumbs = [{ id: "", name: "🌐 Arborescence globale" }];
-    }
-
-    const branchPath = newBreadcrumbs
-      .map((b) => b.id)
-      .filter((id) => Boolean(id));
-
-    const nodes = await fetchTreeNodes({
-      ...creds,
-      branchId: branchId || undefined,
-      branchPath: branchPath.length > 0 ? branchPath : undefined,
-    });
-
-    treeNodes.value = nodes;
-    isExploringTree.value = true;
-    breadcrumbs.value = newBreadcrumbs;
-  } catch (err) {
-    errorMessage.value = err.message;
-  } finally {
-    isLoading.value = false;
-  }
-};
-
-const navigateBreadcrumb = (index) => {
-  const target = breadcrumbs.value[index];
-  breadcrumbs.value = breadcrumbs.value.slice(0, index);
-  exploreTree(target.id, target.name);
-};
-
-const currentActiveBranch = computed(() => {
-  if (breadcrumbs.value.length <= 1) return null;
-  return breadcrumbs.value[breadcrumbs.value.length - 1];
-});
-
-const chooseResource = (nodeOrId) => {
-  let id = "";
-  let name = "";
-  let branchPath = [];
-
-  if (typeof nodeOrId === "object" && nodeOrId !== null) {
-    id = nodeOrId.ID || nodeOrId.id;
-    name = nodeOrId.name || nodeOrId.Name || "";
-    branchPath = breadcrumbs.value.map((b) => b.id).filter(Boolean);
-    if (!nodeOrId.isLeaf) {
-      branchPath.push(id);
-    }
-  } else {
-    id = nodeOrId;
-    if (currentActiveBranch.value && currentActiveBranch.value.id === id) {
-      name = currentActiveBranch.value.name;
-      branchPath = breadcrumbs.value.map((b) => b.id).filter(Boolean);
-    }
-  }
-  if (!id) return;
-  resourceId.value = id;
-  submitDirect(id, name, branchPath);
-};
-
-const selectNode = (node) => {
-  if (node.isLeaf) {
-    chooseResource(node);
-  } else {
-    exploreTree(node.ID || node.id, node.name || node.Name);
-  }
-};
-
-const filteredNodes = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase();
-  if (!q) return treeNodes.value;
-  return treeNodes.value.filter((n) => (n.name || n.Name || "").toLowerCase().includes(q));
-});
-
-const forgetCredentials = () => {
-  localStorage.removeItem(STORAGE_KEY);
-  password.value = "";
-  resourceId.value = "";
-  remember.value = false;
-};
-
 onMounted(async () => {
   window.addEventListener("keydown", handleKeydown);
-
-  try {
-    universities.value = await fetchUniversities();
-  } catch (err) {
-    errorMessage.value = err.message;
-  }
-
-  let saved = null;
-  try {
-    saved = JSON.parse(
-      localStorage.getItem(STORAGE_KEY) ||
-      localStorage.getItem("personalAdeCredentials") ||
-      localStorage.getItem("edt_personal_meta") ||
-      localStorage.getItem("personalScheduleMeta") ||
-      "null"
-    );
-  } catch {}
-
-  const activeInfo = unref(props.schedule?.personalScheduleInfo);
-  const config = saved || activeInfo;
-
-  if (config && (config.adeUrl || config.universityId)) {
-    inputMode.value = config.inputMode || (config.adeUrl ? "url" : "list");
-    selectedUniversityId.value = config.universityId || (universities.value[0]?.id || "");
-    adeUrl.value = config.adeUrl || "";
-    resourceId.value = config.resourceId || "";
-    login.value = config.login || "";
-    password.value = config.password || "";
-    remember.value = Boolean(saved);
-
-    // Immediately open global tree exploration from the saved URL / account
-    exploreTree("", "🌐 Arborescence globale");
-  } else if (universities.value.length > 0) {
-    selectedUniversityId.value = universities.value[0].id;
-  }
+  const scheduleInfo = unref(props.schedule?.personalScheduleInfo);
+  await tree.restoreAndExplore(scheduleInfo);
 });
 
 onUnmounted(() => {
@@ -266,31 +35,31 @@ onUnmounted(() => {
   <div class="modal-backdrop" @click="emit('close')">
     <div class="modal-content" role="dialog" aria-modal="true" @click.stop>
       <div class="modal-header">
-        <h2>{{ isExploringTree ? "🌳 Sélectionner un emploi du temps" : "🎓 Mon EDT personnel" }}</h2>
+        <h2>{{ tree.isExploringTree.value ? "🌳 Sélectionner un emploi du temps" : "🎓 Mon EDT personnel" }}</h2>
         <button class="close-btn" type="button" aria-label="Fermer" @click="emit('close')">✕</button>
       </div>
 
-      <!-- Mode 1: Authentication / Connection Form -->
-      <form v-if="!isExploringTree" class="modal-body" @submit.prevent="exploreTree()">
+      <!-- Mode 1: Authentication form -->
+      <form v-if="!tree.isExploringTree.value" class="modal-body" @submit.prevent="tree.exploreTree()">
         <p class="modal-intro">
-          Connectez-vous pour explorer et sélectionner les plannings de votre établissement.
+          Connectez-vous pour explorer et selectionner les plannings de votre etablissement.
         </p>
 
         <div class="mode-toggle">
           <label>
-            <input v-model="inputMode" type="radio" value="list" />
-            Choisir mon établissement
+            <input v-model="tree.inputMode.value" type="radio" value="list" />
+            Choisir mon etablissement
           </label>
           <label>
-            <input v-model="inputMode" type="radio" value="url" />
+            <input v-model="tree.inputMode.value" type="radio" value="url" />
             Coller mon URL ADE
           </label>
         </div>
 
-        <div v-if="inputMode === 'list'" class="field">
-          <label for="universitySelect">Établissement</label>
-          <select id="universitySelect" v-model="selectedUniversityId">
-            <option v-for="u in universities" :key="u.id" :value="u.id">{{ u.name }}</option>
+        <div v-if="tree.inputMode.value === 'list'" class="field">
+          <label for="universitySelect">Etablissement</label>
+          <select id="universitySelect" v-model="tree.selectedUniversityId.value">
+            <option v-for="u in tree.universities.value" :key="u.id" :value="u.id">{{ u.name }}</option>
           </select>
         </div>
 
@@ -298,159 +67,62 @@ onUnmounted(() => {
           <label for="adeUrlInput">URL de votre planning ADE</label>
           <input
             id="adeUrlInput"
-            v-model="adeUrl"
+            v-model="tree.adeUrl.value"
             type="url"
-            placeholder="https://ade-uga-ro-vs.grenet.fr/direct/index.jsp?data=... ou https://edt.grenoble-inp.fr/..."
+            placeholder="https://ade-uga-ro-vs.grenet.fr/direct/index.jsp?data=..."
           />
           <p class="field-hint">
-            Collez n'importe quelle URL menant à votre planning ADE (lien direct, portail, export) — elle sera analysée automatiquement.
+            Collez n importe quelle URL menant a votre planning ADE - elle sera analysee automatiquement.
           </p>
         </div>
 
-        <p v-if="inputMode === 'url'" class="field-hint">
-          Laissez l'identifiant et le mot de passe vides si votre URL contient déjà votre jeton d'accès direct.
+        <p v-if="tree.inputMode.value === 'url'" class="field-hint">
+          Laissez les champs vides si votre URL contient deja votre jeton d acces direct.
         </p>
 
         <div class="field">
-          <label for="loginInput">Identifiant {{ inputMode === "url" ? "(optionnel)" : "" }}</label>
-          <input id="loginInput" v-model="login" type="text" autocomplete="username" :required="inputMode === 'list'" />
+          <label for="loginInput">Identifiant {{ tree.inputMode.value === "url" ? "(optionnel)" : "" }}</label>
+          <input id="loginInput" v-model="tree.login.value" type="text" autocomplete="username" :required="tree.inputMode.value === 'list'" />
         </div>
 
         <div class="field">
-          <label for="passwordInput">Mot de passe {{ inputMode === "url" ? "(optionnel)" : "" }}</label>
+          <label for="passwordInput">Mot de passe {{ tree.inputMode.value === "url" ? "(optionnel)" : "" }}</label>
           <input
             id="passwordInput"
-            v-model="password"
+            v-model="tree.password.value"
             type="password"
             autocomplete="current-password"
-            :required="inputMode === 'list'"
+            :required="tree.inputMode.value === 'list'"
           />
         </div>
 
         <label class="remember-field">
-          <input v-model="remember" type="checkbox" />
+          <input v-model="tree.remember.value" type="checkbox" />
           Se souvenir de moi sur cet appareil
         </label>
 
         <p class="disclaimer">
-          Vos identifiants sont envoyés uniquement en mémoire pour interroger ADE et ne sont jamais stockés sur le serveur.
+          Vos identifiants sont envoyes uniquement en memoire pour interroger ADE et ne sont jamais stockes sur le serveur.
         </p>
 
-        <div v-if="errorMessage" class="error-banner">{{ errorMessage }}</div>
+        <div v-if="tree.errorMessage.value" class="error-banner">{{ tree.errorMessage.value }}</div>
 
         <div class="modal-footer">
-          <button v-if="remember" class="btn btn-outline" type="button" @click="forgetCredentials">
+          <button v-if="tree.remember.value" class="btn btn-outline" type="button" @click="tree.forgetCredentials()">
             Oublier
           </button>
-          <button class="btn btn-primary" type="submit" :disabled="isLoading">
-            🌳 {{ isLoading ? "Chargement..." : "Explorer et choisir mon planning" }}
+          <button class="btn btn-primary" type="submit" :disabled="tree.isLoading.value">
+            {{ tree.isLoading.value ? "Chargement..." : "Explorer et choisir mon planning" }}
           </button>
         </div>
       </form>
 
-      <!-- Mode 2: Tree Browser & Selector -->
-      <div v-else class="modal-body tree-browser">
-        <!-- Breadcrumbs with Root Reset -->
-        <div class="tree-top-bar">
-          <nav class="breadcrumbs" aria-label="Fil d'Ariane">
-            <span
-              v-for="(crumb, idx) in breadcrumbs"
-              :key="idx"
-              class="crumb"
-              :class="{ active: idx === breadcrumbs.length - 1 }"
-              :title="crumb.name"
-              @click="idx < breadcrumbs.length - 1 && navigateBreadcrumb(idx)"
-            >
-              {{ crumb.name }}
-              <span v-if="idx < breadcrumbs.length - 1" class="crumb-separator">/</span>
-            </span>
-          </nav>
-          <button
-            v-if="breadcrumbs.length > 1"
-            type="button"
-            class="btn-root-reset"
-            title="Revenir à la racine de l'arborescence globale"
-            @click="navigateBreadcrumb(0)"
-          >
-            🏠 Racine globale
-          </button>
-        </div>
-
-        <!-- Current Active Branch Quick Select -->
-        <div v-if="currentActiveBranch && currentActiveBranch.id" class="current-branch-bar">
-          <div class="current-branch-info" :title="currentActiveBranch.name">
-            <span class="current-branch-label">Dossier actif :</span>
-            <span class="current-branch-name" :title="currentActiveBranch.name">{{ currentActiveBranch.name }}</span>
-          </div>
-          <button
-            type="button"
-            class="btn btn-select-current"
-            :title="'Sélectionner tout l\'emploi du temps de ' + currentActiveBranch.name"
-            @click="chooseResource(currentActiveBranch.id)"
-          >
-            📅 Choisir ce dossier complet
-          </button>
-        </div>
-
-        <!-- Search box in active folder -->
-        <div class="search-box">
-          <input
-            v-model="searchQuery"
-            type="search"
-            placeholder="🔍 Filtrer les filières, promotions ou groupes..."
-            class="search-input"
-          />
-        </div>
-
-        <!-- Node list -->
-        <div v-if="isLoading" class="tree-loading">
-          <span class="spinner"></span> Chargement des plannings...
-        </div>
-
-        <div v-else-if="filteredNodes.length === 0" class="tree-empty">
-          <p>Aucun dossier ou planning trouvé ici.</p>
-        </div>
-
-        <ul v-else class="node-list">
-          <li
-            v-for="node in filteredNodes"
-            :key="node.id || node.ID"
-            class="node-item"
-            :class="{ 'node-leaf': node.isLeaf, 'node-branch': !node.isLeaf }"
-            tabindex="0"
-            role="button"
-            :title="node.name || node.Name"
-            @click="selectNode(node)"
-            @keydown.enter="selectNode(node)"
-          >
-            <div class="node-main" :title="node.name || node.Name">
-              <span class="node-icon">{{ node.isLeaf ? "📅" : "📁" }}</span>
-              <span class="node-name" :title="node.name || node.Name">{{ node.name || node.Name }}</span>
-            </div>
-
-            <div class="node-actions">
-              <button
-                v-if="!node.isLeaf"
-                type="button"
-                class="node-select-btn"
-                :title="'Sélectionner tout le dossier : ' + (node.name || node.Name)"
-                @click.stop="chooseResource(node)"
-              >
-                📅 Choisir
-              </button>
-              <span class="node-badge">{{ node.isLeaf ? "Choisir" : "Ouvrir ➔" }}</span>
-            </div>
-          </li>
-        </ul>
-
-        <div v-if="errorMessage" class="error-banner">{{ errorMessage }}</div>
-
-        <div class="modal-footer">
-          <button class="btn btn-outline" type="button" @click="isExploringTree = false">
-            ⚙️ Modifier l'URL ou les identifiants
-          </button>
-        </div>
-      </div>
+      <!-- Mode 2: Tree Explorer -->
+      <AdeTreeExplorer
+        v-else
+        :tree="tree"
+        @back="tree.isExploringTree.value = false"
+      />
     </div>
   </div>
 </template>
@@ -548,8 +220,7 @@ onUnmounted(() => {
 }
 
 .field select,
-.field input,
-.search-input {
+.field input {
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -560,8 +231,7 @@ onUnmounted(() => {
 }
 
 .field select:focus,
-.field input:focus,
-.search-input:focus {
+.field input:focus {
   border-color: #3b82f6;
 }
 
@@ -596,249 +266,5 @@ onUnmounted(() => {
   justify-content: flex-end;
   gap: 0.75rem;
   flex-wrap: wrap;
-}
-
-/* Tree Browser Styles */
-.tree-browser {
-  min-height: 380px;
-}
-
-.search-box {
-  width: 100%;
-}
-
-.search-input {
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.tree-top-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.breadcrumbs {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.85rem;
-  background: rgba(125, 125, 125, 0.08);
-  padding: 0.5rem 0.75rem;
-  border-radius: 6px;
-  flex: 1;
-}
-
-.btn-root-reset {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  background: var(--card);
-  border: 1px solid var(--border);
-  color: var(--text);
-  padding: 0.4rem 0.65rem;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s ease;
-}
-
-.btn-root-reset:hover {
-  background: var(--bg);
-  border-color: #3b82f6;
-  color: #3b82f6;
-}
-
-.crumb {
-  cursor: pointer;
-  color: #3b82f6;
-  font-weight: 500;
-}
-
-.crumb.active {
-  color: var(--text);
-  font-weight: 600;
-  cursor: default;
-}
-
-.crumb-separator {
-  color: var(--muted);
-  margin-left: 0.35rem;
-}
-
-.node-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.node-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.6rem 0.75rem;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  user-select: none;
-}
-
-.node-item:hover,
-.node-item:focus {
-  background: rgba(59, 130, 246, 0.08);
-  border-color: #3b82f6;
-  outline: none;
-}
-
-.node-main {
-  display: flex;
-  align-items: center;
-  flex: 1;
-  overflow: hidden;
-}
-
-.node-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.node-branch {
-  border-left: 3px solid #3b82f6;
-}
-
-.node-leaf {
-  border-left: 3px solid #10b981;
-}
-
-.node-icon {
-  font-size: 1.1rem;
-  margin-right: 0.6rem;
-}
-
-.node-name {
-  flex: 1;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.node-badge {
-  font-size: 0.75rem;
-  padding: 0.2rem 0.5rem;
-  border-radius: 4px;
-  background: rgba(125, 125, 125, 0.12);
-  color: var(--muted);
-  font-weight: 600;
-}
-
-.node-leaf .node-badge {
-  background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
-}
-
-.node-select-btn {
-  background: rgba(59, 130, 246, 0.15);
-  color: #3b82f6;
-  border: 1px solid rgba(59, 130, 246, 0.3);
-  border-radius: 4px;
-  padding: 0.2rem 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.node-select-btn:hover {
-  background: #3b82f6;
-  color: #fff;
-}
-
-.current-branch-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  background: rgba(59, 130, 246, 0.08);
-  border: 1px solid rgba(59, 130, 246, 0.25);
-  border-radius: 8px;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.85rem;
-}
-
-.current-branch-info {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.current-branch-label {
-  color: var(--muted);
-}
-
-.current-branch-name {
-  color: var(--text);
-  font-weight: 600;
-}
-
-.btn-select-current {
-  background: #3b82f6;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 0.35rem 0.75rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: opacity 0.15s ease;
-}
-
-.btn-select-current:hover {
-  opacity: 0.9;
-}
-
-.tree-loading,
-.tree-empty {
-  text-align: center;
-  padding: 2rem;
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
-.spinner {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(125, 125, 125, 0.3);
-  border-top-color: #3b82f6;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin-right: 0.5rem;
-  vertical-align: middle;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 </style>
