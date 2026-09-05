@@ -1,7 +1,7 @@
 <script setup>
 import { useFavorites } from "../composables/useFavorites.js";
 
-const props = defineProps({
+defineProps({
   currentKey: {
     type: String,
     default: "",

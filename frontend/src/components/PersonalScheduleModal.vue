@@ -1,5 +1,7 @@
 <script setup>
 import { onMounted, onUnmounted, unref } from "vue";
+import Dialog from "primevue/dialog";
+import Button from "primevue/button";
 import { useAdeTree } from "../composables/useAdeTree.js";
 import AdeTreeExplorer from "./AdeTreeExplorer.vue";
 
@@ -32,154 +34,184 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="modal-backdrop" @click="emit('close')">
-    <div class="modal-content" role="dialog" aria-modal="true" @click.stop>
-      <div class="modal-header">
-        <h2>{{ tree.isExploringTree.value ? "🌳 Sélectionner un emploi du temps" : "🎓 Mon EDT personnel" }}</h2>
-        <button class="close-btn" type="button" aria-label="Fermer" @click="emit('close')">✕</button>
+  <Dialog
+    :visible="true"
+    modal
+    append-to="self"
+    :closable="false"
+    class="personal-schedule-dialog"
+    :style="{ width: 'min(560px, 95vw)' }"
+    @update:visible="emit('close')"
+  >
+    <template #header>
+      <div class="modal-header-custom">
+        <h2 class="dialog-title">
+          <i :class="tree.isExploringTree.value ? 'pi pi-sitemap' : 'pi pi-user'" class="dialog-title-icon"></i>
+          {{ tree.isExploringTree.value ? "Sélectionner un emploi du temps" : "Mon EDT personnel" }}
+        </h2>
+        <button class="close-btn" type="button" aria-label="Fermer" @click="emit('close')">
+          <i class="pi pi-times"></i>
+        </button>
+      </div>
+    </template>
+
+    <!-- Mode 1: Authentication form -->
+    <form v-if="!tree.isExploringTree.value" class="modal-body" @submit.prevent="tree.exploreTree()">
+      <p class="modal-intro">
+        Connectez-vous pour explorer et sélectionner les plannings de votre établissement.
+      </p>
+
+      <div class="mode-toggle">
+        <label class="toggle-option">
+          <input v-model="tree.inputMode.value" type="radio" value="list" />
+          <span>Choisir mon établissement</span>
+        </label>
+        <label class="toggle-option">
+          <input v-model="tree.inputMode.value" type="radio" value="url" />
+          <span>Coller mon URL ADE</span>
+        </label>
       </div>
 
-      <!-- Mode 1: Authentication form -->
-      <form v-if="!tree.isExploringTree.value" class="modal-body" @submit.prevent="tree.exploreTree()">
-        <p class="modal-intro">
-          Connectez-vous pour explorer et selectionner les plannings de votre etablissement.
+      <div v-if="tree.inputMode.value === 'list'" class="field">
+        <label for="universitySelect">Établissement</label>
+        <select id="universitySelect" v-model="tree.selectedUniversityId.value" class="styled-input">
+          <option v-for="u in tree.universities.value" :key="u.id" :value="u.id">{{ u.name }}</option>
+        </select>
+      </div>
+
+      <div v-else class="field">
+        <label for="adeUrlInput">URL de votre planning ADE</label>
+        <input
+          id="adeUrlInput"
+          v-model="tree.adeUrl.value"
+          type="url"
+          class="styled-input"
+          placeholder="https://ade-uga-ro-vs.grenet.fr/direct/index.jsp?data=..."
+        />
+        <p class="field-hint">
+          Collez n'importe quelle URL menant à votre planning ADE — elle sera analysée automatiquement.
         </p>
+      </div>
 
-        <div class="mode-toggle">
-          <label>
-            <input v-model="tree.inputMode.value" type="radio" value="list" />
-            Choisir mon etablissement
-          </label>
-          <label>
-            <input v-model="tree.inputMode.value" type="radio" value="url" />
-            Coller mon URL ADE
-          </label>
-        </div>
+      <p v-if="tree.inputMode.value === 'url'" class="field-hint">
+        Laissez les champs vides si votre URL contient déjà votre jeton d'accès direct.
+      </p>
 
-        <div v-if="tree.inputMode.value === 'list'" class="field">
-          <label for="universitySelect">Etablissement</label>
-          <select id="universitySelect" v-model="tree.selectedUniversityId.value">
-            <option v-for="u in tree.universities.value" :key="u.id" :value="u.id">{{ u.name }}</option>
-          </select>
-        </div>
+      <div class="field">
+        <label for="loginInput">Identifiant {{ tree.inputMode.value === "url" ? "(optionnel)" : "" }}</label>
+        <input
+          id="loginInput"
+          v-model="tree.login.value"
+          type="text"
+          class="styled-input"
+          autocomplete="username"
+          :required="tree.inputMode.value === 'list'"
+        />
+      </div>
 
-        <div v-else class="field">
-          <label for="adeUrlInput">URL de votre planning ADE</label>
-          <input
-            id="adeUrlInput"
-            v-model="tree.adeUrl.value"
-            type="url"
-            placeholder="https://ade-uga-ro-vs.grenet.fr/direct/index.jsp?data=..."
-          />
-          <p class="field-hint">
-            Collez n importe quelle URL menant a votre planning ADE - elle sera analysee automatiquement.
-          </p>
-        </div>
+      <div class="field">
+        <label for="passwordInput">Mot de passe {{ tree.inputMode.value === "url" ? "(optionnel)" : "" }}</label>
+        <input
+          id="passwordInput"
+          v-model="tree.password.value"
+          type="password"
+          class="styled-input"
+          autocomplete="current-password"
+          :required="tree.inputMode.value === 'list'"
+        />
+      </div>
 
-        <p v-if="tree.inputMode.value === 'url'" class="field-hint">
-          Laissez les champs vides si votre URL contient deja votre jeton d acces direct.
-        </p>
+      <label class="remember-field">
+        <input v-model="tree.remember.value" type="checkbox" />
+        <span>Se souvenir de moi sur cet appareil</span>
+      </label>
 
-        <div class="field">
-          <label for="loginInput">Identifiant {{ tree.inputMode.value === "url" ? "(optionnel)" : "" }}</label>
-          <input id="loginInput" v-model="tree.login.value" type="text" autocomplete="username" :required="tree.inputMode.value === 'list'" />
-        </div>
+      <p class="disclaimer">
+        <i class="pi pi-shield"></i>
+        Vos identifiants sont envoyés uniquement en mémoire pour interroger ADE et ne sont jamais stockés sur le serveur.
+      </p>
 
-        <div class="field">
-          <label for="passwordInput">Mot de passe {{ tree.inputMode.value === "url" ? "(optionnel)" : "" }}</label>
-          <input
-            id="passwordInput"
-            v-model="tree.password.value"
-            type="password"
-            autocomplete="current-password"
-            :required="tree.inputMode.value === 'list'"
-          />
-        </div>
+      <div v-if="tree.errorMessage.value" class="error-banner">
+        <i class="pi pi-exclamation-triangle"></i>
+        <span>{{ tree.errorMessage.value }}</span>
+      </div>
 
-        <label class="remember-field">
-          <input v-model="tree.remember.value" type="checkbox" />
-          Se souvenir de moi sur cet appareil
-        </label>
+      <div class="modal-footer">
+        <Button
+          v-if="tree.remember.value"
+          label="Oublier"
+          severity="secondary"
+          variant="outlined"
+          size="small"
+          type="button"
+          icon="pi pi-trash"
+          @click="tree.forgetCredentials()"
+        />
+        <Button
+          :label="tree.isLoading.value ? 'Chargement...' : 'Explorer et choisir mon planning'"
+          :icon="tree.isLoading.value ? 'pi pi-spin pi-spinner' : 'pi pi-compass'"
+          type="submit"
+          :disabled="tree.isLoading.value"
+        />
+      </div>
+    </form>
 
-        <p class="disclaimer">
-          Vos identifiants sont envoyes uniquement en memoire pour interroger ADE et ne sont jamais stockes sur le serveur.
-        </p>
-
-        <div v-if="tree.errorMessage.value" class="error-banner">{{ tree.errorMessage.value }}</div>
-
-        <div class="modal-footer">
-          <button v-if="tree.remember.value" class="btn btn-outline" type="button" @click="tree.forgetCredentials()">
-            Oublier
-          </button>
-          <button class="btn btn-primary" type="submit" :disabled="tree.isLoading.value">
-            {{ tree.isLoading.value ? "Chargement..." : "Explorer et choisir mon planning" }}
-          </button>
-        </div>
-      </form>
-
-      <!-- Mode 2: Tree Explorer -->
-      <AdeTreeExplorer
-        v-else
-        :tree="tree"
-        @back="tree.isExploringTree.value = false"
-      />
-    </div>
-  </div>
+    <!-- Mode 2: Tree Explorer -->
+    <AdeTreeExplorer
+      v-else
+      :tree="tree"
+      @back="tree.isExploringTree.value = false"
+    />
+  </Dialog>
 </template>
 
 <style scoped>
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 1rem;
-}
-
-.modal-content {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  width: min(540px, 100%);
-  max-height: 90vh;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.modal-header {
+.modal-header-custom {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.1rem 1.25rem;
-  border-bottom: 1px solid var(--border);
+  width: 100%;
 }
 
-.modal-header h2 {
+.dialog-title {
   margin: 0;
   font-size: 1.15rem;
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text);
+}
+
+.dialog-title-icon {
+  color: var(--accent);
+  font-size: 1.2rem;
 }
 
 .close-btn {
   background: transparent;
   border: none;
-  font-size: 1.2rem;
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
   color: var(--muted);
   cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.close-btn:hover {
+  background: rgba(125, 125, 125, 0.15);
+  color: var(--text);
 }
 
 .modal-body {
-  padding: 1.25rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  overflow-y: auto;
+  padding: 0.5rem 0;
 }
 
 .modal-intro {
@@ -192,25 +224,24 @@ onUnmounted(() => {
   display: flex;
   gap: 1.25rem;
   font-size: 0.85rem;
+  background: rgba(125, 125, 125, 0.08);
+  padding: 0.6rem 0.85rem;
+  border-radius: 8px;
 }
 
-.mode-toggle label {
+.toggle-option {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.45rem;
   cursor: pointer;
+  font-weight: 500;
+  color: var(--text);
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-}
-
-.field-hint {
-  margin: 0;
-  font-size: 0.78rem;
-  color: var(--muted);
+  gap: 0.35rem;
 }
 
 .field label {
@@ -219,20 +250,28 @@ onUnmounted(() => {
   color: var(--muted);
 }
 
-.field select,
-.field input {
-  padding: 0.5rem 0.75rem;
+.styled-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.55rem 0.75rem;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg);
   color: var(--text);
   outline: none;
   font-size: 0.9rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.field select:focus,
-.field input:focus {
-  border-color: #3b82f6;
+.styled-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.field-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
 }
 
 .remember-field {
@@ -241,6 +280,8 @@ onUnmounted(() => {
   gap: 0.5rem;
   font-size: 0.85rem;
   cursor: pointer;
+  color: var(--text);
+  margin-top: 0.25rem;
 }
 
 .disclaimer {
@@ -248,6 +289,9 @@ onUnmounted(() => {
   font-size: 0.78rem;
   color: var(--muted);
   line-height: 1.4;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .error-banner {
@@ -257,10 +301,13 @@ onUnmounted(() => {
   border: 1px solid rgba(239, 68, 68, 0.3);
   color: #ef4444;
   font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .modal-footer {
-  padding-top: 0.5rem;
+  padding-top: 0.75rem;
   border-top: 1px solid var(--border);
   display: flex;
   justify-content: flex-end;

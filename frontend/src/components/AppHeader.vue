@@ -13,7 +13,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["openPersonalSchedule"]);
+defineEmits(["openPersonalSchedule"]);
 
 const { isDark, toggleTheme } = useTheme();
 

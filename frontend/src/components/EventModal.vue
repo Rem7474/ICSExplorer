@@ -1,5 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted } from "vue";
+import Dialog from "primevue/dialog";
+import Button from "primevue/button";
 import { formatDateTime, formatTimeOnly } from "../utils/dates.js";
 import { isCercleEvent } from "../utils/colors.js";
 import { useToast } from "../composables/useToast.js";
@@ -76,23 +78,25 @@ const downloadSingleEvent = () => {
     "VERSION:2.0",
     "PRODID:-//EDT Esisar//FR",
     "BEGIN:VEVENT",
-    `UID:${props.event.uid || Date.now()}`,
+    `UID:${props.event.uid || Date.now()}@edtesisar`,
     `DTSTAMP:${formatDateToICS(new Date())}`,
     `DTSTART:${formatDateToICS(props.event.start)}`,
     `DTEND:${formatDateToICS(props.event.end)}`,
-    `SUMMARY:${props.event.summary || "Cours"}`,
-    props.event.location ? `LOCATION:${props.event.location}` : "",
-    props.event.description ? `DESCRIPTION:${props.event.description.replace(/\n/g, "\\n")}` : "",
+    `SUMMARY:${props.event.summary || 'Cours'}`,
+    `LOCATION:${props.event.location || ''}`,
+    `DESCRIPTION:${(props.event.description || '').replace(/\n/g, "\\n")}`,
     "END:VEVENT",
     "END:VCALENDAR",
-  ].filter(Boolean).join("\r\n");
+  ].join("\r\n");
 
   const blob = new Blob([icsContent], { type: "text/calendar;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${props.event.summary || "cours"}.ics`;
+  a.download = `${(props.event.summary || 'cours').replace(/[^a-zA-Z0-9]/g, "_")}.ics`;
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
   URL.revokeObjectURL(url);
   showToast("Événement téléchargé !", "success");
 };
@@ -110,90 +114,104 @@ const copyDetails = async () => {
 </script>
 
 <template>
-  <div v-if="event" class="modal-backdrop" @click="emit('close')">
-    <div class="modal-content" role="dialog" aria-modal="true" @click.stop>
-      <div class="modal-header">
-        <h2>{{ event.summary }}</h2>
-        <button class="close-btn" type="button" aria-label="Fermer" @click="emit('close')">
-          ✕
-        </button>
+  <Dialog
+    :visible="Boolean(event)"
+    modal
+    :header="event ? event.summary : ''"
+    :style="{ width: '92vw', maxWidth: '560px' }"
+    :dismissable-mask="true"
+    append-to="self"
+    @update:visible="emit('close')"
+  >
+    <div v-if="event" class="modal-body-content">
+      <!-- Cercle source notice -->
+      <div v-if="isCercleEvent(event)" class="cercle-source-banner">
+        <i class="pi pi-sparkles" style="color: #a855f7; font-size: 1.25rem;" aria-hidden="true"></i>
+        <div class="cercle-info">
+          <strong>Source : Cercle des Élèves</strong>
+          <p>Cet événement associatif provient directement de l'agenda officiel du Cercle Esisar.</p>
+        </div>
       </div>
 
-      <div class="modal-body">
-        <!-- Cercle source notice -->
-        <div v-if="isCercleEvent(event)" class="cercle-source-banner">
-          <span class="cercle-icon">🎉</span>
-          <div class="cercle-info">
-            <strong>Source : Cercle des Élèves</strong>
-            <p>Cet événement associatif provient directement de l'agenda officiel du Cercle Esisar.</p>
-          </div>
-        </div>
+      <div class="detail-row">
+        <span class="detail-label"><i class="pi pi-clock mr-1" aria-hidden="true"></i> Horaire :</span>
+        <span class="detail-value">
+          {{ formatDateTime(event.start) }} - {{ formatTimeOnly(event.end) }}
+        </span>
+      </div>
 
-        <div class="detail-row">
-          <span class="detail-label">🕒 Horaire :</span>
-          <span class="detail-value">
-            {{ formatDateTime(event.start) }} - {{ formatTimeOnly(event.end) }}
-          </span>
-        </div>
-
-        <div v-if="event.location" class="detail-row">
-          <span class="detail-label">📍 Lieu :</span>
-          <div class="detail-value-wrapper">
-            <span class="detail-value">{{ event.location }}</span>
-            <div v-if="extractedRooms.length > 0" class="rebound-buttons">
-              <button
-                v-for="r in extractedRooms"
-                :key="r"
-                type="button"
-                class="rebound-badge"
-                title="Consulter le planning de cette salle"
-                @click="onGoToRoom(r)"
-              >
-                🚪 Planning Salle {{ r }} ➔
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="extractedTeachers.length > 0" class="detail-row">
-          <span class="detail-label">👨‍🏫 Enseignant :</span>
-          <div class="rebound-buttons">
+      <div v-if="event.location" class="detail-row">
+        <span class="detail-label"><i class="pi pi-map-pin mr-1" aria-hidden="true"></i> Lieu :</span>
+        <div class="detail-value-wrapper">
+          <span class="detail-value">{{ event.location }}</span>
+          <div v-if="extractedRooms.length > 0" class="rebound-buttons">
             <button
-              v-for="t in extractedTeachers"
-              :key="t"
+              v-for="r in extractedRooms"
+              :key="r"
               type="button"
               class="rebound-badge"
-              title="Consulter le planning de cet enseignant"
-              @click="onGoToTeacher(t)"
+              title="Consulter le planning de cette salle"
+              @click="onGoToRoom(r)"
             >
-              👨‍🏫 Planning {{ t }} ➔
+              <i class="pi pi-building mr-1" aria-hidden="true"></i> Salle {{ r }} ➔
             </button>
           </div>
         </div>
+      </div>
 
-        <div v-if="event.description" class="detail-row description-row">
-          <span class="detail-label">📝 Détails :</span>
-          <div class="detail-desc">
-            <p v-for="(line, idx) in event.description.split('\n')" :key="idx">
-              {{ line }}
-            </p>
-          </div>
+      <div v-if="extractedTeachers.length > 0" class="detail-row">
+        <span class="detail-label"><i class="pi pi-user mr-1" aria-hidden="true"></i> Enseignant :</span>
+        <div class="rebound-buttons">
+          <button
+            v-for="t in extractedTeachers"
+            :key="t"
+            type="button"
+            class="rebound-badge"
+            title="Consulter le planning de cet enseignant"
+            @click="onGoToTeacher(t)"
+          >
+            <i class="pi pi-user mr-1" aria-hidden="true"></i> Planning {{ t }} ➔
+          </button>
         </div>
       </div>
 
-      <div class="modal-footer">
-        <button class="btn btn-outline" type="button" @click="copyDetails">
-          📋 Copier
-        </button>
-        <button class="btn btn-outline" type="button" @click="downloadSingleEvent">
-          📥 Ajouter au calendrier
-        </button>
-        <button class="btn btn-primary" type="button" @click="emit('close')">
-          Fermer
-        </button>
+      <div v-if="event.description" class="detail-row description-row">
+        <span class="detail-label"><i class="pi pi-align-left mr-1" aria-hidden="true"></i> Détails :</span>
+        <div class="detail-desc">
+          <p v-for="(line, idx) in event.description.split('\n')" :key="idx">
+            {{ line }}
+          </p>
+        </div>
       </div>
     </div>
-  </div>
+
+    <template #footer>
+      <div class="dialog-actions">
+        <Button
+          label="Copier"
+          icon="pi pi-copy"
+          severity="secondary"
+          outlined
+          size="small"
+          @click="copyDetails"
+        />
+        <Button
+          label="Ajouter au calendrier"
+          icon="pi pi-download"
+          severity="secondary"
+          outlined
+          size="small"
+          @click="downloadSingleEvent"
+        />
+        <Button
+          label="Fermer"
+          severity="primary"
+          size="small"
+          @click="emit('close')"
+        />
+      </div>
+    </template>
+  </Dialog>
 </template>
 
 <style scoped>

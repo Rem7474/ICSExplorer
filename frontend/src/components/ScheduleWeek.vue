@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, unref } from "vue";
 import Button from "primevue/button";
 import { formatDateOnly, formatTimeOnly } from "../utils/dates.js";
-import { getSubjectType, getSubjectColors, isCercleEvent } from "../utils/colors.js";
+import { getSubjectColors, isCercleEvent } from "../utils/colors.js";
 import { useTheme } from "../composables/useTheme.js";
 
 function getDayWeekday(date) {

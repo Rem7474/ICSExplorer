@@ -1,5 +1,8 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from "vue";
+import Dialog from "primevue/dialog";
+import Button from "primevue/button";
+import Skeleton from "primevue/skeleton";
 import { getAggregatedEvents } from "../ics/aggregator.js";
 import { formatTimeOnly, formatDateOnly } from "../utils/dates.js";
 import { useToast } from "../composables/useToast.js";
@@ -55,66 +58,59 @@ const searchEmptyRooms = async () => {
 
   try {
     const allEvents = await getAggregatedEvents();
+    const [year, month, day] = selectedDate.value.split("-").map(Number);
+    const [hours, minutes] = selectedTime.value.split(":").map(Number);
+    const targetTime = new Date(year, month - 1, day, hours, minutes);
 
-    const [y, m, d] = selectedDate.value.split("-").map(Number);
-    const [hh, mm] = selectedTime.value.split(":").map(Number);
-    const checkTime = new Date(y, m - 1, d, hh, mm, 0);
-
-    const dayEndMidnight = new Date(y, m - 1, d, 23, 59, 59, 999);
-
-    // Find all occupied rooms at this exact moment
-    const occupiedRooms = new Set();
-    // Index upcoming events for each room on this day
-    const roomUpcomingEvents = new Map();
-
-    for (const ev of allEvents) {
-      if (!ev.location) continue;
+    const busyRooms = new Set();
+    allEvents.forEach((ev) => {
       const start = new Date(ev.start);
       const end = new Date(ev.end);
-
-      const rooms = ev.location.split(/[,;\/]/).map((r) => r.trim()).filter(Boolean);
-
-      rooms.forEach((r) => {
-        if (checkTime >= start && checkTime < end) {
-          occupiedRooms.add(r);
-        } else if (start > checkTime && start <= dayEndMidnight) {
-          if (!roomUpcomingEvents.has(r)) {
-            roomUpcomingEvents.set(r, []);
-          }
-          roomUpcomingEvents.get(r).push(ev);
+      if (start <= targetTime && end > targetTime) {
+        if (ev.location) {
+          ev.location.split(/[,;/]/).forEach((loc) => {
+            const trimmed = loc.trim();
+            if (trimmed) busyRooms.add(trimmed);
+          });
         }
-      });
-    }
-
-    // Process all free rooms with smart availability
-    const freeRooms = KNOWN_ROOMS.filter((room) => !occupiedRooms.has(room)).map((room) => {
-      const upcoming = roomUpcomingEvents.get(room) || [];
-      upcoming.sort((a, b) => new Date(a.start) - new Date(b.start));
-
-      let availabilityText = "Libre le reste de la journée";
-      let isLimited = false;
-
-      if (upcoming.length > 0) {
-        const nextStart = new Date(upcoming[0].start);
-        const diffMins = Math.round((nextStart - checkTime) / (1000 * 60));
-        const hours = Math.floor(diffMins / 60);
-        const mins = diffMins % 60;
-        const durStr = hours > 0 ? `${hours}h${mins > 0 ? String(mins).padStart(2, "0") : ""}` : `${mins}min`;
-        availabilityText = `Libre jusqu'à ${formatTimeOnly(nextStart)} (encore ${durStr})`;
-        isLimited = true;
       }
-
-      return {
-        room,
-        building: room[0] || "",
-        availabilityText,
-        isLimited,
-      };
     });
 
-    emptyRoomsData.value = freeRooms;
-  } catch (err) {
-    console.error("Failed to calculate empty rooms:", err);
+    const result = [];
+    KNOWN_ROOMS.forEach((room) => {
+      if (!busyRooms.has(room)) {
+        const nextCourse = allEvents
+          .filter((ev) => {
+            const start = new Date(ev.start);
+            return start > targetTime && ev.location?.includes(room);
+          })
+          .sort((a, b) => new Date(a.start) - new Date(b.start))[0];
+
+        let availabilityText = "Libre pour le reste de la journée";
+        let isLimited = false;
+
+        if (nextCourse) {
+          const nextStart = new Date(nextCourse.start);
+          const sameDay = formatDateOnly(nextStart) === formatDateOnly(targetTime);
+          if (sameDay) {
+            availabilityText = `Libre jusqu'à ${formatTimeOnly(nextStart)}`;
+            isLimited = true;
+          }
+        }
+
+        const bldg = room.charAt(0).toUpperCase();
+        result.push({
+          room,
+          building: ["A", "B", "C", "D"].includes(bldg) ? bldg : "AUTRE",
+          availabilityText,
+          isLimited,
+        });
+      }
+    });
+
+    emptyRoomsData.value = result;
+  } catch {
+    showToast("Erreur lors de la recherche des salles libres", "error");
   } finally {
     isLoading.value = false;
   }
@@ -125,9 +121,6 @@ const filteredRooms = computed(() => {
   return emptyRoomsData.value.filter((r) => r.building === selectedBuilding.value);
 });
 
-// Backward-compatible emptyRooms array for tests/watchers
-const emptyRooms = computed(() => filteredRooms.value.map((r) => r.room));
-
 const onPickRoom = (room) => {
   emit("selectRoom", room);
   emit("close");
@@ -136,114 +129,108 @@ const onPickRoom = (room) => {
 </script>
 
 <template>
-  <div class="modal-backdrop" @click="emit('close')">
-    <div class="modal-content" role="dialog" aria-modal="true" @click.stop>
-      <div class="modal-header">
-        <h2><i class="pi pi-building" style="margin-right: 0.5rem; color: var(--accent);" aria-hidden="true"></i>Salles vides en direct</h2>
+  <Dialog
+    :visible="true"
+    modal
+    :style="{ width: '92vw', maxWidth: '640px' }"
+    :dismissable-mask="true"
+    append-to="self"
+    @update:visible="emit('close')"
+  >
+    <template #header>
+      <div class="modal-header-custom">
+        <h2>
+          <i class="pi pi-building" style="margin-right: 0.5rem; color: var(--accent);" aria-hidden="true"></i>
+          Salles vides en direct
+        </h2>
         <button class="close-btn" type="button" aria-label="Fermer" @click="emit('close')">
           ✕
         </button>
       </div>
+    </template>
 
-      <div class="modal-body">
-        <p class="modal-intro">
-          Disponibilité en temps réel calculée en croisant tous les emplois du temps de l'école.
-        </p>
+    <div class="modal-body">
+      <p class="modal-intro">
+        Disponibilité en temps réel calculée en croisant tous les emplois du temps de l'école.
+      </p>
 
-        <div class="filter-controls">
-          <div class="field">
-            <label for="roomDate">Date</label>
-            <input id="roomDate" v-model="selectedDate" type="date" @change="searchEmptyRooms" />
-          </div>
-
-          <div class="field">
-            <label for="roomTime">Heure</label>
-            <input id="roomTime" v-model="selectedTime" type="time" step="900" @change="searchEmptyRooms" />
-          </div>
-
-          <button class="btn btn-primary" type="button" :disabled="isLoading" @click="searchEmptyRooms">
-            <i class="pi pi-sync" style="margin-right: 0.35rem;" aria-hidden="true"></i>
-            {{ isLoading ? 'Recherche...' : 'Actualiser' }}
-          </button>
+      <div class="filter-controls">
+        <div class="field">
+          <label for="roomDate">Date</label>
+          <input id="roomDate" v-model="selectedDate" type="date" @change="searchEmptyRooms" />
         </div>
 
-        <!-- Building filter tabs -->
-        <div class="building-tabs" role="tablist">
-          <button
-            v-for="b in BUILDINGS"
-            :key="b.id"
-            type="button"
-            class="building-tab-btn"
-            :class="{ active: selectedBuilding === b.id }"
-            @click="selectedBuilding = b.id"
-          >
-            {{ b.label }}
-          </button>
+        <div class="field">
+          <label for="roomTime">Heure</label>
+          <input id="roomTime" v-model="selectedTime" type="time" step="900" @change="searchEmptyRooms" />
         </div>
 
-        <div v-if="isLoading" class="loading-state">
-          <div class="skeleton" style="height: 140px; width: 100%;"></div>
-        </div>
-
-        <div v-else-if="searchPerformed" class="results-area">
-          <div v-if="filteredRooms.length > 0" class="rooms-grid">
-            <div
-              v-for="item in filteredRooms"
-              :key="item.room"
-              class="room-card"
-              tabindex="0"
-              role="button"
-              :title="`Cliquer pour voir tout le planning de la salle ${item.room}`"
-              @click="onPickRoom(item.room)"
-              @keydown.enter="onPickRoom(item.room)"
-            >
-              <div class="room-card-header">
-                <span class="room-pill">📍 {{ item.room }}</span>
-                <span class="room-action-hint">Voir planning ➔</span>
-              </div>
-              <span class="room-avail-text" :class="{ 'avail-limited': item.isLimited }">
-                {{ item.availabilityText }}
-              </span>
-            </div>
-          </div>
-          <div v-else class="no-rooms">
-            <p>Aucune salle libre trouvée pour ce créneau dans cette sélection.</p>
-          </div>
-        </div>
+        <Button
+          label="Actualiser"
+          icon="pi pi-sync"
+          severity="primary"
+          size="small"
+          :loading="isLoading"
+          @click="searchEmptyRooms"
+        />
       </div>
 
-      <div class="modal-footer">
-        <button class="btn btn-primary" type="button" @click="emit('close')">
-          Fermer
+      <!-- Building filter tabs -->
+      <div class="building-tabs" role="tablist">
+        <button
+          v-for="b in BUILDINGS"
+          :key="b.id"
+          type="button"
+          class="building-tab-btn"
+          :class="{ active: selectedBuilding === b.id }"
+          @click="selectedBuilding = b.id"
+        >
+          {{ b.label }}
         </button>
       </div>
+
+      <div v-if="isLoading" class="loading-state">
+        <Skeleton height="140px" width="100%" border-radius="10px" />
+      </div>
+
+      <div v-else-if="searchPerformed" class="results-area">
+        <div v-if="filteredRooms.length > 0" class="rooms-grid">
+          <div
+            v-for="item in filteredRooms"
+            :key="item.room"
+            class="room-card"
+            tabindex="0"
+            role="button"
+            :title="`Cliquer pour voir tout le planning de la salle ${item.room}`"
+            @click="onPickRoom(item.room)"
+            @keydown.enter="onPickRoom(item.room)"
+          >
+            <div class="room-card-header">
+              <span class="room-pill">
+                <i class="pi pi-map-pin mr-1" aria-hidden="true"></i> {{ item.room }}
+              </span>
+              <span class="room-action-hint">Voir planning ➔</span>
+            </div>
+            <span class="room-avail-text" :class="{ 'avail-limited': item.isLimited }">
+              {{ item.availabilityText }}
+            </span>
+          </div>
+        </div>
+        <div v-else class="no-rooms">
+          <p>Aucune salle libre trouvée pour ce créneau dans cette sélection.</p>
+        </div>
+      </div>
     </div>
-  </div>
+
+    <template #footer>
+      <div class="modal-footer">
+        <Button label="Fermer" severity="primary" size="small" @click="emit('close')" />
+      </div>
+    </template>
+  </Dialog>
 </template>
 
 <style scoped>
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 1rem;
-}
-
-.modal-content {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  width: min(580px, 100%);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
-  display: flex;
-  flex-direction: column;
-}
-
 .modal-header {
   display: flex;
   justify-content: space-between;

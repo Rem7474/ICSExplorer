@@ -5,6 +5,9 @@
  * Receives the full `tree` object from useAdeTree composable as a prop so that
  * it shares state seamlessly with PersonalScheduleModal.vue.
  */
+import Skeleton from "primevue/skeleton";
+import Button from "primevue/button";
+
 defineProps({
   tree: { type: Object, required: true },
 });
@@ -29,15 +32,18 @@ defineEmits(["back"]);
           <span v-if="idx < tree.breadcrumbs.value.length - 1" class="crumb-separator">/</span>
         </span>
       </nav>
-      <button
+      <Button
         v-if="tree.breadcrumbs.value.length > 1"
         type="button"
+        icon="pi pi-home"
+        label="Racine"
+        size="small"
+        severity="secondary"
+        variant="outlined"
         class="btn-root-reset"
-        title="Revenir a la racine"
+        title="Revenir à la racine"
         @click="tree.navigateBreadcrumb(0)"
-      >
-        Racine globale
-      </button>
+      />
     </div>
 
     <!-- Active Branch Quick Select -->
@@ -51,33 +57,41 @@ defineEmits(["back"]);
           {{ tree.currentActiveBranch.value.name }}
         </span>
       </div>
-      <button
+      <Button
         type="button"
+        icon="pi pi-check"
+        label="Choisir ce dossier"
+        size="small"
         class="btn btn-select-current"
-        :title="'Selectionner tout l emploi du temps de ' + tree.currentActiveBranch.value.name"
+        :title="'Sélectionner tout l emploi du temps de ' + tree.currentActiveBranch.value.name"
         @click="tree.chooseResource(tree.currentActiveBranch.value.id)"
-      >
-        Choisir ce dossier complet
-      </button>
+      />
     </div>
 
     <!-- Search -->
     <div class="search-box">
-      <input
-        v-model="tree.searchQuery.value"
-        type="search"
-        placeholder="Filtrer les filieres, promotions ou groupes..."
-        class="search-input"
-      />
+      <div class="search-input-wrapper">
+        <i class="pi pi-search search-icon" aria-hidden="true"></i>
+        <input
+          v-model="tree.searchQuery.value"
+          type="search"
+          placeholder="Filtrer les filières, promotions ou groupes..."
+          class="search-input"
+        />
+      </div>
     </div>
 
     <!-- Node list -->
-    <div v-if="tree.isLoading.value" class="tree-loading">
-      <span class="spinner"></span> Chargement des plannings...
+    <div v-if="tree.isLoading.value" class="tree-loading" aria-label="Chargement">
+      <Skeleton height="2.8rem" border-radius="8px" class="tree-skeleton" />
+      <Skeleton height="2.8rem" border-radius="8px" class="tree-skeleton" />
+      <Skeleton height="2.8rem" border-radius="8px" class="tree-skeleton" />
+      <Skeleton height="2.8rem" border-radius="8px" class="tree-skeleton" />
     </div>
 
     <div v-else-if="tree.filteredNodes.value.length === 0" class="tree-empty">
-      <p>Aucun dossier ou planning trouve ici.</p>
+      <i class="pi pi-folder-open empty-icon"></i>
+      <p>Aucun dossier ou planning trouvé ici.</p>
     </div>
 
     <ul v-else class="node-list">
@@ -95,7 +109,7 @@ defineEmits(["back"]);
         <div class="node-main">
           <i
             :class="node.isLeaf ? 'pi pi-calendar' : 'pi pi-folder'"
-            :style="{ color: node.isLeaf ? 'var(--accent)' : '#f59e0b', marginRight: '0.5rem' }"
+            :style="{ color: node.isLeaf ? 'var(--accent)' : '#f59e0b', marginRight: '0.6rem' }"
             aria-hidden="true"
           ></i>
           <span class="node-name">{{ node.name || node.Name }}</span>
@@ -115,12 +129,21 @@ defineEmits(["back"]);
       </li>
     </ul>
 
-    <div v-if="tree.errorMessage.value" class="error-banner">{{ tree.errorMessage.value }}</div>
+    <div v-if="tree.errorMessage.value" class="error-banner">
+      <i class="pi pi-exclamation-triangle" style="margin-right: 0.4rem;"></i>
+      <span>{{ tree.errorMessage.value }}</span>
+    </div>
 
     <div class="modal-footer">
-      <button class="btn btn-outline" type="button" @click="$emit('back')">
-        Modifier l URL ou les identifiants
-      </button>
+      <Button
+        label="Modifier l'URL ou les identifiants"
+        icon="pi pi-arrow-left"
+        severity="secondary"
+        variant="outlined"
+        size="small"
+        type="button"
+        @click="$emit('back')"
+      />
     </div>
   </div>
 </template>
@@ -199,19 +222,38 @@ defineEmits(["back"]);
 
 .search-box { width: 100%; }
 
+.search-input-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 0.75rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  pointer-events: none;
+}
+
 .search-input {
   width: 100%;
   box-sizing: border-box;
-  padding: 0.5rem 0.75rem;
+  padding: 0.55rem 0.75rem 0.55rem 2.2rem;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg);
   color: var(--text);
   outline: none;
   font-size: 0.9rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.search-input:focus { border-color: #3b82f6; }
+.search-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
 
 .node-list {
   list-style: none;
@@ -349,27 +391,33 @@ defineEmits(["back"]);
 
 .btn-select-current:hover { opacity: 0.9; }
 
-.tree-loading,
+.tree-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+}
+
+.tree-skeleton {
+  width: 100%;
+}
+
 .tree-empty {
-  text-align: center;
-  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1rem;
   color: var(--muted);
-  font-size: 0.9rem;
+  gap: 0.5rem;
+  text-align: center;
 }
 
-.spinner {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(125, 125, 125, 0.3);
-  border-top-color: #3b82f6;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin-right: 0.5rem;
-  vertical-align: middle;
+.empty-icon {
+  font-size: 2.2rem;
+  opacity: 0.4;
+  color: var(--muted);
 }
-
-@keyframes spin { to { transform: rotate(360deg); } }
 
 .error-banner {
   padding: 0.6rem 0.75rem;
