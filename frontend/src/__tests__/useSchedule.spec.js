@@ -76,11 +76,13 @@ describe("useSchedule composable", () => {
 
   it("filters out deselected subjects from displayedWeekEvents", () => {
     const schedule = useSchedule();
-    const now = new Date();
+    const eventTime = new Date(schedule.currentWeekStart.value);
+    eventTime.setHours(10, 0, 0, 0);
+    const eventEnd = new Date(eventTime.getTime() + 3600000);
     // Two events during current week
     schedule.events.value = [
-      { summary: "IN101 Algo", start: now, end: new Date(now.getTime() + 3600000) },
-      { summary: "Management Projet", start: now, end: new Date(now.getTime() + 3600000) },
+      { summary: "IN101 Algo", start: eventTime, end: eventEnd },
+      { summary: "Management Projet", start: eventTime, end: eventEnd },
     ];
 
     expect(schedule.displayedWeekEvents.value.length).toBe(2);

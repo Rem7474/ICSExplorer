@@ -139,7 +139,7 @@ const onPickRoom = (room) => {
   <div class="modal-backdrop" @click="emit('close')">
     <div class="modal-content" role="dialog" aria-modal="true" @click.stop>
       <div class="modal-header">
-        <h2>🚪 Salles vides en direct</h2>
+        <h2><i class="pi pi-building" style="margin-right: 0.5rem; color: var(--accent);" aria-hidden="true"></i>Salles vides en direct</h2>
         <button class="close-btn" type="button" aria-label="Fermer" @click="emit('close')">
           ✕
         </button>
@@ -162,7 +162,8 @@ const onPickRoom = (room) => {
           </div>
 
           <button class="btn btn-primary" type="button" :disabled="isLoading" @click="searchEmptyRooms">
-            {{ isLoading ? 'Recherche...' : '🔄 Actualiser' }}
+            <i class="pi pi-sync" style="margin-right: 0.35rem;" aria-hidden="true"></i>
+            {{ isLoading ? 'Recherche...' : 'Actualiser' }}
           </button>
         </div>
 

@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 /**
  * AdeTreeExplorer.vue — displays and navigates the ADE Campus tree hierarchy.
  *
@@ -93,7 +93,11 @@ defineEmits(["back"]);
         @keydown.enter="tree.selectNode(node)"
       >
         <div class="node-main">
-          <span class="node-icon">{{ node.isLeaf ? "" : "" }}</span>
+          <i
+            :class="node.isLeaf ? 'pi pi-calendar' : 'pi pi-folder'"
+            :style="{ color: node.isLeaf ? 'var(--accent)' : '#f59e0b', marginRight: '0.5rem' }"
+            aria-hidden="true"
+          ></i>
           <span class="node-name">{{ node.name || node.Name }}</span>
         </div>
         <div class="node-actions">

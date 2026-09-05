@@ -1,6 +1,10 @@
+<script setup>
+import Skeleton from "primevue/skeleton";
+</script>
+
 <template>
   <div class="week-stats-skeleton" aria-hidden="true">
-    <div class="skeleton skeleton-chip" v-for="i in 5" :key="i"></div>
+    <Skeleton v-for="i in 5" :key="i" width="85px" height="30px" border-radius="9999px" class="skeleton-chip" />
   </div>
 </template>
 
