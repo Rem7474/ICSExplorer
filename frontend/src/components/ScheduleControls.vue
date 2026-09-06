@@ -81,6 +81,14 @@ const isPersonalMode = computed(() => unref(props.schedule.selectedMode) === "pe
 const isTeacherMode = computed(() => unref(props.schedule.selectedMode) === "teacher");
 const isRoomMode = computed(() => unref(props.schedule.selectedMode) === "room");
 
+const availableYears = computed(() => unref(props.schedule.availableYears) || []);
+const availableTracks = computed(() => unref(props.schedule.availableTracks) || []);
+const availableTypes = computed(() => unref(props.schedule.availableTypes) || []);
+const availableRestFiles = computed(() => unref(props.schedule.availableRestFiles) || []);
+const availableTeachers = computed(() => unref(props.schedule.availableTeachers) || []);
+const availableRooms = computed(() => unref(props.schedule.availableRooms) || []);
+const personalScheduleInfo = computed(() => unref(props.schedule.personalScheduleInfo) || null);
+
 const hasPersonalConfig = computed(() => {
   const meta = personalScheduleInfo.value;
   return Boolean(meta?.name && (meta?.universityId || meta?.resourceId || props.schedule.rawPersonalIcs || localStorage.getItem("edt_cached_personal_ics") || localStorage.getItem("edtPersonalCreds")));
@@ -92,14 +100,6 @@ const onSelectPersonalTab = () => {
     emit("openPersonalSchedule");
   }
 };
-
-const availableYears = computed(() => unref(props.schedule.availableYears) || []);
-const availableTracks = computed(() => unref(props.schedule.availableTracks) || []);
-const availableTypes = computed(() => unref(props.schedule.availableTypes) || []);
-const availableRestFiles = computed(() => unref(props.schedule.availableRestFiles) || []);
-const availableTeachers = computed(() => unref(props.schedule.availableTeachers) || []);
-const availableRooms = computed(() => unref(props.schedule.availableRooms) || []);
-const personalScheduleInfo = computed(() => unref(props.schedule.personalScheduleInfo) || null);
 
 const currentIcsUrl = computed(() => {
   const file = unref(props.schedule.selectedFile);
