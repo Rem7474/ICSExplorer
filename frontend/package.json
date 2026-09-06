@@ -13,9 +13,9 @@
     "lint:fix": "eslint src/ --fix"
   },
   "dependencies": {
-    "@primevue/themes": "^4.5.4",
+    "@primevue/themes": "~4.5.4",
     "primeicons": "^8.0.0",
-    "primevue": "^5.0.1",
+    "primevue": "~4.5.5",
     "vue": "^3.5.13"
   },
   "devDependencies": {
