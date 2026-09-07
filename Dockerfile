@@ -31,22 +31,22 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/icsexplorer ./cmd
 # ==========================================
 FROM alpine:3.21
 
-RUN apk add --no-cache ca-certificates tzdata \
+RUN apk add --no-cache ca-certificates tzdata su-exec \
     && addgroup -g 10001 -S appgroup \
     && adduser -u 10001 -S appuser -G appgroup
 
 WORKDIR /app
 
-# Copy binary and frontend assets
+# Copy binary, entrypoint and frontend assets
 COPY --from=backend-builder /app/icsexplorer /usr/local/bin/icsexplorer
 COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Copy seed data & create output directory with appropriate permissions
 COPY data/ /app/data/
 RUN mkdir -p /app/data/output /app/data/rooms \
     && chown -R appuser:appgroup /app/data
-
-USER appuser
 
 ENV PORT=8080 \
     DATA_DIR=/app/data \
@@ -60,4 +60,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/health || exit 1
 
-ENTRYPOINT ["/usr/local/bin/icsexplorer"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["/usr/local/bin/icsexplorer"]
