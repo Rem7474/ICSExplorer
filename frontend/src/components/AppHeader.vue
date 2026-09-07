@@ -13,7 +13,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["openPersonalSchedule"]);
+defineEmits(["openPersonalSchedule"]);
 
 const { isDark, toggleTheme } = useTheme();
 
@@ -51,7 +51,7 @@ const healthBadge = computed(() => {
             :title="isDark ? 'Passer en mode clair' : 'Passer en mode sombre'"
             @click="toggleTheme"
           >
-            <span class="theme-icon">{{ isDark ? '☀️' : '🌙' }}</span>
+            <i :class="isDark ? 'pi pi-sun text-amber-300' : 'pi pi-moon text-slate-100'" style="font-size: 1.15rem;" aria-hidden="true"></i>
           </button>
         </div>
       </div>

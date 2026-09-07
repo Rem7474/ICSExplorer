@@ -1,8 +1,13 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, unref } from "vue";
+import Button from "primevue/button";
 import { formatDateOnly, formatTimeOnly } from "../utils/dates.js";
-import { getSubjectType, getSubjectColors, isCercleEvent } from "../utils/colors.js";
+import { getSubjectColors, isCercleEvent } from "../utils/colors.js";
 import { useTheme } from "../composables/useTheme.js";
+
+function getDayWeekday(date) {
+  return date.toLocaleDateString("fr-FR", { weekday: "short" }).replace(".", "").toUpperCase();
+}
 
 const props = defineProps({
   events: {
@@ -360,16 +365,27 @@ const nextAvailableEvent = computed(() => {
     <!-- Week Navigation Header -->
     <div class="week-nav-bar">
       <div class="nav-arrows">
-        <button class="nav-btn" type="button" aria-label="Semaine précédente (Flèche gauche)" title="Semaine précédente (←)" @click="emit('prevWeek')">
-          ◀
-        </button>
-        <button
-          type="button"
-          class="week-label-btn"
-          title="Cliquer pour choisir une date dans le calendrier"
-          @click="openDatePicker"
-        >
-          <span>📅 Semaine du {{ formatDateOnly(startDate) }}</span>
+        <Button
+          icon="pi pi-chevron-left"
+          severity="secondary"
+          text
+          rounded
+          aria-label="Semaine précédente (Flèche gauche)"
+          title="Semaine précédente (←)"
+          @click="emit('prevWeek')"
+        />
+
+        <div class="week-picker-trigger" @click="openDatePicker">
+          <Button
+            type="button"
+            severity="secondary"
+            outlined
+            class="week-label-btn"
+            title="Cliquer pour choisir une date dans le calendrier"
+          >
+            <i class="pi pi-calendar mr-2" style="color: var(--accent);" aria-hidden="true"></i>
+            <span>Semaine du {{ formatDateOnly(startDate) }}</span>
+          </Button>
           <input
             ref="datePickerRef"
             type="date"
@@ -379,15 +395,29 @@ const nextAvailableEvent = computed(() => {
             @change="onDatePickerChange($event.target.value)"
             @click.stop
           />
-        </button>
-        <button class="nav-btn" type="button" aria-label="Semaine suivante (Flèche droite)" title="Semaine suivante (→)" @click="emit('nextWeek')">
-          ▶
-        </button>
+        </div>
+
+        <Button
+          icon="pi pi-chevron-right"
+          severity="secondary"
+          text
+          rounded
+          aria-label="Semaine suivante (Flèche droite)"
+          title="Semaine suivante (→)"
+          @click="emit('nextWeek')"
+        />
       </div>
 
-      <button class="btn btn-outline today-btn" type="button" title="Revenir à la semaine actuelle (Touche T)" @click="emit('currentWeek')">
-        📍 Aujourd'hui
-      </button>
+      <Button
+        label="Aujourd'hui"
+        icon="pi pi-compass"
+        severity="secondary"
+        outlined
+        size="small"
+        class="today-btn"
+        title="Revenir à la semaine actuelle (Touche T)"
+        @click="emit('currentWeek')"
+      />
     </div>
 
     <!-- Mobile Day Dots -->
@@ -406,19 +436,22 @@ const nextAvailableEvent = computed(() => {
 
     <!-- Empty State -->
     <div v-if="rawEvents.length === 0" class="empty-state card">
-      <h3>🏖️ Pas de cours cette semaine</h3>
+      <div class="empty-state-icon">
+        <i class="pi pi-calendar-times" style="font-size: 2.2rem; color: var(--muted);"></i>
+      </div>
+      <h3>Pas de cours cette semaine</h3>
       <p v-if="nextAvailableEvent">
         Prochain cours le <strong>{{ formatDateOnly(nextAvailableEvent.start) }}</strong>
       </p>
       <p v-else>Aucun cours trouvé pour cet emploi du temps.</p>
-      <button
+      <Button
         v-if="nextAvailableEvent"
-        class="btn btn-primary"
-        type="button"
+        label="Aller au prochain cours"
+        icon="pi pi-arrow-right"
+        iconPos="right"
+        severity="primary"
         @click="emit('jumpToWeek', nextAvailableEvent.start)"
-      >
-        Aller au prochain cours ➔
-      </button>
+      />
     </div>
 
     <!-- Schedule Grid -->
@@ -451,7 +484,12 @@ const nextAvailableEvent = computed(() => {
         class="day-group"
         :class="{ today: isDayToday(day.date) }"
       >
-        <div class="day-title">{{ day.dayName }}</div>
+        <div class="day-title" :class="{ 'day-title-today': isDayToday(day.date) }" :title="day.dayName">
+          <span class="day-weekday">{{ getDayWeekday(day.date) }}</span>
+          <span class="day-number-badge" :class="{ 'badge-today': isDayToday(day.date) }">
+            {{ day.date.getDate() }}
+          </span>
+        </div>
         <div class="day-schedule" :style="{ minHeight: `${SCHEDULE_PX}px` }">
           <!-- Realtime red line indicator with timestamp badge -->
           <div
@@ -488,14 +526,14 @@ const nextAvailableEvent = computed(() => {
             @keydown.space.prevent="emit('eventClick', ev)"
           >
             <span v-if="isCercleEvent(ev)" class="cercle-event-badge">
-              🎉 Cercle Esisar
+              <i class="pi pi-sparkles" aria-hidden="true"></i> Cercle Esisar
             </span>
             <h4 class="event-title">{{ ev.summary }}</h4>
             <span v-if="ev.height >= 48" class="event-time">
-              {{ ev.displayTime }}
+              <i class="pi pi-clock" aria-hidden="true"></i> {{ ev.displayTime }}
             </span>
             <span v-if="ev.location && ev.height >= 60" class="event-location">
-              📍 {{ ev.location }}
+              <i class="pi pi-map-pin" aria-hidden="true"></i> {{ ev.location }}
             </span>
           </div>
         </div>
@@ -631,13 +669,18 @@ const nextAvailableEvent = computed(() => {
   overflow-x: auto;
 }
 
+.week-picker-trigger {
+  position: relative;
+  display: inline-flex;
+}
+
 .hour-rail {
   display: flex;
   flex-direction: column;
 }
 
 .hour-rail-spacer {
-  height: 38px;
+  height: 52px;
 }
 
 .hour-rail-body {
@@ -658,21 +701,60 @@ const nextAvailableEvent = computed(() => {
 }
 
 .day-title {
-  height: 38px;
+  height: 52px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-weight: 600;
-  font-size: 0.9rem;
+  gap: 2px;
   border-bottom: 2px solid var(--border);
   margin-bottom: 0.5rem;
-  text-transform: capitalize;
+  padding-bottom: 4px;
 }
 
-.day-group.today .day-title {
-  color: var(--accent);
-  border-color: var(--accent);
+.day-title.day-title-today {
+  border-bottom-color: var(--accent);
+}
+
+.day-weekday {
+  font-size: 0.72rem;
   font-weight: 700;
+  text-transform: uppercase;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+}
+
+.day-number-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text);
+  transition: all 0.2s ease;
+}
+
+.day-number-badge.badge-today {
+  background: var(--accent);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+  text-align: center;
+  gap: 0.75rem;
+}
+
+.empty-state-icon {
+  margin-bottom: 0.25rem;
 }
 
 .day-schedule {

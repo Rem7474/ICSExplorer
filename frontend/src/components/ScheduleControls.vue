@@ -81,6 +81,14 @@ const isPersonalMode = computed(() => unref(props.schedule.selectedMode) === "pe
 const isTeacherMode = computed(() => unref(props.schedule.selectedMode) === "teacher");
 const isRoomMode = computed(() => unref(props.schedule.selectedMode) === "room");
 
+const availableYears = computed(() => unref(props.schedule.availableYears) || []);
+const availableTracks = computed(() => unref(props.schedule.availableTracks) || []);
+const availableTypes = computed(() => unref(props.schedule.availableTypes) || []);
+const availableRestFiles = computed(() => unref(props.schedule.availableRestFiles) || []);
+const availableTeachers = computed(() => unref(props.schedule.availableTeachers) || []);
+const availableRooms = computed(() => unref(props.schedule.availableRooms) || []);
+const personalScheduleInfo = computed(() => unref(props.schedule.personalScheduleInfo) || null);
+
 const hasPersonalConfig = computed(() => {
   const meta = personalScheduleInfo.value;
   return Boolean(meta?.name && (meta?.universityId || meta?.resourceId || props.schedule.rawPersonalIcs || localStorage.getItem("edt_cached_personal_ics") || localStorage.getItem("edtPersonalCreds")));
@@ -92,14 +100,6 @@ const onSelectPersonalTab = () => {
     emit("openPersonalSchedule");
   }
 };
-
-const availableYears = computed(() => unref(props.schedule.availableYears) || []);
-const availableTracks = computed(() => unref(props.schedule.availableTracks) || []);
-const availableTypes = computed(() => unref(props.schedule.availableTypes) || []);
-const availableRestFiles = computed(() => unref(props.schedule.availableRestFiles) || []);
-const availableTeachers = computed(() => unref(props.schedule.availableTeachers) || []);
-const availableRooms = computed(() => unref(props.schedule.availableRooms) || []);
-const personalScheduleInfo = computed(() => unref(props.schedule.personalScheduleInfo) || null);
 
 const currentIcsUrl = computed(() => {
   const file = unref(props.schedule.selectedFile);
@@ -161,7 +161,7 @@ const copyShareLink = async () => {
         :aria-selected="isStudentMode"
         @click="schedule.selectedMode = 'student'"
       >
-        🎓 Promos Esisar
+        <i class="pi pi-users" style="margin-right: 0.35rem;" aria-hidden="true"></i> Élèves (Promos)
       </button>
       <button
         type="button"
@@ -171,7 +171,7 @@ const copyShareLink = async () => {
         :aria-selected="isPersonalMode"
         @click="onSelectPersonalTab"
       >
-        ⭐ Mon Planning ADE
+        <i class="pi pi-calendar" style="margin-right: 0.35rem;" aria-hidden="true"></i> Mon Planning ADE
       </button>
       <button
         type="button"
@@ -181,7 +181,7 @@ const copyShareLink = async () => {
         :aria-selected="isTeacherMode"
         @click="schedule.selectedMode = 'teacher'"
       >
-        👨‍🏫 Professeurs
+        <i class="pi pi-user" style="margin-right: 0.35rem;" aria-hidden="true"></i> Professeurs
       </button>
       <button
         type="button"
@@ -191,7 +191,7 @@ const copyShareLink = async () => {
         :aria-selected="isRoomMode"
         @click="schedule.selectedMode = 'room'"
       >
-        🚪 Salles
+        <i class="pi pi-building" style="margin-right: 0.35rem;" aria-hidden="true"></i> Salles
       </button>
     </div>
 
@@ -240,10 +240,10 @@ const copyShareLink = async () => {
             </div>
             <div class="personal-meta-tags">
               <span v-if="personalScheduleInfo?.universityName" class="meta-tag">
-                🏫 {{ personalScheduleInfo.universityName }}
+                <i class="pi pi-building mr-1" aria-hidden="true"></i> {{ personalScheduleInfo.universityName }}
               </span>
               <span v-if="personalScheduleInfo?.lastUpdated" class="meta-tag">
-                ⏱️ Mis à jour à {{ personalScheduleInfo.lastUpdated }}
+                <i class="pi pi-clock mr-1" aria-hidden="true"></i> Mis à jour à {{ personalScheduleInfo.lastUpdated }}
               </span>
             </div>
           </div>
@@ -256,7 +256,7 @@ const copyShareLink = async () => {
               :disabled="schedule.isLoading"
               @click="schedule.refreshPersonalSchedule"
             >
-              🔄 Actualiser
+              <i class="pi pi-sync mr-1" aria-hidden="true"></i> Actualiser
             </button>
 
             <button
@@ -265,7 +265,7 @@ const copyShareLink = async () => {
               title="Changer d'EDT ou d'identifiants"
               @click="emit('openPersonalSchedule')"
             >
-              🌳 Changer de planning
+              <i class="pi pi-sitemap mr-1" aria-hidden="true"></i> Changer de planning
             </button>
 
             <button
@@ -274,7 +274,7 @@ const copyShareLink = async () => {
               title="Télécharger l'emploi du temps au format .ics"
               @click="schedule.downloadPersonalIcs"
             >
-              📥 Télécharger .ics
+              <i class="pi pi-download mr-1" aria-hidden="true"></i> Télécharger .ics
             </button>
 
             <button
@@ -283,7 +283,7 @@ const copyShareLink = async () => {
               title="Revenir aux plannings des promotions de l'école"
               @click="schedule.clearPersonalSchedule"
             >
-              ❌ Mode promos Esisar
+              <i class="pi pi-times mr-1" aria-hidden="true"></i> Mode promos Esisar
             </button>
           </div>
         </div>
@@ -291,7 +291,7 @@ const copyShareLink = async () => {
         <!-- Unconfigured Personal Schedule Onboarding Card -->
         <div v-else class="personal-unconfigured-card span-3">
           <div class="unconfigured-content">
-            <div class="unconfigured-icon">⭐</div>
+            <div class="unconfigured-icon"><i class="pi pi-calendar-plus text-primary text-2xl"></i></div>
             <div class="unconfigured-info">
               <h3 class="unconfigured-title">Mon Planning Personnel ADE</h3>
               <p class="unconfigured-desc">
@@ -303,7 +303,7 @@ const copyShareLink = async () => {
               class="btn btn-primary btn-configure"
               @click="emit('openPersonalSchedule')"
             >
-              ✨ Configurer mon planning ADE
+              <i class="pi pi-sparkles mr-1" aria-hidden="true"></i> Configurer mon planning ADE
             </button>
           </div>
         </div>
@@ -395,7 +395,8 @@ const copyShareLink = async () => {
         :title="isCurrentPinned ? 'Retirer des favoris' : 'Épingler dans la barre des favoris'"
         @click="onTogglePin"
       >
-        {{ isCurrentPinned ? '★ Épinglé' : '☆ Épingler' }}
+        <i :class="isCurrentPinned ? 'pi pi-star-fill text-amber-500' : 'pi pi-star'" style="margin-right: 0.35rem;" aria-hidden="true"></i>
+        {{ isCurrentPinned ? 'Épinglé' : 'Épingler' }}
       </button>
 
       <button
@@ -404,7 +405,7 @@ const copyShareLink = async () => {
         title="Rechercher des salles libres sur un créneau"
         @click="emit('openEmptyRooms')"
       >
-        🚪 Salles vides
+        <i class="pi pi-building" style="margin-right: 0.35rem;" aria-hidden="true"></i> Salles vides
       </button>
 
       <a
@@ -414,7 +415,7 @@ const copyShareLink = async () => {
         class="btn btn-outline"
         title="Télécharger le fichier calendrier .ics brut"
       >
-        📥 Télécharger
+        <i class="pi pi-download" style="margin-right: 0.35rem;" aria-hidden="true"></i> Télécharger
       </a>
 
       <a
@@ -423,7 +424,7 @@ const copyShareLink = async () => {
         class="btn btn-outline"
         title="Ajouter au calendrier Google / Apple (mise à jour auto)"
       >
-        📅 S'abonner
+        <i class="pi pi-calendar-plus" style="margin-right: 0.35rem;" aria-hidden="true"></i> S'abonner
       </a>
 
       <button
@@ -432,7 +433,7 @@ const copyShareLink = async () => {
         title="Copier le lien partageable"
         @click="copyShareLink"
       >
-        🔗 Partager
+        <i class="pi pi-share-alt" style="margin-right: 0.35rem;" aria-hidden="true"></i> Partager
       </button>
     </div>
   </div>

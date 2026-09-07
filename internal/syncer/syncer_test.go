@@ -19,7 +19,7 @@ func TestSyncerWithMockServer(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/calendar")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nSUMMARY:Test Class\r\nDESCRIPTION:1A_Test\\nProf A\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"))
+		_, _ = w.Write([]byte("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nSUMMARY:Test Class\r\nDESCRIPTION:1A_Test\\nProf A\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"))
 	}))
 	defer mockServer.Close()
 
@@ -27,11 +27,11 @@ func TestSyncerWithMockServer(t *testing.T) {
 	outputDir := filepath.Join(tmpDir, "output")
 	roomsDir := filepath.Join(tmpDir, "rooms")
 	dataDir := filepath.Join(tmpDir, "data")
-	_ = os.MkdirAll(dataDir, 0755)
+	_ = os.MkdirAll(dataDir, 0o755)
 
 	// Create test IDS.txt
 	idsContent := "1A-Test;1001\n2A-Test;1002\n"
-	_ = os.WriteFile(filepath.Join(dataDir, "IDS.txt"), []byte(idsContent), 0644)
+	_ = os.WriteFile(filepath.Join(dataDir, "IDS.txt"), []byte(idsContent), 0o644)
 
 	cfg := &config.Config{
 		OutputDir:        outputDir,

@@ -28,7 +28,7 @@ func setupMockADEServer(t *testing.T) *httptest.Server {
 				return
 			}
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("BEGIN:VCALENDAR\r\nSUMMARY:Perso\r\nEND:VCALENDAR"))
+			_, _ = w.Write([]byte("BEGIN:VCALENDAR\r\nSUMMARY:Perso\r\nEND:VCALENDAR"))
 			return
 		}
 		if strings.HasSuffix(r.URL.Path, "etudiant/test") {
@@ -47,7 +47,7 @@ func setupMockAnonymousADEServer(t *testing.T) *httptest.Server {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("BEGIN:VCALENDAR\r\nSUMMARY:Perso sans identifiants\r\nEND:VCALENDAR"))
+		_, _ = w.Write([]byte("BEGIN:VCALENDAR\r\nSUMMARY:Perso sans identifiants\r\nEND:VCALENDAR"))
 	}))
 }
 
@@ -84,7 +84,7 @@ func TestHandleUniversitiesList(t *testing.T) {
 	srv.registerRoutes(mux)
 	handler := srv.applyMiddlewares(mux)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/universities", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/universities", http.NoBody)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -120,7 +120,7 @@ func newPersonalCalendarHandler(t *testing.T) http.Handler {
 func TestHandlePersonalCalendar(t *testing.T) {
 	t.Run("method not allowed", func(t *testing.T) {
 		handler := newPersonalCalendarHandler(t)
-		req := httptest.NewRequest(http.MethodGet, "/api/personal-calendar", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/personal-calendar", http.NoBody)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusMethodNotAllowed {
@@ -224,7 +224,7 @@ func TestHandlePersonalCalendar(t *testing.T) {
 			}
 			if r.URL.Path == "/jsp/custom/modules/plannings/anonymous_cal.jsp" {
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte("BEGIN:VCALENDAR\r\nSUMMARY:Direct Token\r\nEND:VCALENDAR"))
+				_, _ = w.Write([]byte("BEGIN:VCALENDAR\r\nSUMMARY:Direct Token\r\nEND:VCALENDAR"))
 				return
 			}
 			w.WriteHeader(http.StatusNotFound)

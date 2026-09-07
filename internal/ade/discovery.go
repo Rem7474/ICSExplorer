@@ -35,7 +35,7 @@ var (
 func DiscoverInstitutions(ctx context.Context, rootURL string) ([]Institution, error) {
 	httpClient := &http.Client{Timeout: 15 * time.Second}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rootURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rootURL, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create discovery request: %w", err)
 	}

@@ -53,7 +53,7 @@ func TestLoadStaticIDs(t *testing.T) {
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "test-ids.txt")
 	content := "1A-Prépa;15388\n2A-Prépa;4858\n# Comment line\n\nRoomA,1001\n"
-	if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(testFile, []byte(content), 0o644); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 

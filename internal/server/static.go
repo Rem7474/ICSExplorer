@@ -102,9 +102,9 @@ func (s *Server) renderAutoIndex(w http.ResponseWriter, dir string) {
 	sb.WriteString("<!DOCTYPE html><html><head><title>Index of /output/</title></head><body><h1>Index of /output/</h1><hr><ul>")
 	for _, e := range entries {
 		name := e.Name()
-		sb.WriteString(fmt.Sprintf(`<li><a href="%s">%s</a></li>`, name, name))
+		fmt.Fprintf(&sb, `<li><a href=%q>%s</a></li>`, name, name)
 	}
 	sb.WriteString("</ul><hr></body></html>")
 
-	w.Write([]byte(sb.String()))
+	_, _ = w.Write([]byte(sb.String()))
 }

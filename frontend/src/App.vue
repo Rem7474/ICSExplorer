@@ -133,8 +133,9 @@ const onJumpToWeek = (date) => {
         <WeekStats
           v-else
           :events="schedule.weekEvents"
-          :active-filter="schedule.selectedSubjectFilter"
+          :disabled-subjects="schedule.disabledSubjects"
           @filter="schedule.toggleSubjectFilter"
+          @reset="schedule.resetSubjectFilters"
         />
 
         <!-- Main Schedule Grid -->

@@ -75,20 +75,17 @@ func (s *Syncer) Sync(ctx context.Context) error {
 	s.logger.Info("starting synchronization cycle", "academic_year", s.cfg.AcademicYear, "concurrency", s.cfg.Concurrency)
 
 	// Ensure destination directories exist
-	if err := os.MkdirAll(s.cfg.OutputDir, 0755); err != nil {
+	if err := os.MkdirAll(s.cfg.OutputDir, 0o755); err != nil {
 		s.finishSync(startTime, fmt.Errorf("failed to create output dir: %w", err))
 		return err
 	}
-	if err := os.MkdirAll(s.cfg.RoomsOutputDir, 0755); err != nil {
+	if err := os.MkdirAll(s.cfg.RoomsOutputDir, 0o755); err != nil {
 		s.finishSync(startTime, fmt.Errorf("failed to create rooms output dir: %w", err))
 		return err
 	}
 
 	// Step 1: Discover resources (dynamic crawler or static fallback)
-	resources, err := s.discoverResources(ctx)
-	if err != nil {
-		s.logger.Warn("resource discovery warning, using fallback", "error", err)
-	}
+	resources := s.discoverResources(ctx)
 
 	if len(resources) == 0 {
 		err := fmt.Errorf("no resources available to synchronize")
@@ -106,7 +103,7 @@ func (s *Syncer) Sync(ctx context.Context) error {
 		} else {
 			cercleData = cData
 			// Save raw cercle.ics in output directory
-			_ = os.WriteFile(filepath.Join(s.cfg.OutputDir, "cercle.ics"), cData, 0644)
+			_ = os.WriteFile(filepath.Join(s.cfg.OutputDir, "cercle.ics"), cData, 0o644)
 			s.logger.Info("Cercle calendar downloaded successfully")
 		}
 	}
@@ -133,7 +130,7 @@ func (s *Syncer) Sync(ctx context.Context) error {
 
 	for i := 0; i < workerCount; i++ {
 		wg.Add(1)
-		go func(workerID int) {
+		go func() {
 			defer wg.Done()
 			for res := range resChan {
 				select {
@@ -152,7 +149,7 @@ func (s *Syncer) Sync(ctx context.Context) error {
 					}
 				}
 			}
-		}(i)
+		}()
 	}
 
 	wg.Wait()
@@ -203,7 +200,7 @@ func (s *Syncer) finishSync(startTime time.Time, err error) {
 	}
 }
 
-func (s *Syncer) discoverResources(ctx context.Context) ([]ade.Resource, error) {
+func (s *Syncer) discoverResources(ctx context.Context) []ade.Resource {
 	// If credentials provided, attempt dynamic discovery first
 	if s.cfg.AgalanLogin != "" && s.cfg.AgalanPassword != "" {
 		s.logger.Info("crawling ADE tree dynamically for promo resources...")
@@ -215,7 +212,7 @@ func (s *Syncer) discoverResources(ctx context.Context) ([]ade.Resource, error) 
 			if rooms, err := ade.LoadStaticIDs(roomsFile, true); err == nil {
 				discovered = append(discovered, rooms...)
 			}
-			return discovered, nil
+			return discovered
 		}
 		s.logger.Warn("dynamic discovery failed or empty, falling back to static IDS.txt", "error", err)
 	}
@@ -236,7 +233,7 @@ func (s *Syncer) discoverResources(ctx context.Context) ([]ade.Resource, error) 
 		s.logger.Warn("failed to load static Rooms-IDS.txt", "path", roomsFile, "error", err)
 	}
 
-	return all, nil
+	return all
 }
 
 func (s *Syncer) processResource(ctx context.Context, res ade.Resource, cercleData []byte) error {
@@ -273,7 +270,7 @@ func (s *Syncer) processResource(ctx context.Context, res ade.Resource, cercleDa
 
 	// Atomic file write using temporary file
 	tmpPath := targetPath + ".tmp"
-	if err := os.WriteFile(tmpPath, calendarBytes, 0644); err != nil {
+	if err := os.WriteFile(tmpPath, calendarBytes, 0o644); err != nil {
 		return fmt.Errorf("failed to write tmp file: %w", err)
 	}
 
@@ -308,7 +305,7 @@ func (s *Syncer) generateFilesIndex() error {
 
 	filesJsonPath := filepath.Join(s.cfg.OutputDir, "files.json")
 	tmpPath := filesJsonPath + ".tmp"
-	if err := os.WriteFile(tmpPath, jsonData, 0644); err != nil {
+	if err := os.WriteFile(tmpPath, jsonData, 0o644); err != nil {
 		return err
 	}
 

@@ -1,7 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useSchedule } from "../composables/useSchedule.js";
 
 describe("useSchedule composable", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
   it("initializes with safe default empty state without crashing", () => {
     const schedule = useSchedule();
 
@@ -51,14 +55,49 @@ describe("useSchedule composable", () => {
     expect(schedule.currentWeekStart.value).toBeInstanceOf(Date);
   });
 
-  it("toggles subject filter properly", () => {
+  it("toggles subject visibility / deselection properly", () => {
     const schedule = useSchedule();
 
-    expect(schedule.selectedSubjectFilter.value).toBeNull();
+    expect(schedule.disabledSubjects.value).toEqual([]);
     schedule.toggleSubjectFilter("IN");
+    expect(schedule.disabledSubjects.value).toEqual(["IN"]);
     expect(schedule.selectedSubjectFilter.value).toBe("IN");
+
+    schedule.toggleSubjectFilter("MAC");
+    expect(schedule.disabledSubjects.value).toEqual(["IN", "MAC"]);
+
     schedule.toggleSubjectFilter("IN");
+    expect(schedule.disabledSubjects.value).toEqual(["MAC"]);
+
+    schedule.resetSubjectFilters();
+    expect(schedule.disabledSubjects.value).toEqual([]);
     expect(schedule.selectedSubjectFilter.value).toBeNull();
+  });
+
+  it("filters out deselected subjects from displayedWeekEvents", () => {
+    const schedule = useSchedule();
+    const eventTime = new Date(schedule.currentWeekStart.value);
+    eventTime.setHours(10, 0, 0, 0);
+    const eventEnd = new Date(eventTime.getTime() + 3600000);
+    // Two events during current week
+    schedule.events.value = [
+      { summary: "IN101 Algo", start: eventTime, end: eventEnd },
+      { summary: "Management Projet", start: eventTime, end: eventEnd },
+    ];
+
+    expect(schedule.displayedWeekEvents.value.length).toBe(2);
+    // Deselect IN
+    schedule.toggleSubjectFilter("IN");
+    expect(schedule.displayedWeekEvents.value.length).toBe(1);
+    expect(schedule.displayedWeekEvents.value[0].summary).toBe("Management Projet");
+
+    // Deselect MAC as well
+    schedule.toggleSubjectFilter("MAC");
+    expect(schedule.displayedWeekEvents.value.length).toBe(0);
+
+    // Reset
+    schedule.resetSubjectFilters();
+    expect(schedule.displayedWeekEvents.value.length).toBe(2);
   });
 
   it("loads personal events from raw ICS text, sets meta, and switches to personal mode", () => {
@@ -102,5 +141,40 @@ describe("useSchedule composable", () => {
     expect(schedule.selectedMode.value).toBe("student");
     expect(localStorage.getItem("cachedPersonalIcs")).toBeNull();
     expect(localStorage.getItem("personalAdeCredentials")).toBeNull();
+  });
+
+  it("refreshPersonalSchedule does nothing and sets statusMessage when no credentials are saved", async () => {
+    const schedule = useSchedule();
+    localStorage.removeItem("edtPersonalCreds");
+
+    await schedule.refreshPersonalSchedule();
+
+    expect(schedule.statusMessage.value).toContain("Aucun identifiant");
+    expect(schedule.isLoading.value).toBe(false);
+  });
+
+  it("refreshPersonalSchedule sets error statusMessage on network failure", async () => {
+    const schedule = useSchedule();
+
+    // Save fake credentials so refresh attempts the fetch
+    localStorage.setItem(
+      "edtPersonalCreds",
+      JSON.stringify({ adeUrl: "https://example.com", login: "u", password: "p", branchPath: [] })
+    );
+
+    // Mock fetchPersonalCalendar to throw
+    vi.mock("../ics/api.js", () => ({
+      fetchFileList: vi.fn().mockResolvedValue([]),
+      fetchIcsText: vi.fn(),
+      fetchPersonalCalendar: vi.fn().mockRejectedValue(new Error("Network error")),
+      fetchTreeNodes: vi.fn(),
+      fetchUniversities: vi.fn().mockResolvedValue([]),
+      fileUrl: vi.fn(),
+    }));
+
+    await schedule.refreshPersonalSchedule();
+
+    expect(schedule.isLoading.value).toBe(false);
+    expect(schedule.statusMessage.value).toContain("Impossible d'actualiser");
   });
 });

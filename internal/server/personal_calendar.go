@@ -13,7 +13,8 @@ import (
 )
 
 // maxPersonalCalendarBodyBytes bounds the request body size for /api/personal-calendar.
-const maxPersonalCalendarBodyBytes = 4096
+// 16 KiB is enough for long branchPath arrays (10+ deep node IDs) plus credentials.
+const maxPersonalCalendarBodyBytes = 16384
 
 type personalCalendarRequest struct {
 	UniversityID string   `json:"universityId"`
