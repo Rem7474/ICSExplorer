@@ -22,16 +22,16 @@ func setupTestServer(t *testing.T) (*Server, *config.Config, string) {
 	roomsDir := filepath.Join(tmpDir, "rooms")
 	staticDir := filepath.Join(tmpDir, "static")
 
-	_ = os.MkdirAll(outputDir, 0755)
-	_ = os.MkdirAll(roomsDir, 0755)
-	_ = os.MkdirAll(staticDir, 0755)
+	_ = os.MkdirAll(outputDir, 0o755)
+	_ = os.MkdirAll(roomsDir, 0o755)
+	_ = os.MkdirAll(staticDir, 0o755)
 
 	// Create sample index.html
-	_ = os.WriteFile(filepath.Join(staticDir, "index.html"), []byte("<html><body>EDT App</body></html>"), 0644)
+	_ = os.WriteFile(filepath.Join(staticDir, "index.html"), []byte("<html><body>EDT App</body></html>"), 0o644)
 
 	// Create sample .ics files
-	_ = os.WriteFile(filepath.Join(outputDir, "1A-Test.ics"), make([]byte, 60000), 0644)
-	_ = os.WriteFile(filepath.Join(roomsDir, "A166.ics"), []byte("BEGIN:VCALENDAR\r\nEND:VCALENDAR"), 0644)
+	_ = os.WriteFile(filepath.Join(outputDir, "1A-Test.ics"), make([]byte, 60000), 0o644)
+	_ = os.WriteFile(filepath.Join(roomsDir, "A166.ics"), []byte("BEGIN:VCALENDAR\r\nEND:VCALENDAR"), 0o644)
 
 	cfg := &config.Config{
 		Port:             8080,

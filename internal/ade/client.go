@@ -82,7 +82,7 @@ func (c *Client) makeRequest(ctx context.Context, endpoint string) (*http.Respon
 		fullURL = fmt.Sprintf("%s/%s", c.baseURL, strings.TrimLeft(endpoint, "/"))
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -130,7 +130,7 @@ func (c *Client) ensureSession(ctx context.Context) error {
 	}
 
 	entry := c.entryURL()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, entry, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, entry, http.NoBody)
 	if err != nil {
 		return fmt.Errorf("failed to create session-init request: %w", err)
 	}
@@ -231,14 +231,14 @@ func (c *Client) FetchTreePage(ctx context.Context, path string) ([]byte, error)
 const maxTreeDepth = 8
 
 // CollectLeavesUnderPath opens the branchPath in a single session and recursively collects all leaf IDs.
-func (c *Client) CollectLeavesUnderPath(ctx context.Context, dataToken string, category string, branchPath []string) ([]string, error) {
+func (c *Client) CollectLeavesUnderPath(ctx context.Context, dataToken, category string, branchPath []string) ([]string, error) {
 	if category == "" {
 		category = "trainee"
 	}
 
 	// 1. Establish session ONCE
 	directPlanningURL := fmt.Sprintf("%s/jsp/custom/modules/plannings/direct_planning.jsp?data=%s", c.baseURL, dataToken)
-	req1, err := http.NewRequestWithContext(ctx, http.MethodGet, directPlanningURL, nil)
+	req1, err := http.NewRequestWithContext(ctx, http.MethodGet, directPlanningURL, http.NoBody)
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +252,7 @@ func (c *Client) CollectLeavesUnderPath(ctx context.Context, dataToken string, c
 	// 2. Open category
 	catURL := fmt.Sprintf("%s/jsp/standard/gui/tree.jsp?category=%s&expand=false&forceLoad=false&reload=false&scroll=0",
 		c.baseURL, url.QueryEscape(category))
-	reqCat, err := http.NewRequestWithContext(ctx, http.MethodGet, catURL, nil)
+	reqCat, err := http.NewRequestWithContext(ctx, http.MethodGet, catURL, http.NoBody)
 	if err != nil {
 		return nil, err
 	}
@@ -273,7 +273,7 @@ func (c *Client) CollectLeavesUnderPath(ctx context.Context, dataToken string, c
 		}
 		treeURL := fmt.Sprintf("%s/jsp/standard/gui/tree.jsp?branchId=%s&expand=false&forceLoad=false&reload=false&scroll=0",
 			c.baseURL, url.QueryEscape(bID))
-		reqB, err := http.NewRequestWithContext(ctx, http.MethodGet, treeURL, nil)
+		reqB, err := http.NewRequestWithContext(ctx, http.MethodGet, treeURL, http.NoBody)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create branch request for %s: %w", bID, err)
 		}
@@ -299,7 +299,7 @@ func (c *Client) CollectLeavesUnderPath(ctx context.Context, dataToken string, c
 	walk = func(currentPath []string, currentID string) error {
 		treeURL := fmt.Sprintf("%s/jsp/standard/gui/tree.jsp?branchId=%s&expand=false&forceLoad=false&reload=false&scroll=0",
 			c.baseURL, url.QueryEscape(currentID))
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, treeURL, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, treeURL, http.NoBody)
 		if err != nil {
 			return fmt.Errorf("failed to create walk request for %s: %w", currentID, err)
 		}
@@ -340,7 +340,7 @@ func (c *Client) CollectLeavesUnderPath(ctx context.Context, dataToken string, c
 
 // FetchDirectTokenCalendar fetches the iCalendar from an ADE Direct Planning instance
 // authenticated via an encrypted data token (e.g. /direct/index.jsp?data=...).
-func (c *Client) FetchDirectTokenCalendar(ctx context.Context, dataToken string, resourceIDs string, branchPath []string) ([]byte, error) {
+func (c *Client) FetchDirectTokenCalendar(ctx context.Context, dataToken, resourceIDs string, branchPath []string) ([]byte, error) {
 	effectiveResources := resourceIDs
 
 	// If branchPath is provided, recursively discover all descendant leaves under this branch in a single fast session
@@ -351,7 +351,7 @@ func (c *Client) FetchDirectTokenCalendar(ctx context.Context, dataToken string,
 	}
 
 	directPlanningURL := fmt.Sprintf("%s/jsp/custom/modules/plannings/direct_planning.jsp?data=%s", c.baseURL, dataToken)
-	req1, err := http.NewRequestWithContext(ctx, http.MethodGet, directPlanningURL, nil)
+	req1, err := http.NewRequestWithContext(ctx, http.MethodGet, directPlanningURL, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create direct planning request: %w", err)
 	}
@@ -375,7 +375,7 @@ func (c *Client) FetchDirectTokenCalendar(ctx context.Context, dataToken string,
 	for _, projID := range projectCandidates {
 		calURL := fmt.Sprintf("%s/jsp/custom/modules/plannings/anonymous_cal.jsp?resources=%s&projectId=%d&startDay=01&startMonth=09&startYear=%d&endDay=31&endMonth=08&endYear=%d&calType=ical",
 			c.baseURL, effectiveResources, projID, startYear, endYear)
-		req2, err := http.NewRequestWithContext(ctx, http.MethodGet, calURL, nil)
+		req2, err := http.NewRequestWithContext(ctx, http.MethodGet, calURL, http.NoBody)
 		if err != nil {
 			continue
 		}
@@ -410,4 +410,3 @@ func (c *Client) FetchDirectTokenCalendar(ctx context.Context, dataToken string,
 
 	return bestBody, nil
 }
-

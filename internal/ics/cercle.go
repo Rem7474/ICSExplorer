@@ -33,7 +33,7 @@ func FetchCercleCalendar(ctx context.Context, url string) ([]byte, error) {
 }
 
 // MergeCercleEvents merges Cercle VEVENT blocks into student calendar data without duplicate UIDs.
-func MergeCercleEvents(studentIcsData []byte, cercleIcsData []byte) ([]byte, error) {
+func MergeCercleEvents(studentIcsData, cercleIcsData []byte) ([]byte, error) {
 	studentLines := UnfoldLines(studentIcsData)
 	cercleLines := UnfoldLines(cercleIcsData)
 

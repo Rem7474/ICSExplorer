@@ -57,11 +57,11 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		"sync_stats":    stats,
 		"health_report": report,
 		"config": map[string]any{
-			"academic_year":  s.cfg.AcademicYear,
-			"sync_interval":  s.cfg.SyncInterval.String(),
-			"sync_cercle":    s.cfg.SyncCercle,
-			"concurrency":    s.cfg.Concurrency,
-			"max_data_age":   s.cfg.MaxDataAge.String(),
+			"academic_year": s.cfg.AcademicYear,
+			"sync_interval": s.cfg.SyncInterval.String(),
+			"sync_cercle":   s.cfg.SyncCercle,
+			"concurrency":   s.cfg.Concurrency,
+			"max_data_age":  s.cfg.MaxDataAge.String(),
 		},
 	}
 

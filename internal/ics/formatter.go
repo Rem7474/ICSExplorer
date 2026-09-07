@@ -10,7 +10,7 @@ var (
 	regex1ADefault = regexp.MustCompile(`^1AM[A-Z]{2}\d{3}_\d{4}_S\d_[A-Z]{2}_[A-Z]\d`)
 	regex2ADefault = regexp.MustCompile(`^2AM[A-Z]{2}\d{3}_\d{4}_S\d_[A-Z]{2}_[A-Z]\d`)
 	regex3AProjet  = regexp.MustCompile(`^3AM[A-Z]{2}\d{3}_\d{4}_S\d_PROJET_[A-Z]\d`)
-	regexCommon    = regexp.MustCompile(`^\dA(PP)?((-S\d(-TP\d[A-C])?)|-MISTRE)?$`)
+	regexCommon    = regexp.MustCompile(`^\dA(PP)?((-S\d(-TP\d[ABC])?)|-MISTRE)?$`)
 	regexSoutien   = regexp.MustCompile(`^3AM[A-Z]{2}\d{3}_\d{4}_S\d_(IUT_[A-Z]{2}_[A-Z]\d|[A-Z]{2}_CPGE_[A-Z]\d)$`)
 	regexInverted  = regexp.MustCompile(`AM[A-Z]{2}\d{3}_\d{4}_S\d_[A-Z ]+_[A-Z]\d`)
 )
@@ -23,13 +23,14 @@ func FormatCalendarLines(lines []string) []string {
 	for i := 0; i < len(lines); i++ {
 		line := lines[i]
 
-		if strings.HasPrefix(line, "SUMMARY:") {
+		switch {
+		case strings.HasPrefix(line, "SUMMARY:"):
 			val := strings.TrimPrefix(line, "SUMMARY:")
 			val = strings.ReplaceAll(val, "_", " ")
 			lastSummary = val
 			result = append(result, "SUMMARY:"+val)
 
-		} else if strings.HasPrefix(line, "LOCATION:") {
+		case strings.HasPrefix(line, "LOCATION:"):
 			val := strings.TrimPrefix(line, "LOCATION:")
 			val = strings.ReplaceAll(val, " (V)", "")
 			val = strings.ReplaceAll(val, "_CM", "")
@@ -38,12 +39,12 @@ func FormatCalendarLines(lines []string) []string {
 			}
 			result = append(result, "LOCATION:"+val)
 
-		} else if strings.HasPrefix(line, "DESCRIPTION:") {
+		case strings.HasPrefix(line, "DESCRIPTION:"):
 			// Format the description line using our rule engine
 			formattedDesc := formatDescriptionLine(line, lastSummary)
 			result = append(result, formattedDesc)
 
-		} else {
+		default:
 			result = append(result, line)
 		}
 	}
@@ -73,7 +74,7 @@ func formatDescriptionLine(descLine, realCourse string) string {
 	course := parts[0]
 
 	// Check if course starts with digit (e.g. 1A..., 2A..., 3A...)
-	if len(course) > 0 && course[0] >= '0' && course[0] <= '9' {
+	if course != "" && course[0] >= '0' && course[0] <= '9' {
 		courseParts := strings.Split(course, "_")
 
 		// Case: 1A
@@ -81,7 +82,7 @@ func formatDescriptionLine(descLine, realCourse string) string {
 			if strings.Contains(realCourse, "HA") {
 				if len(parts) >= 2 {
 					p1 := parts[1]
-					if len(p1) > 0 && p1[0] >= '0' && p1[0] <= '9' && len(parts) >= 3 {
+					if p1 != "" && p1[0] >= '0' && p1[0] <= '9' && len(parts) >= 3 {
 						return fmt.Sprintf("DESCRIPTION:Kholle avec %s, de %s", parts[2], p1)
 					} else if strings.HasPrefix(p1, "(") {
 						return "DESCRIPTION:Kholle avec eleves"

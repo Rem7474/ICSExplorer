@@ -9,18 +9,18 @@ import (
 
 // HealthReport contains detailed diagnostic info about data freshness and file integrity.
 type HealthReport struct {
-	Status           string        `json:"status"` // "healthy" or "unhealthy"
-	Fresh            bool          `json:"fresh"`
-	LastSync         *time.Time    `json:"last_sync,omitempty"`
-	LastSyncAge      string        `json:"last_sync_age,omitempty"`
-	FilesCount       int           `json:"files_count"`
-	StaleFiles       []string      `json:"stale_files,omitempty"`
-	SmallFiles       []string      `json:"small_files,omitempty"`
-	MaxDataAge       string        `json:"max_data_age"`
-	MinFileSizeBytes int64         `json:"min_file_size_bytes"`
-	Errors           []string      `json:"errors,omitempty"`
-	Uptime           string        `json:"uptime"`
-	UptimeSeconds    int64         `json:"uptime_seconds"`
+	Status           string     `json:"status"` // "healthy" or "unhealthy"
+	Fresh            bool       `json:"fresh"`
+	LastSync         *time.Time `json:"last_sync,omitempty"`
+	LastSyncAge      string     `json:"last_sync_age,omitempty"`
+	FilesCount       int        `json:"files_count"`
+	StaleFiles       []string   `json:"stale_files,omitempty"`
+	SmallFiles       []string   `json:"small_files,omitempty"`
+	MaxDataAge       string     `json:"max_data_age"`
+	MinFileSizeBytes int64      `json:"min_file_size_bytes"`
+	Errors           []string   `json:"errors,omitempty"`
+	Uptime           string     `json:"uptime"`
+	UptimeSeconds    int64      `json:"uptime_seconds"`
 }
 
 var serverStartTime = time.Now()

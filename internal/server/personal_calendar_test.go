@@ -28,7 +28,7 @@ func setupMockADEServer(t *testing.T) *httptest.Server {
 				return
 			}
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("BEGIN:VCALENDAR\r\nSUMMARY:Perso\r\nEND:VCALENDAR"))
+			_, _ = w.Write([]byte("BEGIN:VCALENDAR\r\nSUMMARY:Perso\r\nEND:VCALENDAR"))
 			return
 		}
 		if strings.HasSuffix(r.URL.Path, "etudiant/test") {
@@ -47,7 +47,7 @@ func setupMockAnonymousADEServer(t *testing.T) *httptest.Server {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("BEGIN:VCALENDAR\r\nSUMMARY:Perso sans identifiants\r\nEND:VCALENDAR"))
+		_, _ = w.Write([]byte("BEGIN:VCALENDAR\r\nSUMMARY:Perso sans identifiants\r\nEND:VCALENDAR"))
 	}))
 }
 

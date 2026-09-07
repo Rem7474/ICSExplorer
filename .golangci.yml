@@ -1,4 +1,4 @@
-﻿run:
+run:
   timeout: 5m
   tests: true
 
@@ -30,6 +30,7 @@ linters-settings:
   gosec:
     excludes:
       - G304  # File path provided as taint input -- acceptable for ICS file serving
+      - G306  # Public/static ICS calendar files can have 0644 permissions
   gocritic:
     enabled-tags:
       - diagnostic

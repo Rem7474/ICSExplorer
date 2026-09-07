@@ -50,9 +50,10 @@ func main() {
 	if *syncOnly {
 		logger.Info("running in one-shot sync mode")
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-		defer cancel()
+		err := syncService.Sync(ctx)
+		cancel()
 
-		if err := syncService.Sync(ctx); err != nil {
+		if err != nil {
 			logger.Error("one-shot sync failed", "error", err)
 			os.Exit(1)
 		}

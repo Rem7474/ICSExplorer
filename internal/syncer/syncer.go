@@ -85,10 +85,7 @@ func (s *Syncer) Sync(ctx context.Context) error {
 	}
 
 	// Step 1: Discover resources (dynamic crawler or static fallback)
-	resources, err := s.discoverResources(ctx)
-	if err != nil {
-		s.logger.Warn("resource discovery warning, using fallback", "error", err)
-	}
+	resources := s.discoverResources(ctx)
 
 	if len(resources) == 0 {
 		err := fmt.Errorf("no resources available to synchronize")
@@ -133,7 +130,7 @@ func (s *Syncer) Sync(ctx context.Context) error {
 
 	for i := 0; i < workerCount; i++ {
 		wg.Add(1)
-		go func(workerID int) {
+		go func() {
 			defer wg.Done()
 			for res := range resChan {
 				select {
@@ -152,7 +149,7 @@ func (s *Syncer) Sync(ctx context.Context) error {
 					}
 				}
 			}
-		}(i)
+		}()
 	}
 
 	wg.Wait()
@@ -203,7 +200,7 @@ func (s *Syncer) finishSync(startTime time.Time, err error) {
 	}
 }
 
-func (s *Syncer) discoverResources(ctx context.Context) ([]ade.Resource, error) {
+func (s *Syncer) discoverResources(ctx context.Context) []ade.Resource {
 	// If credentials provided, attempt dynamic discovery first
 	if s.cfg.AgalanLogin != "" && s.cfg.AgalanPassword != "" {
 		s.logger.Info("crawling ADE tree dynamically for promo resources...")
@@ -215,7 +212,7 @@ func (s *Syncer) discoverResources(ctx context.Context) ([]ade.Resource, error) 
 			if rooms, err := ade.LoadStaticIDs(roomsFile, true); err == nil {
 				discovered = append(discovered, rooms...)
 			}
-			return discovered, nil
+			return discovered
 		}
 		s.logger.Warn("dynamic discovery failed or empty, falling back to static IDS.txt", "error", err)
 	}
@@ -236,7 +233,7 @@ func (s *Syncer) discoverResources(ctx context.Context) ([]ade.Resource, error) 
 		s.logger.Warn("failed to load static Rooms-IDS.txt", "path", roomsFile, "error", err)
 	}
 
-	return all, nil
+	return all
 }
 
 func (s *Syncer) processResource(ctx context.Context, res ade.Resource, cercleData []byte) error {

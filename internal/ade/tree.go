@@ -67,10 +67,10 @@ func (c *Client) FetchTreeNodes(ctx context.Context, category string, branchPath
 	return ParseChildrenOf(string(ics.EnsureUTF8(data)), targetParentID), nil
 }
 
-func (c *Client) fetchDirectTokenTreeNodes(ctx context.Context, dataToken string, category string, branchPath []string) ([]TreeNode, error) {
+func (c *Client) fetchDirectTokenTreeNodes(ctx context.Context, dataToken, category string, branchPath []string) ([]TreeNode, error) {
 	// 1. Ensure session
 	directPlanningURL := fmt.Sprintf("%s/jsp/custom/modules/plannings/direct_planning.jsp?data=%s", c.baseURL, dataToken)
-	req1, err := http.NewRequestWithContext(ctx, http.MethodGet, directPlanningURL, nil)
+	req1, err := http.NewRequestWithContext(ctx, http.MethodGet, directPlanningURL, http.NoBody)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func (c *Client) fetchDirectTokenTreeNodes(ctx context.Context, dataToken string
 	// 2. Open category in session
 	catURL := fmt.Sprintf("%s/jsp/standard/gui/tree.jsp?category=%s&expand=false&forceLoad=false&reload=false&scroll=0",
 		c.baseURL, url.QueryEscape(category))
-	reqCat, err := http.NewRequestWithContext(ctx, http.MethodGet, catURL, nil)
+	reqCat, err := http.NewRequestWithContext(ctx, http.MethodGet, catURL, http.NoBody)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ func (c *Client) fetchDirectTokenTreeNodes(ctx context.Context, dataToken string
 		}
 		treeURL := fmt.Sprintf("%s/jsp/standard/gui/tree.jsp?branchId=%s&expand=false&forceLoad=false&reload=false&scroll=0",
 			c.baseURL, url.QueryEscape(bID))
-		reqB, err := http.NewRequestWithContext(ctx, http.MethodGet, treeURL, nil)
+		reqB, err := http.NewRequestWithContext(ctx, http.MethodGet, treeURL, http.NoBody)
 		if err != nil {
 			return nil, err
 		}
@@ -135,8 +135,8 @@ func (c *Client) fetchDirectTokenTreeNodes(ctx context.Context, dataToken string
 }
 
 var (
-	reBranch = regexp.MustCompile(`(?is)openBranch\(['"]?([0-9]+)['"]?\)[^>]*>.*?<SPAN class="treebranch"><a[^>]*>([^<]+)</a>`)
-	reLeaf   = regexp.MustCompile(`(?is)check\(['"]?([0-9]+)['"]?[^>]*\)[^>]*>([^<]+)</a>`)
+	reBranch = regexp.MustCompile(`(?is)openBranch\(['"]?(\d+)['"]?\)[^>]*>.*?<SPAN class="treebranch"><a[^>]*>([^<]+)</a>`)
+	reLeaf   = regexp.MustCompile(`(?is)check\(['"]?(\d+)['"]?[^>]*\)[^>]*>([^<]+)</a>`)
 )
 
 type parsedLine struct {
@@ -147,7 +147,7 @@ type parsedLine struct {
 }
 
 // ParseChildrenOf parses an ADE tree.jsp HTML payload and extracts direct children of targetParentID.
-func ParseChildrenOf(html string, targetParentID string) []TreeNode {
+func ParseChildrenOf(html, targetParentID string) []TreeNode {
 	var allLines []parsedLine
 	divs := strings.Split(html, "<DIV class=\"treeline\">")
 
