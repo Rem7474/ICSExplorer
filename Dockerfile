@@ -43,12 +43,9 @@ COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Copy seed data if present, or create default directories
-COPY .gitattributes data* /tmp/seed/
-RUN mkdir -p /app/seed-data /app/data/output /app/data/rooms \
-    && if [ -d /tmp/seed/data ]; then cp /tmp/seed/data/*.txt /app/seed-data/ 2>/dev/null || true; cp /tmp/seed/data/*.txt /app/data/ 2>/dev/null || true; fi \
-    && rm -rf /tmp/seed \
-    && chown -R appuser:appgroup /app/data /app/seed-data
+# Create data directories with appropriate permissions
+RUN mkdir -p /app/data/output /app/data/rooms \
+    && chown -R appuser:appgroup /app/data
 
 ENV PORT=8080 \
     DATA_DIR=/app/data \

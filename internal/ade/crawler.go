@@ -1,12 +1,9 @@
 package ade
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -201,51 +198,6 @@ func extractResourceID(href string) string {
 	return strings.Trim(parts[0], "'\" )")
 }
 
-// LoadStaticIDs loads resources from a semicolon or comma-separated file (e.g. IDS.txt or Rooms-IDS.txt).
-// It automatically converts content to valid UTF-8, handling Latin-1 / ANSI accented characters properly.
-func LoadStaticIDs(filePath string, isRoom bool) ([]Resource, error) {
-	raw, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("could not open ID file %s: %w", filePath, err)
-	}
-	raw = ics.EnsureUTF8(raw)
-
-	var resources []Resource
-	scanner := bufio.NewScanner(bytes.NewReader(raw))
-
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-
-		var name, id string
-		if strings.Contains(line, ";") {
-			parts := strings.SplitN(line, ";", 2)
-			name = strings.TrimSpace(parts[0])
-			id = strings.TrimSpace(parts[1])
-		} else if strings.Contains(line, ",") {
-			parts := strings.SplitN(line, ",", 2)
-			name = strings.TrimSpace(parts[0])
-			id = strings.TrimSpace(parts[1])
-		}
-
-		if name != "" && id != "" {
-			resources = append(resources, Resource{
-				Name:   name,
-				ID:     id,
-				IsRoom: isRoom,
-			})
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error reading ID file %s: %w", filePath, err)
-	}
-
-	return resources, nil
-}
-
 // DefaultRooms returns the default known list of classrooms for Esisar.
 func DefaultRooms() []Resource {
 	return []Resource{
@@ -263,19 +215,4 @@ func DefaultRooms() []Resource {
 		{Name: "C065", ID: "3096", IsRoom: true},
 		{Name: "C080", ID: "2543", IsRoom: true},
 	}
-}
-
-// SaveStaticIDs writes a list of resources to a semicolon-separated file (e.g. IDS.txt or Rooms-IDS.txt).
-func SaveStaticIDs(filePath string, resources []Resource) error {
-	cleaned := filepath.Clean(filePath)
-	if dir := filepath.Dir(cleaned); dir != "" {
-		_ = os.MkdirAll(dir, 0o755)
-	}
-
-	var sb strings.Builder
-	for _, res := range resources {
-		sb.WriteString(fmt.Sprintf("%s;%s\n", res.Name, res.ID))
-	}
-
-	return os.WriteFile(cleaned, []byte(sb.String()), 0o644)
 }

@@ -206,70 +206,18 @@ func (s *Syncer) finishSync(startTime time.Time, err error) {
 	}
 }
 
-func resolveStaticPath(primaryPath string) string {
-	cleaned := filepath.Clean(primaryPath)
-	if _, err := os.Stat(cleaned); err == nil {
-		return cleaned
-	}
-
-	filename := filepath.Base(cleaned)
-	candidates := []string{
-		filepath.Clean("/app/seed-data/" + filename),
-		filepath.Clean("data/" + filename),
-	}
-
-	for _, cand := range candidates {
-		if _, err := os.Stat(cand); err == nil {
-			return cand
-		}
-	}
-
-	return cleaned
-}
-
 func (s *Syncer) discoverResources(ctx context.Context) []ade.Resource {
-	// If credentials provided, attempt dynamic discovery first
-	if s.cfg.AgalanLogin != "" && s.cfg.AgalanPassword != "" {
-		s.logger.Info("crawling ADE tree dynamically for promo resources...")
-		discovered, err := s.crawler.DiscoverResources(ctx)
-		if err == nil && len(discovered) > 0 {
-			s.logger.Info("dynamic discovery found resources", "count", len(discovered))
-
-			// Auto-save dynamically discovered promos to IDS.txt so it stays persisted and updated
-			idsPath := filepath.Join(s.cfg.DataDir, "IDS.txt")
-			if err := ade.SaveStaticIDs(idsPath, discovered); err != nil {
-				s.logger.Warn("failed to auto-save discovered resources to IDS.txt", "path", idsPath, "error", err)
-			} else {
-				s.logger.Info("auto-saved discovered resources to IDS.txt", "path", idsPath, "count", len(discovered))
-			}
-
-			// Append rooms from static file if available
-			roomsFile := resolveStaticPath(filepath.Join(s.cfg.DataDir, "Rooms-IDS.txt"))
-			if rooms, err := ade.LoadStaticIDs(roomsFile, true); err == nil {
-				discovered = append(discovered, rooms...)
-			}
-			return discovered
-		}
-		s.logger.Warn("dynamic discovery failed or empty, falling back to static IDS.txt", "error", err)
+	s.logger.Info("crawling ADE tree dynamically for promo resources...")
+	discovered, err := s.crawler.DiscoverResources(ctx)
+	if err != nil {
+		s.logger.Error("dynamic discovery failed", "error", err)
+		return nil
 	}
+	s.logger.Info("dynamic discovery found resources", "count", len(discovered))
 
-	// Fallback to static IDS.txt and Rooms-IDS.txt
-	var all []ade.Resource
-	idsFile := resolveStaticPath(filepath.Join(s.cfg.DataDir, "IDS.txt"))
-	if promos, err := ade.LoadStaticIDs(idsFile, false); err == nil {
-		all = append(all, promos...)
-	} else {
-		s.logger.Warn("failed to load static IDS.txt", "path", idsFile, "error", err)
-	}
-
-	roomsFile := resolveStaticPath(filepath.Join(s.cfg.DataDir, "Rooms-IDS.txt"))
-	if rooms, err := ade.LoadStaticIDs(roomsFile, true); err == nil {
-		all = append(all, rooms...)
-	} else {
-		s.logger.Warn("failed to load static Rooms-IDS.txt", "path", roomsFile, "error", err)
-	}
-
-	return all
+	// Append known rooms
+	discovered = append(discovered, ade.DefaultRooms()...)
+	return discovered
 }
 
 func (s *Syncer) processResource(ctx context.Context, res ade.Resource, cercleData []byte) error {

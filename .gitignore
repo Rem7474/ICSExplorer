@@ -8,9 +8,7 @@ icsexplorer
 icsexplorer.exe
 
 # Local data & environment
-/data/output/*.ics
-/data/output/*.json
-/data/rooms/*.ics
+/data/
 *.tmp
 .env
 .env.local

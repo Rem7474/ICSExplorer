@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,6 +18,19 @@ import (
 func TestSyncerWithMockServer(t *testing.T) {
 	// Setup mock ADE server
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "tree.jsp") {
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<html><body>
+				<div class="treeline"><span><a href="javascript:selectLeaf('1001',0)">1A-Test</a></span></div>
+				<div class="treeline"><span><a href="javascript:selectLeaf('1002',0)">2A-Test</a></span></div>
+			</body></html>`))
+			return
+		}
+		if r.URL.Path == "/2026-2027/etudiant/esisar" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 		w.Header().Set("Content-Type", "text/calendar")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nSUMMARY:Test Class\r\nDESCRIPTION:1A_Test\\nProf A\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"))
@@ -28,10 +42,6 @@ func TestSyncerWithMockServer(t *testing.T) {
 	roomsDir := filepath.Join(tmpDir, "rooms")
 	dataDir := filepath.Join(tmpDir, "data")
 	_ = os.MkdirAll(dataDir, 0o755)
-
-	// Create test IDS.txt
-	idsContent := "1A-Test;1001\n2A-Test;1002\n"
-	_ = os.WriteFile(filepath.Join(dataDir, "IDS.txt"), []byte(idsContent), 0o644)
 
 	cfg := &config.Config{
 		OutputDir:        outputDir,
@@ -57,17 +67,24 @@ func TestSyncerWithMockServer(t *testing.T) {
 	}
 
 	stats := s.GetStats()
-	if stats.ProcessedFiles != 2 {
-		t.Errorf("expected 2 processed files, got %d", stats.ProcessedFiles)
+	// 2 promos from crawler + 13 default rooms = 15 processed files
+	if stats.ProcessedFiles != 15 {
+		t.Errorf("expected 15 processed files, got %d", stats.ProcessedFiles)
 	}
 	if stats.FailedFiles != 0 {
 		t.Errorf("expected 0 failed files, got %d", stats.FailedFiles)
 	}
 
-	// Verify generated files
+	// Verify generated promo file
 	file1 := filepath.Join(outputDir, "1A-Test.ics")
 	if _, err := os.Stat(file1); os.IsNotExist(err) {
 		t.Errorf("expected file %s to exist", file1)
+	}
+
+	// Verify generated room file
+	room1 := filepath.Join(roomsDir, "A042.ics")
+	if _, err := os.Stat(room1); os.IsNotExist(err) {
+		t.Errorf("expected room file %s to exist", room1)
 	}
 
 	// Verify files.json

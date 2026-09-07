@@ -1,8 +1,7 @@
 .git
 .github
 bin/
-data/output/
-data/rooms/
+data/
 *.ics
 *.tmp
 *.log
