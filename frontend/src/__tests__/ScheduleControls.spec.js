@@ -244,5 +244,42 @@ describe("ScheduleControls component", () => {
     const copyBtn = wrapper.findAll("button").find((b) => b.text().includes("Copier le lien"));
     expect(copyBtn).toBeUndefined();
   });
+
+  it("calls setMode('teacher') and setMode('room') when clicking respective tabs", async () => {
+    const schedule = useSchedule();
+    schedule.setMode = vi.fn();
+
+    const wrapper = mount(ScheduleControls, {
+      props: { schedule },
+    });
+
+    const teacherTab = wrapper.findAll(".mode-tab-btn").find((b) => b.text().includes("Professeurs"));
+    await teacherTab.trigger("click");
+    expect(schedule.setMode).toHaveBeenCalledWith("teacher");
+
+    const roomTab = wrapper.findAll(".mode-tab-btn").find((b) => b.text().includes("Salles"));
+    await roomTab.trigger("click");
+    expect(schedule.setMode).toHaveBeenCalledWith("room");
+  });
+
+  it("provides a 'Charger' button in room and teacher modes that triggers schedule loading", async () => {
+    const schedule = useSchedule();
+    schedule.selectedMode.value = "room";
+    schedule.availableRooms.value = ["A042"];
+    schedule.selectedRoom.value = "A042";
+    schedule.isLoading.value = false;
+    schedule.loadRoomSchedule = vi.fn();
+
+    const wrapper = mount(ScheduleControls, {
+      props: { schedule },
+    });
+
+    const loadBtn = wrapper.find(".btn-load-action");
+    expect(loadBtn.exists()).toBe(true);
+    expect(loadBtn.text()).toContain("Charger");
+
+    await loadBtn.trigger("click");
+    expect(schedule.loadRoomSchedule).toHaveBeenCalledWith("A042");
+  });
 });
 

@@ -119,23 +119,54 @@ const onSelectPersonalTab = () => {
   }
 };
 
+const onSelectTeacherTab = () => {
+  if (typeof props.schedule.setMode === "function") {
+    props.schedule.setMode("teacher");
+  } else {
+    props.schedule.selectedMode = "teacher";
+    if (props.schedule.selectedTeacher && props.schedule.loadTeacherSchedule) {
+      props.schedule.loadTeacherSchedule(props.schedule.selectedTeacher);
+    }
+  }
+};
+
+const onSelectRoomTab = () => {
+  if (typeof props.schedule.setMode === "function") {
+    props.schedule.setMode("room");
+  } else {
+    props.schedule.selectedMode = "room";
+    if (props.schedule.selectedRoom && props.schedule.loadRoomSchedule) {
+      props.schedule.loadRoomSchedule(props.schedule.selectedRoom);
+    }
+  }
+};
+
+const onLoadStudentSchedule = () => {
+  const file = unref(props.schedule.selectedFile);
+  if (file && props.schedule.loadSchedule) {
+    props.schedule.loadSchedule(file);
+  }
+};
+
 const onTeacherSelectChange = () => {
-  if (!props.schedule.selectedTeacher) {
+  const teacher = unref(props.schedule.selectedTeacher);
+  if (!teacher) {
     if (typeof props.schedule.returnToBaseSchedule === "function") {
       props.schedule.returnToBaseSchedule();
     }
-  } else {
-    props.schedule.loadTeacherSchedule(props.schedule.selectedTeacher);
+  } else if (props.schedule.loadTeacherSchedule) {
+    props.schedule.loadTeacherSchedule(teacher);
   }
 };
 
 const onRoomSelectChange = () => {
-  if (!props.schedule.selectedRoom) {
+  const room = unref(props.schedule.selectedRoom);
+  if (!room) {
     if (typeof props.schedule.returnToBaseSchedule === "function") {
       props.schedule.returnToBaseSchedule();
     }
-  } else {
-    props.schedule.loadRoomSchedule(props.schedule.selectedRoom);
+  } else if (props.schedule.loadRoomSchedule) {
+    props.schedule.loadRoomSchedule(room);
   }
 };
 
@@ -285,7 +316,7 @@ const copyShareLink = async () => {
         :class="{ active: isTeacherMode }"
         role="tab"
         :aria-selected="isTeacherMode"
-        @click="schedule.selectedMode = 'teacher'"
+        @click="onSelectTeacherTab"
       >
         <i class="pi pi-user" style="margin-right: 0.35rem;" aria-hidden="true"></i> Professeurs
       </button>
@@ -295,7 +326,7 @@ const copyShareLink = async () => {
         :class="{ active: isRoomMode }"
         role="tab"
         :aria-selected="isRoomMode"
-        @click="schedule.selectedMode = 'room'"
+        @click="onSelectRoomTab"
       >
         <i class="pi pi-building" style="margin-right: 0.35rem;" aria-hidden="true"></i> Salles
       </button>
@@ -443,21 +474,33 @@ const copyShareLink = async () => {
 
         <div class="control-group">
           <label for="fileSelect">Suite</label>
-          <select
-            id="fileSelect"
-            v-model="schedule.selectedFile"
-            :disabled="!schedule.selectedType"
-            @change="schedule.loadSchedule(schedule.selectedFile)"
-          >
-            <option value="">Suite...</option>
-            <option
-              v-for="f in availableRestFiles"
-              :key="f.fileName"
-              :value="f.fileName"
+          <div class="select-with-btn-row">
+            <select
+              id="fileSelect"
+              v-model="schedule.selectedFile"
+              :disabled="!schedule.selectedType"
+              @change="schedule.loadSchedule(schedule.selectedFile)"
             >
-              {{ f.rest || f.fileName }}
-            </option>
-          </select>
+              <option value="">Suite...</option>
+              <option
+                v-for="f in availableRestFiles"
+                :key="f.fileName"
+                :value="f.fileName"
+              >
+                {{ f.rest || f.fileName }}
+              </option>
+            </select>
+            <button
+              type="button"
+              class="btn btn-primary btn-load-action"
+              :disabled="!unref(schedule.selectedFile) || unref(schedule.isLoading)"
+              title="Charger l'emploi du temps de cette promotion"
+              @click="onLoadStudentSchedule"
+            >
+              <i class="pi" :class="schedule.isLoading ? 'pi-spin pi-spinner' : 'pi-check'" aria-hidden="true"></i>
+              Charger
+            </button>
+          </div>
         </div>
       </template>
 
@@ -475,20 +518,32 @@ const copyShareLink = async () => {
               <i class="pi pi-arrow-left" aria-hidden="true"></i> Revenir à mon planning{{ baseScheduleName ? ` (${baseScheduleName})` : '' }}
             </button>
           </div>
-          <select
-            id="teacherSelect"
-            v-model="schedule.selectedTeacher"
-            :disabled="schedule.isAggregatorLoading && availableTeachers.length === 0"
-            @change="onTeacherSelectChange"
-          >
-            <option v-if="schedule.isAggregatorLoading && availableTeachers.length === 0" value="" disabled>
-              Chargement des professeurs...
-            </option>
-            <option v-else value="">
-              {{ availableTeachers.length ? 'Sélectionnez un enseignant...' : 'Aucun enseignant trouvé' }}
-            </option>
-            <option v-for="t in availableTeachers" :key="t" :value="t">{{ t }}</option>
-          </select>
+          <div class="select-with-btn-row">
+            <select
+              id="teacherSelect"
+              v-model="schedule.selectedTeacher"
+              :disabled="schedule.isAggregatorLoading && availableTeachers.length === 0"
+              @change="onTeacherSelectChange"
+            >
+              <option v-if="schedule.isAggregatorLoading && availableTeachers.length === 0" value="" disabled>
+                Chargement des professeurs...
+              </option>
+              <option v-else value="">
+                {{ availableTeachers.length ? 'Sélectionnez un enseignant...' : 'Aucun enseignant trouvé' }}
+              </option>
+              <option v-for="t in availableTeachers" :key="t" :value="t">{{ t }}</option>
+            </select>
+            <button
+              type="button"
+              class="btn btn-primary btn-load-action"
+              :disabled="!unref(schedule.selectedTeacher) || unref(schedule.isLoading)"
+              title="Charger l'emploi du temps de cet enseignant"
+              @click="onTeacherSelectChange"
+            >
+              <i class="pi" :class="schedule.isLoading ? 'pi-spin pi-spinner' : 'pi-check'" aria-hidden="true"></i>
+              Charger
+            </button>
+          </div>
         </div>
       </template>
 
@@ -506,20 +561,32 @@ const copyShareLink = async () => {
               <i class="pi pi-arrow-left" aria-hidden="true"></i> Revenir à mon planning{{ baseScheduleName ? ` (${baseScheduleName})` : '' }}
             </button>
           </div>
-          <select
-            id="roomSelect"
-            v-model="schedule.selectedRoom"
-            :disabled="schedule.isAggregatorLoading && availableRooms.length === 0"
-            @change="onRoomSelectChange"
-          >
-            <option v-if="schedule.isAggregatorLoading && availableRooms.length === 0" value="" disabled>
-              Chargement des salles...
-            </option>
-            <option v-else value="">
-              {{ availableRooms.length ? 'Sélectionnez une salle...' : 'Aucune salle trouvée' }}
-            </option>
-            <option v-for="r in availableRooms" :key="r" :value="r">{{ r }}</option>
-          </select>
+          <div class="select-with-btn-row">
+            <select
+              id="roomSelect"
+              v-model="schedule.selectedRoom"
+              :disabled="schedule.isAggregatorLoading && availableRooms.length === 0"
+              @change="onRoomSelectChange"
+            >
+              <option v-if="schedule.isAggregatorLoading && availableRooms.length === 0" value="" disabled>
+                Chargement des salles...
+              </option>
+              <option v-else value="">
+                {{ availableRooms.length ? 'Sélectionnez une salle...' : 'Aucune salle trouvée' }}
+              </option>
+              <option v-for="r in availableRooms" :key="r" :value="r">{{ r }}</option>
+            </select>
+            <button
+              type="button"
+              class="btn btn-primary btn-load-action"
+              :disabled="!unref(schedule.selectedRoom) || unref(schedule.isLoading)"
+              title="Charger l'emploi du temps de cette salle"
+              @click="onRoomSelectChange"
+            >
+              <i class="pi" :class="schedule.isLoading ? 'pi-spin pi-spinner' : 'pi-check'" aria-hidden="true"></i>
+              Charger
+            </button>
+          </div>
         </div>
       </template>
     </div>
@@ -745,6 +812,31 @@ const copyShareLink = async () => {
 .control-group select:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.select-with-btn-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.select-with-btn-row select {
+  flex: 1;
+  min-width: 0;
+}
+
+.btn-load-action {
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 8px;
 }
 
 .actions-row {

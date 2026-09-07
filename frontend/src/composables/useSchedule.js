@@ -408,10 +408,20 @@ export function useSchedule() {
   // and automatically restore schedule when returning to student/personal mode
   watch(selectedMode, (newMode, oldMode) => {
     if (newMode === oldMode) return;
-    if (newMode === "teacher" && availableTeachers.value.length === 0) {
-      loadTeacherList();
-    } else if (newMode === "room" && availableRooms.value.length === 0) {
-      loadRoomList();
+    if (newMode === "teacher") {
+      if (availableTeachers.value.length === 0) {
+        loadTeacherList();
+      }
+      if (selectedTeacher.value) {
+        loadTeacherSchedule(selectedTeacher.value);
+      }
+    } else if (newMode === "room") {
+      if (availableRooms.value.length === 0) {
+        loadRoomList();
+      }
+      if (selectedRoom.value) {
+        loadRoomSchedule(selectedRoom.value);
+      }
     } else if (newMode === "student" && oldMode && oldMode !== "student") {
       const targetFile = selectedFile.value || baseSchedule.value?.file || (availableFiles.value.length > 0 ? availableFiles.value[0] : "");
       if (targetFile) {
@@ -543,6 +553,10 @@ export function useSchedule() {
         const cachedIcs = localStorage.getItem(PERSONAL_CACHE_KEY);
         const meta = JSON.parse(localStorage.getItem(PERSONAL_META_KEY) || "null");
         if (cachedIcs) loadPersonalEvents(cachedIcs, meta || {});
+      } else if (mode === "teacher" && selectedTeacher.value && events.value.length === 0) {
+        await loadTeacherSchedule(selectedTeacher.value);
+      } else if (mode === "room" && selectedRoom.value && events.value.length === 0) {
+        await loadRoomSchedule(selectedRoom.value);
       }
       return;
     }
