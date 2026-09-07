@@ -75,11 +75,11 @@ func (s *Syncer) Sync(ctx context.Context) error {
 	s.logger.Info("starting synchronization cycle", "academic_year", s.cfg.AcademicYear, "concurrency", s.cfg.Concurrency)
 
 	// Ensure destination directories exist
-	if err := os.MkdirAll(s.cfg.OutputDir, 0755); err != nil {
+	if err := os.MkdirAll(s.cfg.OutputDir, 0o755); err != nil {
 		s.finishSync(startTime, fmt.Errorf("failed to create output dir: %w", err))
 		return err
 	}
-	if err := os.MkdirAll(s.cfg.RoomsOutputDir, 0755); err != nil {
+	if err := os.MkdirAll(s.cfg.RoomsOutputDir, 0o755); err != nil {
 		s.finishSync(startTime, fmt.Errorf("failed to create rooms output dir: %w", err))
 		return err
 	}
@@ -103,7 +103,7 @@ func (s *Syncer) Sync(ctx context.Context) error {
 		} else {
 			cercleData = cData
 			// Save raw cercle.ics in output directory
-			_ = os.WriteFile(filepath.Join(s.cfg.OutputDir, "cercle.ics"), cData, 0644)
+			_ = os.WriteFile(filepath.Join(s.cfg.OutputDir, "cercle.ics"), cData, 0o644)
 			s.logger.Info("Cercle calendar downloaded successfully")
 		}
 	}
@@ -270,7 +270,7 @@ func (s *Syncer) processResource(ctx context.Context, res ade.Resource, cercleDa
 
 	// Atomic file write using temporary file
 	tmpPath := targetPath + ".tmp"
-	if err := os.WriteFile(tmpPath, calendarBytes, 0644); err != nil {
+	if err := os.WriteFile(tmpPath, calendarBytes, 0o644); err != nil {
 		return fmt.Errorf("failed to write tmp file: %w", err)
 	}
 
@@ -305,7 +305,7 @@ func (s *Syncer) generateFilesIndex() error {
 
 	filesJsonPath := filepath.Join(s.cfg.OutputDir, "files.json")
 	tmpPath := filesJsonPath + ".tmp"
-	if err := os.WriteFile(tmpPath, jsonData, 0644); err != nil {
+	if err := os.WriteFile(tmpPath, jsonData, 0o644); err != nil {
 		return err
 	}
 

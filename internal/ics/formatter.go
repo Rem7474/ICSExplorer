@@ -82,11 +82,12 @@ func formatDescriptionLine(descLine, realCourse string) string {
 			if strings.Contains(realCourse, "HA") {
 				if len(parts) >= 2 {
 					p1 := parts[1]
-					if p1 != "" && p1[0] >= '0' && p1[0] <= '9' && len(parts) >= 3 {
+					switch {
+					case p1 != "" && p1[0] >= '0' && p1[0] <= '9' && len(parts) >= 3:
 						return fmt.Sprintf("DESCRIPTION:Kholle avec %s, de %s", parts[2], p1)
-					} else if strings.HasPrefix(p1, "(") {
+					case strings.HasPrefix(p1, "("):
 						return "DESCRIPTION:Kholle avec eleves"
-					} else {
+					default:
 						return fmt.Sprintf("DESCRIPTION:Kholle avec %s", p1)
 					}
 				}

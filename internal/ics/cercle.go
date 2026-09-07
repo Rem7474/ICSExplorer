@@ -11,7 +11,7 @@ import (
 
 // FetchCercleCalendar downloads the public Google Calendar ICS for Cercle Esisar.
 func FetchCercleCalendar(ctx context.Context, url string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Cercle ICS request: %w", err)
 	}

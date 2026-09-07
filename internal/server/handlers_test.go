@@ -61,7 +61,7 @@ func TestHealthEndpoint(t *testing.T) {
 	handler := srv.applyMiddlewares(mux)
 
 	// Test GET /api/health
-	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/health", http.NoBody)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -86,7 +86,7 @@ func TestStatusEndpoint(t *testing.T) {
 	srv.registerRoutes(mux)
 	handler := srv.applyMiddlewares(mux)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/status", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/status", http.NoBody)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -115,7 +115,7 @@ func TestSyncEndpoint(t *testing.T) {
 	handler := srv.applyMiddlewares(mux)
 
 	// GET not allowed on /api/sync
-	reqGet := httptest.NewRequest(http.MethodGet, "/api/sync", nil)
+	reqGet := httptest.NewRequest(http.MethodGet, "/api/sync", http.NoBody)
 	wGet := httptest.NewRecorder()
 	handler.ServeHTTP(wGet, reqGet)
 	if wGet.Code != http.StatusMethodNotAllowed {
@@ -123,7 +123,7 @@ func TestSyncEndpoint(t *testing.T) {
 	}
 
 	// POST without auth token when token configured -> 401
-	reqNoAuth := httptest.NewRequest(http.MethodPost, "/api/sync", nil)
+	reqNoAuth := httptest.NewRequest(http.MethodPost, "/api/sync", http.NoBody)
 	wNoAuth := httptest.NewRecorder()
 	handler.ServeHTTP(wNoAuth, reqNoAuth)
 	if wNoAuth.Code != http.StatusUnauthorized {
@@ -131,7 +131,7 @@ func TestSyncEndpoint(t *testing.T) {
 	}
 
 	// POST with valid auth token -> 202 Accepted
-	reqAuth := httptest.NewRequest(http.MethodPost, "/api/sync", nil)
+	reqAuth := httptest.NewRequest(http.MethodPost, "/api/sync", http.NoBody)
 	reqAuth.Header.Set("Authorization", "Bearer secret-token")
 	wAuth := httptest.NewRecorder()
 	handler.ServeHTTP(wAuth, reqAuth)
@@ -148,7 +148,7 @@ func TestFilesAndRoomsEndpoints(t *testing.T) {
 	handler := srv.applyMiddlewares(mux)
 
 	// GET /api/files
-	reqFiles := httptest.NewRequest(http.MethodGet, "/api/files", nil)
+	reqFiles := httptest.NewRequest(http.MethodGet, "/api/files", http.NoBody)
 	wFiles := httptest.NewRecorder()
 	handler.ServeHTTP(wFiles, reqFiles)
 	if wFiles.Code != http.StatusOK {
@@ -164,7 +164,7 @@ func TestFilesAndRoomsEndpoints(t *testing.T) {
 	}
 
 	// GET /api/rooms
-	reqRooms := httptest.NewRequest(http.MethodGet, "/api/rooms", nil)
+	reqRooms := httptest.NewRequest(http.MethodGet, "/api/rooms", http.NoBody)
 	wRooms := httptest.NewRecorder()
 	handler.ServeHTTP(wRooms, reqRooms)
 	if wRooms.Code != http.StatusOK {
@@ -180,7 +180,7 @@ func TestStaticAndFrontendHandlers(t *testing.T) {
 	handler := srv.applyMiddlewares(mux)
 
 	// GET /output/1A-Test.ics
-	reqOutput := httptest.NewRequest(http.MethodGet, "/output/1A-Test.ics", nil)
+	reqOutput := httptest.NewRequest(http.MethodGet, "/output/1A-Test.ics", http.NoBody)
 	wOutput := httptest.NewRecorder()
 	handler.ServeHTTP(wOutput, reqOutput)
 	if wOutput.Code != http.StatusOK {
@@ -191,7 +191,7 @@ func TestStaticAndFrontendHandlers(t *testing.T) {
 	}
 
 	// GET / (SPA root)
-	reqRoot := httptest.NewRequest(http.MethodGet, "/", nil)
+	reqRoot := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 	wRoot := httptest.NewRecorder()
 	handler.ServeHTTP(wRoot, reqRoot)
 	if wRoot.Code != http.StatusOK {
@@ -202,7 +202,7 @@ func TestStaticAndFrontendHandlers(t *testing.T) {
 	}
 
 	// GET /promo/1A (SPA client route fallback)
-	reqSPA := httptest.NewRequest(http.MethodGet, "/promo/1A", nil)
+	reqSPA := httptest.NewRequest(http.MethodGet, "/promo/1A", http.NoBody)
 	wSPA := httptest.NewRecorder()
 	handler.ServeHTTP(wSPA, reqSPA)
 	if wSPA.Code != http.StatusOK {
