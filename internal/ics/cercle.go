@@ -26,7 +26,7 @@ func FetchCercleCalendar(ctx context.Context, url string) ([]byte, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Cercle calendar returned HTTP %d", resp.StatusCode)
+		return nil, fmt.Errorf("cercle calendar returned HTTP %d", resp.StatusCode)
 	}
 
 	return io.ReadAll(resp.Body)

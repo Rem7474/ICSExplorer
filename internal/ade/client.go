@@ -66,8 +66,8 @@ func NewClientForInstitution(login, password, academicYear, baseURL, institution
 }
 
 // SetBaseURL overrides the base URL (useful for testing or targeting another institution).
-func (c *Client) SetBaseURL(url string) {
-	c.baseURL = strings.TrimRight(url, "/")
+func (c *Client) SetBaseURL(rawURL string) {
+	c.baseURL = strings.TrimRight(rawURL, "/")
 }
 
 // SetInstitutionPath overrides the institution path segment used in the export URL.

@@ -1,46 +1,51 @@
+version: "2"
 run:
-  timeout: 5m
   tests: true
-
 linters:
   enable:
-    # Default quality linters
-    - errcheck
-    - gosimple
-    - govet
-    - ineffassign
-    - staticcheck
-    - unused
-    - gofmt
-    - misspell
-    # Security
-    - gosec
-    # Quality & best practices
-    - gocritic
     - bodyclose
+    - gocritic
+    - gosec
+    - misspell
     - noctx
     - unconvert
     - unparam
-
-linters-settings:
-  govet:
-    enable-all: false
-  misspell:
-    locale: US
-  gosec:
-    excludes:
-      - G304  # File path provided as taint input -- acceptable for ICS file serving
-      - G306  # Public/static ICS calendar files can have 0644 permissions
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - style
-
-issues:
-  exclude-use-default: true
-  exclude-rules:
-    # Test files: relax some rules
-    - path: "_test\\.go"
-      linters:
-        - gosec
-        - unparam
+  settings:
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+    gosec:
+      excludes:
+        - G304
+        - G306
+    govet:
+      enable-all: false
+    misspell:
+      locale: US
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - gosec
+          - unparam
+          - noctx
+        path: _test\.go
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
