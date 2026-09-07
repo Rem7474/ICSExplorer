@@ -85,4 +85,25 @@ describe("WeekStats component", () => {
     await resetBtn.trigger("click");
     expect(wrapper.emitted("reset")).toBeTruthy();
   });
+
+  it("excludes multi-day banner events (> 14h) or invalid durations from weekly hours", () => {
+    const startCourse = new Date(2026, 8, 1, 8, 0);
+    const endCourse = new Date(2026, 8, 1, 10, 0); // 2 hours
+
+    // Multi-week project banner: 30 days
+    const startBanner = new Date(2026, 8, 1, 8, 0);
+    const endBanner = new Date(2026, 9, 1, 18, 0);
+
+    const testEvents = [
+      { summary: "IN101 Algo", start: startCourse, end: endCourse },
+      { summary: "Projet Semestre EP", start: startBanner, end: endBanner },
+    ];
+
+    const wrapper = mount(WeekStats, {
+      props: { events: testEvents },
+    });
+
+    // Only the 2.0h course should be counted
+    expect(wrapper.text()).toContain("Total semaine : 2.0h");
+  });
 });

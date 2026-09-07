@@ -5,6 +5,7 @@ import Button from "primevue/button";
 import { formatDateTime, formatTimeOnly } from "../utils/dates.js";
 import { isCercleEvent } from "../utils/colors.js";
 import { useToast } from "../composables/useToast.js";
+import { extractTeacherNames } from "../ics/parser.js";
 
 const props = defineProps({
   event: {
@@ -41,16 +42,7 @@ const extractedRooms = computed(() => {
 
 const extractedTeachers = computed(() => {
   if (!props.event?.description) return [];
-  const lines = props.event.description.split("\n");
-  const teachers = [];
-  lines.forEach((l) => {
-    const trimmed = l.trim();
-    if (/(?:prof|intervenant|enseignant|m\.|mme)\s*[:]?\s*(.+)/i.test(trimmed)) {
-      const match = trimmed.match(/(?:prof|intervenant|enseignant|m\.|mme)\s*[:]?\s*(.+)/i);
-      if (match && match[1]) teachers.push(match[1].trim());
-    }
-  });
-  return [...new Set(teachers)];
+  return extractTeacherNames(props.event.description);
 });
 
 const onGoToTeacher = (teacher) => {
@@ -172,6 +164,13 @@ const copyDetails = async () => {
           >
             <i class="pi pi-user mr-1" aria-hidden="true"></i> Planning {{ t }} ➔
           </button>
+        </div>
+      </div>
+
+      <div v-if="event.sourceFiles && event.sourceFiles.length > 0" class="detail-row">
+        <span class="detail-label"><i class="pi pi-users mr-1" aria-hidden="true"></i> Groupe(s) :</span>
+        <div class="detail-desc">
+          <p>{{ event.sourceFiles.map((f) => f.replace(/\.ics$/i, "")).join(", ") }}</p>
         </div>
       </div>
 

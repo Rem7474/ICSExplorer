@@ -6,6 +6,7 @@ import * as api from "../ics/api.js";
 describe("useSchedule composable", () => {
   beforeEach(() => {
     localStorage.clear();
+    vi.restoreAllMocks();
   });
 
   it("initializes with safe default empty state without crashing", () => {
@@ -164,15 +165,7 @@ describe("useSchedule composable", () => {
       JSON.stringify({ adeUrl: "https://example.com", login: "u", password: "p", branchPath: [] })
     );
 
-    // Mock fetchPersonalCalendar to throw
-    vi.mock("../ics/api.js", () => ({
-      fetchFileList: vi.fn().mockResolvedValue([]),
-      fetchIcsText: vi.fn(),
-      fetchPersonalCalendar: vi.fn().mockRejectedValue(new Error("Network error")),
-      fetchTreeNodes: vi.fn(),
-      fetchUniversities: vi.fn().mockResolvedValue([]),
-      fileUrl: vi.fn(),
-    }));
+    vi.spyOn(api, "fetchPersonalCalendar").mockRejectedValue(new Error("Network error"));
 
     await schedule.refreshPersonalSchedule();
 
@@ -285,5 +278,37 @@ describe("useSchedule composable", () => {
     expect(fetchSpy).toHaveBeenCalledWith("1A-Prepa-TP1.ics");
     expect(schedule.events.value.length).toBe(1);
     expect(schedule.events.value[0].summary).toBe("Prepa Event");
+  });
+
+  it("loadTeacherSchedule aggregates and deduplicates identical courses from multiple promos", async () => {
+    aggregator.clearAggregatedCache();
+    vi.spyOn(api, "fetchFileList").mockResolvedValue(["1A-Prepa-G1.ics", "1A-Prepa-G2.ics"]);
+
+    const courseICS = (group) => `BEGIN:VCALENDAR
+BEGIN:VEVENT
+UID:cm-elec-1
+SUMMARY:Électronique CM
+LOCATION:A166
+DESCRIPTION:Électronique avec BARBOT Nicolas\\nPromo ${group}
+DTSTART:20260908T080000Z
+DTEND:20260908T100000Z
+END:VEVENT
+END:VCALENDAR`;
+
+    vi.spyOn(api, "fetchIcsText").mockImplementation((file) => {
+      if (file === "1A-Prepa-G1.ics") return Promise.resolve(courseICS("G1"));
+      if (file === "1A-Prepa-G2.ics") return Promise.resolve(courseICS("G2"));
+      return Promise.resolve("");
+    });
+
+    const schedule = useSchedule();
+    await schedule.loadTeacherSchedule("BARBOT Nicolas");
+
+    expect(schedule.selectedMode.value).toBe("teacher");
+    // Should be deduplicated to 1 event instead of 2
+    expect(schedule.events.value).toHaveLength(1);
+    expect(schedule.events.value[0].summary).toBe("Électronique CM");
+    expect(schedule.events.value[0].sourceFiles).toContain("1A-Prepa-G1.ics");
+    expect(schedule.events.value[0].sourceFiles).toContain("1A-Prepa-G2.ics");
   });
 });

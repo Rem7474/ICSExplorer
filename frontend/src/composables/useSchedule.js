@@ -446,6 +446,8 @@ export function useSchedule() {
       currentWeekStart.value = getRelevantWeekStart(teacherEvents);
       statusMessage.value = "";
 
+      selectedMode.value = "teacher";
+      selectedTeacher.value = teacherName;
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode: "teacher", teacher: teacherName }));
 
       const url = new URL(window.location);
@@ -493,6 +495,8 @@ export function useSchedule() {
       currentWeekStart.value = getRelevantWeekStart(roomEvents);
       statusMessage.value = "";
 
+      selectedMode.value = "room";
+      selectedRoom.value = roomName;
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode: "room", room: roomName }));
 
       const url = new URL(window.location);

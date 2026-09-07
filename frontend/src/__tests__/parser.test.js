@@ -45,4 +45,42 @@ END:VCALENDAR`;
     expect(teachers).toContain("M. Durand");
     expect(teachers).toContain("Mme Martin");
   });
+
+  it("extracts multiple teachers separated by commas after avec", () => {
+    const desc = "Électronique en TD avec BARBOT Nicolas, DUPONT Jean\nKholle avec MARTIN Paul, de 1A";
+    const teachers = extractTeacherNames(desc);
+    expect(teachers).toContain("BARBOT Nicolas");
+    expect(teachers).toContain("DUPONT Jean");
+    expect(teachers).toContain("MARTIN Paul");
+    expect(teachers).not.toContain("de 1A");
+  });
+
+  it("rejects Unix epoch 1970 dates and inverted dates in parseIcs", () => {
+    expect(parseIcsDate("19700101T000000Z")).toBeNull();
+
+    const badICS = `BEGIN:VCALENDAR
+BEGIN:VEVENT
+UID:evt-bad-1970
+SUMMARY:Projet Ancien
+DTSTART:19700101T000000Z
+DTEND:20261125T031500Z
+END:VEVENT
+BEGIN:VEVENT
+UID:evt-bad-inverted
+SUMMARY:Inverted Dates
+DTSTART:20260902T100000Z
+DTEND:20260902T080000Z
+END:VEVENT
+BEGIN:VEVENT
+UID:evt-good
+SUMMARY:Cours Valide
+DTSTART:20260902T080000Z
+DTEND:20260902T100000Z
+END:VEVENT
+END:VCALENDAR`;
+
+    const events = parseIcs(badICS);
+    expect(events).toHaveLength(1);
+    expect(events[0].uid).toBe("evt-good");
+  });
 });

@@ -46,7 +46,12 @@ const stats = computed(() => {
   for (const ev of rawEvents.value) {
     const start = new Date(ev.start);
     const end = new Date(ev.end);
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) continue;
+
     const duration = (end - start) / (1000 * 60); // in minutes
+    // Exclude multi-day / banner events (> 14h) or negative durations from weekly course stats
+    if (duration <= 0 || duration > 14 * 60) continue;
+
     totalMinutes += duration;
 
     const summary = ev.summary || "Autre";
