@@ -207,30 +207,25 @@ func (s *Syncer) finishSync(startTime time.Time, err error) {
 }
 
 func resolveStaticPath(primaryPath string) string {
-	if _, err := os.Stat(primaryPath); err == nil {
-		return primaryPath
+	cleaned := filepath.Clean(primaryPath)
+	if _, err := os.Stat(cleaned); err == nil {
+		return cleaned
 	}
 
-	filename := filepath.Base(primaryPath)
+	filename := filepath.Base(cleaned)
 	candidates := []string{
-		filepath.Join("/app/seed-data", filename),
+		filepath.Join("/app", "seed-data", filename),
 		filepath.Join("data", filename),
 	}
 
 	for _, cand := range candidates {
-		if _, err := os.Stat(cand); err == nil {
-			// Best-effort: restore file to primaryPath directory
-			if content, err := os.ReadFile(cand); err == nil {
-				if dir := filepath.Dir(primaryPath); dir != "" {
-					_ = os.MkdirAll(dir, 0o755)
-				}
-				_ = os.WriteFile(primaryPath, content, 0o644)
-			}
-			return cand
+		candCleaned := filepath.Clean(cand)
+		if _, err := os.Stat(candCleaned); err == nil {
+			return candCleaned
 		}
 	}
 
-	return primaryPath
+	return cleaned
 }
 
 func (s *Syncer) discoverResources(ctx context.Context) []ade.Resource {
