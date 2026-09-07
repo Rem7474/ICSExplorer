@@ -54,7 +54,6 @@ const stats = computed(() => {
 
     totalMinutes += duration;
 
-    const summary = ev.summary || "Autre";
     const type = getSubjectType(ev);
 
     if (!isDisabled(type)) {
