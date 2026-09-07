@@ -114,7 +114,11 @@ export const isCercleEvent = (eventOrSummary) => {
     s.includes("foyer") ||
     s.includes("parainage") ||
     s.includes("parrainage") ||
-    s.includes("rally")
+    s.includes("rally") ||
+    s.includes("rentrée de l'étudiant") ||
+    s.includes("rentree de l'etudiant") ||
+    s.includes("bbq") ||
+    s.includes("afterwork")
   );
 };
 

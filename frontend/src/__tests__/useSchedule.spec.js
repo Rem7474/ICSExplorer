@@ -101,6 +101,16 @@ describe("useSchedule composable", () => {
     // Reset
     schedule.resetSubjectFilters();
     expect(schedule.displayedWeekEvents.value.length).toBe(2);
+
+    // Cercle event with non-keyword summary (e.g. isCercle: true)
+    schedule.events.value = [
+      { summary: "Rentrée de l'étudiant", isCercle: true, start: eventTime, end: eventEnd },
+      { summary: "IN101 Algo", start: eventTime, end: eventEnd },
+    ];
+    expect(schedule.displayedWeekEvents.value.length).toBe(2);
+    schedule.toggleSubjectFilter("CERCLE");
+    expect(schedule.displayedWeekEvents.value.length).toBe(1);
+    expect(schedule.displayedWeekEvents.value[0].summary).toBe("IN101 Algo");
   });
 
   it("loads personal events from raw ICS text, sets meta, and switches to personal mode", () => {
@@ -310,5 +320,21 @@ END:VCALENDAR`;
     expect(schedule.events.value[0].summary).toBe("Électronique CM");
     expect(schedule.events.value[0].sourceFiles).toContain("1A-Prepa-G1.ics");
     expect(schedule.events.value[0].sourceFiles).toContain("1A-Prepa-G2.ics");
+  });
+
+  it("loadSchedule synchronizes selectedMode, selectedFile and autoSelectFromFile", async () => {
+    const schedule = useSchedule();
+    schedule.availableFiles.value = ["1A-Prepa-TP1.ics", "3A-IR-IR1.ics"];
+    schedule.selectedMode.value = "teacher";
+    schedule.selectedTeacher.value = "DUPONT Jean";
+
+    vi.spyOn(api, "fetchIcsText").mockResolvedValue("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nSUMMARY:Prepa Course\r\nDTSTART:20260901T080000Z\r\nDTEND:20260901T100000Z\r\nEND:VEVENT\r\nEND:VCALENDAR");
+
+    await schedule.loadSchedule("1A-Prepa-TP1.ics");
+
+    expect(schedule.selectedMode.value).toBe("student");
+    expect(schedule.selectedFile.value).toBe("1A-Prepa-TP1.ics");
+    expect(schedule.selectedYear.value).toBe("1A");
+    expect(schedule.selectedTrack.value).toBe("Prepa");
   });
 });

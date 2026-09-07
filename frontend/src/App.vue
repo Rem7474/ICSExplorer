@@ -33,7 +33,7 @@ const currentKey = computed(() => {
   if (mode === "personal") return "personal_edt";
   if (mode === "teacher" && teacher) return `teacher_${teacher}`;
   if (mode === "room" && room) return `room_${room}`;
-  if (file && typeof file === "string") return `file_${file}`;
+  if (mode === "student" && file && typeof file === "string") return `file_${file}`;
   return "";
 });
 
@@ -42,15 +42,16 @@ const onSelectFavorite = (fav) => {
     schedule.selectedMode = "personal";
     schedule.refreshPersonalSchedule();
   } else if (fav.mode === "student") {
+    schedule.selectedFile = fav.file;
     schedule.selectedMode = "student";
     schedule.loadSchedule(fav.file);
   } else if (fav.mode === "teacher") {
-    schedule.selectedMode = "teacher";
     schedule.selectedTeacher = fav.teacher;
+    schedule.selectedMode = "teacher";
     schedule.loadTeacherSchedule(fav.teacher);
   } else if (fav.mode === "room") {
-    schedule.selectedMode = "room";
     schedule.selectedRoom = fav.room;
+    schedule.selectedMode = "room";
     schedule.loadRoomSchedule(fav.room);
   }
 };

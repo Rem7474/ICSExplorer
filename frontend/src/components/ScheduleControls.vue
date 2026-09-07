@@ -57,7 +57,7 @@ const currentFavItem = computed(() => {
   if (mode === "room" && room) {
     return { key: `room_${room}`, mode: "room", room, label: `Salle ${room}` };
   }
-  if (file && typeof file === "string") {
+  if (mode === "student" && file && typeof file === "string") {
     const label = file.replace(/\.ics$/i, "");
     return { key: `file_${file}`, mode: "student", file, label };
   }

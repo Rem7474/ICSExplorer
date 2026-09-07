@@ -106,4 +106,29 @@ describe("WeekStats component", () => {
     // Only the 2.0h course should be counted
     expect(wrapper.text()).toContain("Total semaine : 2.0h");
   });
+
+  it("categorizes events with isCercle: true under CERCLE regardless of summary", () => {
+    const start = new Date(2026, 8, 1, 14, 0);
+    const end = new Date(2026, 8, 1, 16, 0);
+    const testEvents = [
+      { summary: "Rentrée de l'étudiant", isCercle: true, start, end },
+      { summary: "IN101 Algo", start, end },
+    ];
+
+    const wrapper = mount(WeekStats, {
+      props: {
+        events: testEvents,
+        disabledSubjects: ["CERCLE"],
+      },
+    });
+
+    expect(wrapper.text()).toContain("CERCLE");
+    expect(wrapper.text()).toContain("Cercle des Élèves");
+    expect(wrapper.text()).toContain("2.0h (sur 4.0h)");
+
+    const chips = wrapper.findAll(".chip");
+    const cercleChip = chips.find((c) => c.text().includes("CERCLE"));
+    expect(cercleChip.exists()).toBe(true);
+    expect(cercleChip.classes()).toContain("is-disabled");
+  });
 });

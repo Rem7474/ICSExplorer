@@ -90,7 +90,7 @@ export function useSchedule() {
   const displayedWeekEvents = computed(() => {
     if (!disabledSubjects.value.length) return weekEvents.value;
     return weekEvents.value.filter((ev) => {
-      const type = getSubjectType(ev.summary || "");
+      const type = getSubjectType(ev);
       return !disabledSubjects.value.includes(type);
     });
   });
@@ -101,7 +101,7 @@ export function useSchedule() {
     return events.value.find((ev) => {
       if (new Date(ev.end) <= now) return false;
       if (disabledSubjects.value.length > 0) {
-        const type = getSubjectType(ev.summary || "");
+        const type = getSubjectType(ev);
         if (disabledSubjects.value.includes(type)) return false;
       }
       return true;
@@ -209,6 +209,9 @@ export function useSchedule() {
     isLoading.value = true;
     disabledSubjects.value = [];
     statusMessage.value = "Chargement de l'emploi du temps...";
+    selectedFile.value = fileName;
+    selectedMode.value = "student";
+    autoSelectFromFile(fileName);
 
     try {
       const text = await fetchIcsText(fileName);
