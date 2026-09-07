@@ -3,6 +3,7 @@ package ade
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,9 +19,39 @@ import (
 
 const userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
+type sessionCookieJar struct {
+	mu  sync.RWMutex
+	jar http.CookieJar
+}
+
+func newSessionCookieJar() *sessionCookieJar {
+	j, _ := cookiejar.New(nil)
+	return &sessionCookieJar{jar: j}
+}
+
+func (s *sessionCookieJar) SetCookies(u *url.URL, cookies []*http.Cookie) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.jar.SetCookies(u, cookies)
+}
+
+func (s *sessionCookieJar) Cookies(u *url.URL) []*http.Cookie {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.jar.Cookies(u)
+}
+
+func (s *sessionCookieJar) Reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	j, _ := cookiejar.New(nil)
+	s.jar = j
+}
+
 // Client handles HTTP interactions with ADE Campus servers.
 type Client struct {
 	httpClient      *http.Client
+	cookieJar       *sessionCookieJar
 	login           string
 	password        string
 	academicYear    string
@@ -31,22 +62,23 @@ type Client struct {
 	// JSESSIONID cookie plus an internal projectId - to be established via a
 	// GET on the institution's entry page before tree.jsp or directCal will
 	// serve anything; hitting those endpoints cold returns 404/empty/500
-	// responses even with correct Basic Auth credentials. sessionMu guards the
-	// one-time initialization per Client instance.
-	sessionMu    sync.Mutex
-	sessionReady bool
-	referer      string
+	// responses even with correct Basic Auth credentials.
+	sessionMu        sync.Mutex
+	sessionReady     bool
+	sessionCreatedAt time.Time
+	referer          string
 }
 
 // NewClient creates a new ADE client with authentication and timeout,
 // defaulting to the Grenoble INP / ESISAR instance.
 func NewClient(login, password, academicYear string) *Client {
-	jar, _ := cookiejar.New(nil)
+	jar := newSessionCookieJar()
 	return &Client{
 		httpClient: &http.Client{
 			Timeout: 45 * time.Second,
 			Jar:     jar,
 		},
+		cookieJar:       jar,
 		login:           login,
 		password:        password,
 		academicYear:    academicYear,
@@ -116,6 +148,41 @@ func (c *Client) entryURL() string {
 	return fmt.Sprintf("%s/%s/%s", c.baseURL, c.academicYear, c.institutionPath)
 }
 
+// maxSessionAge defines the duration after which an ADE Campus session is
+// considered expired (Tomcat sessions typically expire after 30 minutes of inactivity).
+const maxSessionAge = 15 * time.Minute
+
+// ResetSession invalidates any current session, forcing a fresh login and
+// new session cookies on the next ADE request.
+func (c *Client) ResetSession() {
+	c.sessionMu.Lock()
+	defer c.sessionMu.Unlock()
+	c.sessionReady = false
+	c.referer = ""
+	if c.cookieJar != nil {
+		c.cookieJar.Reset()
+	}
+}
+
+type sessionHTTPError struct {
+	statusCode int
+	msg        string
+}
+
+func (e *sessionHTTPError) Error() string {
+	return e.msg
+}
+
+func isSessionError(err error) bool {
+	var serr *sessionHTTPError
+	if errors.As(err, &serr) {
+		return serr.statusCode == http.StatusNotFound ||
+			serr.statusCode == http.StatusUnauthorized ||
+			serr.statusCode == http.StatusForbidden
+	}
+	return false
+}
+
 // ensureSession establishes the ADE Campus server-side session once per
 // Client, by GETing the institution's entry page. Subsequent requests reuse
 // the resulting cookies (via the client's cookie jar) and send a matching
@@ -125,8 +192,13 @@ func (c *Client) ensureSession(ctx context.Context) error {
 	c.sessionMu.Lock()
 	defer c.sessionMu.Unlock()
 
-	if c.sessionReady {
+	if c.sessionReady && time.Since(c.sessionCreatedAt) < maxSessionAge {
 		return nil
+	}
+
+	c.sessionReady = false
+	if c.cookieJar != nil {
+		c.cookieJar.Reset()
 	}
 
 	entry := c.entryURL()
@@ -155,11 +227,22 @@ func (c *Client) ensureSession(ctx context.Context) error {
 
 	c.referer = entry
 	c.sessionReady = true
+	c.sessionCreatedAt = time.Now()
 	return nil
 }
 
 // FetchCalendarRaw fetches the raw ICS calendar for given resource ID(s).
+// If the server returns a session-invalid status (401/403/404), it resets the session and retries once.
 func (c *Client) FetchCalendarRaw(ctx context.Context, resourceIDs string) ([]byte, error) {
+	data, err := c.fetchCalendarRawOnce(ctx, resourceIDs)
+	if err != nil && isSessionError(err) {
+		c.ResetSession()
+		return c.fetchCalendarRawOnce(ctx, resourceIDs)
+	}
+	return data, err
+}
+
+func (c *Client) fetchCalendarRawOnce(ctx context.Context, resourceIDs string) ([]byte, error) {
 	if err := c.ensureSession(ctx); err != nil {
 		return nil, err
 	}
@@ -188,10 +271,16 @@ func (c *Client) FetchCalendarRaw(ctx context.Context, resourceIDs string) ([]by
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusUnauthorized {
-		return nil, fmt.Errorf("ADE returned 401 Unauthorized (invalid credentials)")
+		return nil, &sessionHTTPError{
+			statusCode: resp.StatusCode,
+			msg:        "ADE returned 401 Unauthorized (invalid credentials)",
+		}
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("ADE returned unexpected status %d", resp.StatusCode)
+		return nil, &sessionHTTPError{
+			statusCode: resp.StatusCode,
+			msg:        fmt.Sprintf("ADE returned unexpected status %d", resp.StatusCode),
+		}
 	}
 
 	data, err := io.ReadAll(resp.Body)
@@ -202,8 +291,18 @@ func (c *Client) FetchCalendarRaw(ctx context.Context, resourceIDs string) ([]by
 	return data, nil
 }
 
-// FetchTreePage fetches an HTML page from the ADE tree interface.
+// FetchTreePage fetches an HTML page from the ADE tree interface, ensuring UTF-8 encoding.
+// If the server returns a session-invalid status (401/403/404), it resets the session and retries once.
 func (c *Client) FetchTreePage(ctx context.Context, path string) ([]byte, error) {
+	data, err := c.fetchTreePageOnce(ctx, path)
+	if err != nil && isSessionError(err) {
+		c.ResetSession()
+		return c.fetchTreePageOnce(ctx, path)
+	}
+	return data, err
+}
+
+func (c *Client) fetchTreePageOnce(ctx context.Context, path string) ([]byte, error) {
 	if err := c.ensureSession(ctx); err != nil {
 		return nil, err
 	}
@@ -215,7 +314,10 @@ func (c *Client) FetchTreePage(ctx context.Context, path string) ([]byte, error)
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("ADE tree returned status %d", resp.StatusCode)
+		return nil, &sessionHTTPError{
+			statusCode: resp.StatusCode,
+			msg:        fmt.Sprintf("ADE tree returned status %d", resp.StatusCode),
+		}
 	}
 
 	data, err := io.ReadAll(resp.Body)
@@ -223,7 +325,7 @@ func (c *Client) FetchTreePage(ctx context.Context, path string) ([]byte, error)
 		return nil, fmt.Errorf("failed to read tree page: %w", err)
 	}
 
-	return data, nil
+	return ics.EnsureUTF8(data), nil
 }
 
 // maxTreeDepth limits recursive branch traversal in CollectLeavesUnderPath to

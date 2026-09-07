@@ -239,3 +239,92 @@ func TestCrawlerDiscoverResources(t *testing.T) {
 		t.Errorf("expected to find resources 1001 and 2001, got %+v", resources)
 	}
 }
+
+func TestClientSessionExpirationAndRetry(t *testing.T) {
+	sessionCount := 0
+	treeRequests := 0
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/2026-2027/etudiant/esisar" {
+			sessionCount++
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		if r.URL.Path == "/test/tree.jsp" {
+			treeRequests++
+			// First request simulates an expired ADE session returning 404
+			if treeRequests == 1 {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			// After retry with fresh session, returns 200 OK
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprint(w, "<html><body>Tree Content</body></html>")
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer mockServer.Close()
+
+	client := NewClient("user", "pass", "2026-2027")
+	client.SetBaseURL(mockServer.URL)
+
+	content, err := client.FetchTreePage(context.Background(), "/test/tree.jsp")
+	if err != nil {
+		t.Fatalf("FetchTreePage failed: %v", err)
+	}
+
+	if !strings.Contains(string(content), "Tree Content") {
+		t.Errorf("expected 'Tree Content', got %s", string(content))
+	}
+
+	// It should have initialized session once, hit 404, reset session, and re-initialized session
+	if sessionCount != 2 {
+		t.Errorf("expected 2 session initializations, got %d", sessionCount)
+	}
+	if treeRequests != 2 {
+		t.Errorf("expected 2 tree requests (1 initial + 1 retry), got %d", treeRequests)
+	}
+}
+
+func TestClientResetSession(t *testing.T) {
+	sessionCount := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/2026-2027/etudiant/esisar" {
+			sessionCount++
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		if strings.Contains(r.URL.Path, "directCal") {
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprint(w, "BEGIN:VCALENDAR\r\nEND:VCALENDAR")
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer mockServer.Close()
+
+	client := NewClient("user", "pass", "2026-2027")
+	client.SetBaseURL(mockServer.URL)
+
+	_, err := client.FetchCalendarRaw(context.Background(), "123")
+	if err != nil {
+		t.Fatalf("first fetch failed: %v", err)
+	}
+	if sessionCount != 1 {
+		t.Errorf("expected 1 session init, got %d", sessionCount)
+	}
+
+	// ResetSession forces re-authentication on next request
+	client.ResetSession()
+
+	_, err = client.FetchCalendarRaw(context.Background(), "123")
+	if err != nil {
+		t.Fatalf("second fetch failed: %v", err)
+	}
+	if sessionCount != 2 {
+		t.Errorf("expected 2 session inits after ResetSession, got %d", sessionCount)
+	}
+}

@@ -74,6 +74,12 @@ func (s *Syncer) Sync(ctx context.Context) error {
 	startTime := time.Now()
 	s.logger.Info("starting synchronization cycle", "academic_year", s.cfg.AcademicYear, "concurrency", s.cfg.Concurrency)
 
+	// Reset ADE session before starting sync cycle so that each scheduled or manual
+	// sync operates with a fresh ADE Campus session.
+	if s.adeClient != nil {
+		s.adeClient.ResetSession()
+	}
+
 	// Ensure destination directories exist
 	if err := os.MkdirAll(s.cfg.OutputDir, 0o755); err != nil {
 		s.finishSync(startTime, fmt.Errorf("failed to create output dir: %w", err))
@@ -200,6 +206,33 @@ func (s *Syncer) finishSync(startTime time.Time, err error) {
 	}
 }
 
+func resolveStaticPath(primaryPath string) string {
+	if _, err := os.Stat(primaryPath); err == nil {
+		return primaryPath
+	}
+
+	filename := filepath.Base(primaryPath)
+	candidates := []string{
+		filepath.Join("/app/seed-data", filename),
+		filepath.Join("data", filename),
+	}
+
+	for _, cand := range candidates {
+		if _, err := os.Stat(cand); err == nil {
+			// Best-effort: restore file to primaryPath directory
+			if content, err := os.ReadFile(cand); err == nil {
+				if dir := filepath.Dir(primaryPath); dir != "" {
+					_ = os.MkdirAll(dir, 0o755)
+				}
+				_ = os.WriteFile(primaryPath, content, 0o644)
+			}
+			return cand
+		}
+	}
+
+	return primaryPath
+}
+
 func (s *Syncer) discoverResources(ctx context.Context) []ade.Resource {
 	// If credentials provided, attempt dynamic discovery first
 	if s.cfg.AgalanLogin != "" && s.cfg.AgalanPassword != "" {
@@ -208,7 +241,7 @@ func (s *Syncer) discoverResources(ctx context.Context) []ade.Resource {
 		if err == nil && len(discovered) > 0 {
 			s.logger.Info("dynamic discovery found resources", "count", len(discovered))
 			// Also append rooms from static file
-			roomsFile := filepath.Join(s.cfg.DataDir, "Rooms-IDS.txt")
+			roomsFile := resolveStaticPath(filepath.Join(s.cfg.DataDir, "Rooms-IDS.txt"))
 			if rooms, err := ade.LoadStaticIDs(roomsFile, true); err == nil {
 				discovered = append(discovered, rooms...)
 			}
@@ -219,14 +252,14 @@ func (s *Syncer) discoverResources(ctx context.Context) []ade.Resource {
 
 	// Fallback to static IDS.txt and Rooms-IDS.txt
 	var all []ade.Resource
-	idsFile := filepath.Join(s.cfg.DataDir, "IDS.txt")
+	idsFile := resolveStaticPath(filepath.Join(s.cfg.DataDir, "IDS.txt"))
 	if promos, err := ade.LoadStaticIDs(idsFile, false); err == nil {
 		all = append(all, promos...)
 	} else {
 		s.logger.Warn("failed to load static IDS.txt", "path", idsFile, "error", err)
 	}
 
-	roomsFile := filepath.Join(s.cfg.DataDir, "Rooms-IDS.txt")
+	roomsFile := resolveStaticPath(filepath.Join(s.cfg.DataDir, "Rooms-IDS.txt"))
 	if rooms, err := ade.LoadStaticIDs(roomsFile, true); err == nil {
 		all = append(all, rooms...)
 	} else {

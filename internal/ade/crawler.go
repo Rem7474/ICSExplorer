@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/Rem7474/ICSExplorer/internal/ics"
 )
 
 // Resource represents a promo, student group, or room schedule in ADE.
@@ -109,6 +110,7 @@ func (c *Crawler) crawlBranch(ctx context.Context, branchCode string) error {
 }
 
 func (c *Crawler) extractBranches(htmlContent []byte) ([]string, error) {
+	htmlContent = ics.EnsureUTF8(htmlContent)
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(htmlContent))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse HTML tree: %w", err)
@@ -132,6 +134,7 @@ func (c *Crawler) extractBranches(htmlContent []byte) ([]string, error) {
 }
 
 func (c *Crawler) extractLeaves(htmlContent []byte) ([]Resource, error) {
+	htmlContent = ics.EnsureUTF8(htmlContent)
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(htmlContent))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse final HTML tree: %w", err)
@@ -145,6 +148,15 @@ func (c *Crawler) extractLeaves(htmlContent []byte) ([]Resource, error) {
 		if text != "" && LeafRegex.MatchString(text) {
 			href, exists := s.Attr("href")
 			if exists && strings.Contains(href, "(") {
+				// Exclude branch triggers: branches are folders, not calendar resources,
+				// and cause HTTP 500 when requested via directCal.
+				if strings.Contains(href, "checkBranch") || strings.Contains(href, "openBranch") {
+					return
+				}
+				if s.Parent().HasClass("treebranch") || s.HasClass("treebranch") {
+					return
+				}
+
 				id := extractResourceID(href)
 				if id != "" && !seen[text] {
 					seen[text] = true
@@ -189,15 +201,16 @@ func extractResourceID(href string) string {
 }
 
 // LoadStaticIDs loads resources from a semicolon or comma-separated file (e.g. IDS.txt or Rooms-IDS.txt).
+// It automatically converts content to valid UTF-8, handling Latin-1 / ANSI accented characters properly.
 func LoadStaticIDs(filePath string, isRoom bool) ([]Resource, error) {
-	file, err := os.Open(filePath)
+	raw, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("could not open ID file %s: %w", filePath, err)
 	}
-	defer file.Close()
+	raw = ics.EnsureUTF8(raw)
 
 	var resources []Resource
-	scanner := bufio.NewScanner(file)
+	scanner := bufio.NewScanner(bytes.NewReader(raw))
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
