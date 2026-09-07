@@ -44,8 +44,8 @@ COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Copy seed data & create output directory with appropriate permissions
-COPY data/ /app/seed-data/
-COPY data/ /app/data/
+COPY data/*.txt /app/seed-data/
+COPY data/*.txt /app/data/
 RUN mkdir -p /app/data/output /app/data/rooms \
     && chown -R appuser:appgroup /app/data /app/seed-data
 
