@@ -152,10 +152,37 @@ const currentIcsUrl = computed(() => {
   return fileUrl(file);
 });
 
-const currentWebcalUrl = computed(() => {
-  if (currentIcsUrl.value === "#") return "#";
-  return currentIcsUrl.value.replace(/^https?:/, "webcal:");
+const canCopyIcsLink = computed(() => {
+  const mode = unref(props.schedule.selectedMode);
+  if (mode === "student") {
+    return Boolean(unref(props.schedule.selectedFile));
+  }
+  if (mode === "room") {
+    return Boolean(unref(props.schedule.selectedRoom));
+  }
+  return false;
 });
+
+const absoluteIcsUrl = computed(() => {
+  if (!canCopyIcsLink.value || currentIcsUrl.value === "#") return "";
+  try {
+    return new URL(currentIcsUrl.value, window.location.origin).href;
+  } catch {
+    return currentIcsUrl.value;
+  }
+});
+
+const copyIcsLink = async () => {
+  const url = absoluteIcsUrl.value;
+  if (!url) return;
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast("Lien du calendrier (.ics) copié !", "success");
+  } catch {
+    prompt("Copiez ce lien du calendrier :", url);
+  }
+};
+
 
 // Quick Search Filtering
 const searchResults = computed(() => {
@@ -530,7 +557,7 @@ const copyShareLink = async () => {
       </button>
 
       <a
-        v-if="isStudentMode && schedule.selectedFile"
+        v-if="canCopyIcsLink"
         :href="currentIcsUrl"
         download
         class="btn btn-outline"
@@ -539,14 +566,15 @@ const copyShareLink = async () => {
         <i class="pi pi-download" style="margin-right: 0.35rem;" aria-hidden="true"></i> Télécharger
       </a>
 
-      <a
-        v-if="isStudentMode && schedule.selectedFile"
-        :href="currentWebcalUrl"
+      <button
+        v-if="canCopyIcsLink"
+        type="button"
         class="btn btn-outline"
-        title="Ajouter au calendrier Google / Apple (mise à jour auto)"
+        title="Copier le lien direct du calendrier (.ics) pour s'abonner (Google Agenda, Apple, Outlook...)"
+        @click="copyIcsLink"
       >
-        <i class="pi pi-calendar-plus" style="margin-right: 0.35rem;" aria-hidden="true"></i> S'abonner
-      </a>
+        <i class="pi pi-link" style="margin-right: 0.35rem;" aria-hidden="true"></i> Copier le lien
+      </button>
 
       <button
         type="button"

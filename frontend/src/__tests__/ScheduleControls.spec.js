@@ -205,5 +205,44 @@ describe("ScheduleControls component", () => {
 
     expect(schedule.setMode).toHaveBeenCalledWith("student");
   });
+
+  it("shows 'Copier le lien' button when a student file is selected, and copies ICS url", async () => {
+    const schedule = useSchedule();
+    schedule.selectedMode.value = "student";
+    schedule.availableFiles.value = ["1A-Prepa-TP1.ics"];
+    schedule.selectedFile.value = "1A-Prepa-TP1.ics";
+
+    const writeTextSpy = vi.fn().mockResolvedValue();
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: writeTextSpy,
+      },
+    });
+
+    const wrapper = mount(ScheduleControls, {
+      props: { schedule },
+    });
+
+    const copyBtn = wrapper.findAll("button").find((b) => b.text().includes("Copier le lien"));
+    expect(copyBtn).toBeDefined();
+
+    await copyBtn.trigger("click");
+    expect(writeTextSpy).toHaveBeenCalled();
+    const copiedUrl = writeTextSpy.mock.calls[0][0];
+    expect(copiedUrl).toContain("/output/1A-Prepa-TP1.ics");
+  });
+
+  it("does NOT show 'Copier le lien' button in teacher mode", async () => {
+    const schedule = useSchedule();
+    schedule.selectedMode.value = "teacher";
+    schedule.selectedTeacher.value = "DUPONT Jean";
+
+    const wrapper = mount(ScheduleControls, {
+      props: { schedule },
+    });
+
+    const copyBtn = wrapper.findAll("button").find((b) => b.text().includes("Copier le lien"));
+    expect(copyBtn).toBeUndefined();
+  });
 });
 
