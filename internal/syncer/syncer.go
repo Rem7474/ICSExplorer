@@ -234,7 +234,16 @@ func (s *Syncer) discoverResources(ctx context.Context) []ade.Resource {
 		discovered, err := s.crawler.DiscoverResources(ctx)
 		if err == nil && len(discovered) > 0 {
 			s.logger.Info("dynamic discovery found resources", "count", len(discovered))
-			// Also append rooms from static file
+
+			// Auto-save dynamically discovered promos to IDS.txt so it stays persisted and updated
+			idsPath := filepath.Join(s.cfg.DataDir, "IDS.txt")
+			if err := ade.SaveStaticIDs(idsPath, discovered); err != nil {
+				s.logger.Warn("failed to auto-save discovered resources to IDS.txt", "path", idsPath, "error", err)
+			} else {
+				s.logger.Info("auto-saved discovered resources to IDS.txt", "path", idsPath, "count", len(discovered))
+			}
+
+			// Append rooms from static file if available
 			roomsFile := resolveStaticPath(filepath.Join(s.cfg.DataDir, "Rooms-IDS.txt"))
 			if rooms, err := ade.LoadStaticIDs(roomsFile, true); err == nil {
 				discovered = append(discovered, rooms...)

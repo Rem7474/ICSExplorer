@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -243,4 +244,38 @@ func LoadStaticIDs(filePath string, isRoom bool) ([]Resource, error) {
 	}
 
 	return resources, nil
+}
+
+// DefaultRooms returns the default known list of classrooms for Esisar.
+func DefaultRooms() []Resource {
+	return []Resource{
+		{Name: "A042", ID: "9756", IsRoom: true},
+		{Name: "A046", ID: "2101", IsRoom: true},
+		{Name: "A048", ID: "2895", IsRoom: true},
+		{Name: "A049", ID: "9757", IsRoom: true},
+		{Name: "A166", ID: "15186", IsRoom: true},
+		{Name: "B040", ID: "1796", IsRoom: true},
+		{Name: "B042", ID: "2336", IsRoom: true},
+		{Name: "B044", ID: "1814", IsRoom: true},
+		{Name: "B141", ID: "2757", IsRoom: true},
+		{Name: "B148", ID: "1660", IsRoom: true},
+		{Name: "B152", ID: "2706", IsRoom: true},
+		{Name: "C065", ID: "3096", IsRoom: true},
+		{Name: "C080", ID: "2543", IsRoom: true},
+	}
+}
+
+// SaveStaticIDs writes a list of resources to a semicolon-separated file (e.g. IDS.txt or Rooms-IDS.txt).
+func SaveStaticIDs(filePath string, resources []Resource) error {
+	cleaned := filepath.Clean(filePath)
+	if dir := filepath.Dir(cleaned); dir != "" {
+		_ = os.MkdirAll(dir, 0o755)
+	}
+
+	var sb strings.Builder
+	for _, res := range resources {
+		sb.WriteString(fmt.Sprintf("%s;%s\n", res.Name, res.ID))
+	}
+
+	return os.WriteFile(cleaned, []byte(sb.String()), 0o644)
 }
