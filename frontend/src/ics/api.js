@@ -59,6 +59,22 @@ export const fetchUniversities = async () => {
   return resp.json();
 };
 
+export const fetchRoomList = async () => {
+  try {
+    const resp = await fetch("/api/rooms", { cache: "no-store" });
+    if (resp.ok) {
+      const list = await resp.json();
+      if (Array.isArray(list) && list.length > 0) {
+        return list
+          .filter((f) => typeof f === "string" && f.endsWith(".ics"))
+          .map((f) => f.replace(/\.ics$/i, ""));
+      }
+    }
+  } catch {}
+  return [];
+};
+
+
 export const fetchTreeNodes = async ({ universityId, adeUrl, login, password, branchId, branchPath, category }) => {
   const resp = await fetch("/api/tree", {
     method: "POST",

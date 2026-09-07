@@ -102,6 +102,12 @@ const onSelectPersonalTab = () => {
 };
 
 const currentIcsUrl = computed(() => {
+  const mode = unref(props.schedule.selectedMode);
+  if (mode === "room") {
+    const room = unref(props.schedule.selectedRoom);
+    if (!room) return "#";
+    return `/rooms/${encodeURIComponent(room)}.ics`;
+  }
   const file = unref(props.schedule.selectedFile);
   if (!file || typeof file !== "string") return "#";
   return fileUrl(file);
@@ -128,12 +134,46 @@ const searchResults = computed(() => {
     }
   });
 
+  const teachers = unref(props.schedule.availableTeachers) || [];
+  teachers.forEach((teacher) => {
+    if (typeof teacher === "string" && teacher.toLowerCase().includes(q)) {
+      results.push({ type: "teacher", label: `Prof. ${teacher}`, value: teacher });
+    }
+  });
+
+  const rooms = unref(props.schedule.availableRooms) || [];
+  rooms.forEach((room) => {
+    if (typeof room === "string" && room.toLowerCase().includes(q)) {
+      results.push({ type: "room", label: `Salle ${room}`, value: room });
+    }
+  });
+
   return results.slice(0, 10);
 });
 
+const onSearchFocus = () => {
+  showSearchResults.value = true;
+  if (props.schedule.loadTeacherList && !unref(props.schedule.availableTeachers)?.length) {
+    props.schedule.loadTeacherList();
+  }
+  if (props.schedule.loadRoomList && !unref(props.schedule.availableRooms)?.length) {
+    props.schedule.loadRoomList();
+  }
+};
+
 const selectSearchResult = (item) => {
-  props.schedule.selectedMode = "student";
-  props.schedule.loadSchedule(item.value);
+  if (item.type === "teacher") {
+    props.schedule.selectedMode = "teacher";
+    props.schedule.selectedTeacher = item.value;
+    props.schedule.loadTeacherSchedule(item.value);
+  } else if (item.type === "room") {
+    props.schedule.selectedMode = "room";
+    props.schedule.selectedRoom = item.value;
+    props.schedule.loadRoomSchedule(item.value);
+  } else {
+    props.schedule.selectedMode = "student";
+    props.schedule.loadSchedule(item.value);
+  }
   searchQuery.value = "";
   showSearchResults.value = false;
   showToast(`Planning chargé : ${item.label}`, "success");
@@ -202,7 +242,7 @@ const copyShareLink = async () => {
           v-model="searchQuery"
           type="text"
           placeholder="🔍 Recherche rapide (ex: 1A-Prépa, 3A-IN, Professeur...) [Ctrl+K]"
-          @focus="showSearchResults = true"
+          @focus="onSearchFocus"
           @blur="setTimeout(() => (showSearchResults = false), 200)"
         />
         <div v-if="showSearchResults && searchResults.length > 0" class="search-dropdown">
@@ -213,7 +253,7 @@ const copyShareLink = async () => {
             :title="res.label"
             @mousedown="selectSearchResult(res)"
           >
-            <span class="search-tag">{{ res.type === 'student' ? 'Élève' : res.type }}</span>
+            <span class="search-tag">{{ res.type === 'student' ? 'Élève' : res.type === 'teacher' ? 'Prof' : res.type === 'room' ? 'Salle' : res.type }}</span>
             <span class="search-label" :title="res.label">{{ res.label }}</span>
           </div>
         </div>
@@ -362,9 +402,15 @@ const copyShareLink = async () => {
           <select
             id="teacherSelect"
             v-model="schedule.selectedTeacher"
+            :disabled="schedule.isAggregatorLoading && availableTeachers.length === 0"
             @change="schedule.loadTeacherSchedule(schedule.selectedTeacher)"
           >
-            <option value="">Sélectionnez un enseignant...</option>
+            <option v-if="schedule.isAggregatorLoading && availableTeachers.length === 0" value="" disabled>
+              Chargement des professeurs...
+            </option>
+            <option v-else value="">
+              {{ availableTeachers.length ? 'Sélectionnez un enseignant...' : 'Aucun enseignant trouvé' }}
+            </option>
             <option v-for="t in availableTeachers" :key="t" :value="t">{{ t }}</option>
           </select>
         </div>
@@ -377,9 +423,15 @@ const copyShareLink = async () => {
           <select
             id="roomSelect"
             v-model="schedule.selectedRoom"
+            :disabled="schedule.isAggregatorLoading && availableRooms.length === 0"
             @change="schedule.loadRoomSchedule(schedule.selectedRoom)"
           >
-            <option value="">Sélectionnez une salle...</option>
+            <option v-if="schedule.isAggregatorLoading && availableRooms.length === 0" value="" disabled>
+              Chargement des salles...
+            </option>
+            <option v-else value="">
+              {{ availableRooms.length ? 'Sélectionnez une salle...' : 'Aucune salle trouvée' }}
+            </option>
             <option v-for="r in availableRooms" :key="r" :value="r">{{ r }}</option>
           </select>
         </div>

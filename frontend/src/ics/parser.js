@@ -83,12 +83,27 @@ export const extractTeacherNames = (description) => {
 
   for (const line of lines) {
     const trimmed = line.trim();
-    if (trimmed.includes("avec ")) {
-      const parts = trimmed.split("avec ");
-      if (parts.length > 1) {
-        const teacherPart = parts[1].split(",")[0].trim();
-        if (teacherPart && !teacherPart.toLowerCase().includes("eleves")) {
-          names.push(teacherPart);
+    if (!trimmed) continue;
+
+    // Pattern 1: "avec M. Dupont, ..."
+    if (trimmed.toLowerCase().includes("avec ")) {
+      const idx = trimmed.toLowerCase().indexOf("avec ");
+      const afterAvec = trimmed.slice(idx + 5);
+      const teacherPart = afterAvec.split(",")[0].split("(")[0].trim();
+      if (teacherPart && !teacherPart.toLowerCase().includes("eleves") && !teacherPart.toLowerCase().includes("étudiants")) {
+        names.push(teacherPart);
+      }
+    }
+
+    // Pattern 2: "Intervenant(s) : ...", "Enseignant(s) : ...", "Professeur(s) : ..."
+    const prefixMatch = trimmed.match(/^(?:enseignants?|intervenants?|professeurs?|prof)\s*:\s*(.+)$/i);
+    if (prefixMatch) {
+      const rawList = prefixMatch[1];
+      const parts = rawList.split(/[,;]/);
+      for (const part of parts) {
+        const clean = part.split("(")[0].trim();
+        if (clean && !clean.toLowerCase().includes("eleves") && !clean.toLowerCase().includes("étudiants")) {
+          names.push(clean);
         }
       }
     }
@@ -96,3 +111,4 @@ export const extractTeacherNames = (description) => {
 
   return [...new Set(names)];
 };
+

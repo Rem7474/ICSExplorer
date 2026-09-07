@@ -1,8 +1,8 @@
-import { ref, computed } from "vue";
-import { fetchFileList, fetchIcsText, fetchPersonalCalendar } from "../ics/api.js";
+import { ref, computed, watch } from "vue";
+import { fetchFileList, fetchRoomList, fetchIcsText, fetchPersonalCalendar, decodeTextWithFallback } from "../ics/api.js";
 import { parseIcs } from "../ics/parser.js";
 import { getRelevantWeekStart, getWeekStart, getWeekEnd } from "../utils/dates.js";
-import { getTeacherIndex, getRoomIndex } from "../ics/aggregator.js";
+import { getTeacherIndex, getRoomIndex, clearAggregatedCache } from "../ics/aggregator.js";
 import { getSubjectType } from "../utils/colors.js";
 
 const STORAGE_KEY = "edtSelection";
@@ -133,11 +133,11 @@ export function useSchedule() {
       if (urlTeacher) {
         selectedMode.value = "teacher";
         selectedTeacher.value = urlTeacher;
-        await loadTeacherSchedule(urlTeacher);
+        await Promise.all([loadTeacherList(), loadTeacherSchedule(urlTeacher)]);
       } else if (urlRoom) {
         selectedMode.value = "room";
         selectedRoom.value = urlRoom;
-        await loadRoomSchedule(urlRoom);
+        await Promise.all([loadRoomList(), loadRoomSchedule(urlRoom)]);
       } else if (urlFile && files.includes(urlFile)) {
         selectedMode.value = "student";
         autoSelectFromFile(urlFile);
@@ -158,6 +158,14 @@ export function useSchedule() {
           autoSelectFromFile(files[0]);
           await loadSchedule(files[0]);
         }
+      } else if (saved.mode === "teacher" && saved.teacher) {
+        selectedMode.value = "teacher";
+        selectedTeacher.value = saved.teacher;
+        await Promise.all([loadTeacherList(), loadTeacherSchedule(saved.teacher)]);
+      } else if (saved.mode === "room" && saved.room) {
+        selectedMode.value = "room";
+        selectedRoom.value = saved.room;
+        await Promise.all([loadRoomList(), loadRoomSchedule(saved.room)]);
       } else {
         if (saved.file && files.includes(saved.file)) {
           selectedMode.value = "student";
@@ -328,6 +336,65 @@ export function useSchedule() {
     URL.revokeObjectURL(blobUrl);
   };
 
+  const loadTeacherList = async () => {
+    if (availableTeachers.value.length > 0) return;
+    isAggregatorLoading.value = true;
+    try {
+      const teacherMap = await getTeacherIndex();
+      availableTeachers.value = Array.from(teacherMap.keys()).sort((a, b) =>
+        a.localeCompare(b, "fr", { sensitivity: "base" })
+      );
+    } catch {
+      // Graceful degradation when offline or unindexed
+    } finally {
+      isAggregatorLoading.value = false;
+    }
+  };
+
+  const loadRoomList = async () => {
+    if (availableRooms.value.length > 0) return;
+    isAggregatorLoading.value = true;
+    try {
+      const roomSet = new Set();
+
+      // Fast path: static room files from /api/rooms
+      try {
+        const apiRooms = await fetchRoomList();
+        apiRooms.forEach((r) => roomSet.add(r));
+        if (roomSet.size > 0) {
+          availableRooms.value = Array.from(roomSet).sort((a, b) =>
+            a.localeCompare(b, "fr", { numeric: true, sensitivity: "base" })
+          );
+        }
+      } catch {}
+
+      // Aggregated rooms from all parsed student calendars
+      try {
+        const roomMap = await getRoomIndex();
+        for (const room of roomMap.keys()) {
+          roomSet.add(room);
+        }
+      } catch {}
+
+      availableRooms.value = Array.from(roomSet).sort((a, b) =>
+        a.localeCompare(b, "fr", { numeric: true, sensitivity: "base" })
+      );
+    } catch {
+      // Graceful degradation when offline or unindexed
+    } finally {
+      isAggregatorLoading.value = false;
+    }
+  };
+
+  // Watch mode switches to load lists lazily when entering teacher/room mode
+  watch(selectedMode, (newMode) => {
+    if (newMode === "teacher" && availableTeachers.value.length === 0) {
+      loadTeacherList();
+    } else if (newMode === "room" && availableRooms.value.length === 0) {
+      loadRoomList();
+    }
+  });
+
   const loadTeacherSchedule = async (teacherName) => {
     if (!teacherName) return;
     isLoading.value = true;
@@ -335,6 +402,9 @@ export function useSchedule() {
     statusMessage.value = "Agrégation des cours du professeur...";
 
     try {
+      if (availableTeachers.value.length === 0) {
+        loadTeacherList().catch(() => {});
+      }
       const teacherMap = await getTeacherIndex();
       const teacherEvents = teacherMap.get(teacherName) || [];
       teacherEvents.sort((a, b) => new Date(a.start) - new Date(b.start));
@@ -342,10 +412,13 @@ export function useSchedule() {
       currentWeekStart.value = getRelevantWeekStart(teacherEvents);
       statusMessage.value = "";
 
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode: "teacher", teacher: teacherName }));
+
       const url = new URL(window.location);
       url.searchParams.set("teacher", teacherName);
       url.searchParams.delete("file");
       url.searchParams.delete("room");
+      url.searchParams.delete("mode");
       window.history.replaceState({}, "", url);
     } catch (err) {
       statusMessage.value = `Erreur: ${err.message}`;
@@ -361,17 +434,38 @@ export function useSchedule() {
     statusMessage.value = "Recherche des cours dans la salle...";
 
     try {
-      const roomMap = await getRoomIndex();
-      const roomEvents = roomMap.get(roomName) || [];
+      if (availableRooms.value.length === 0) {
+        loadRoomList().catch(() => {});
+      }
+
+      let roomEvents = [];
+      // 1. Try fetching direct room calendar from backend /rooms/{roomName}.ics
+      try {
+        const resp = await fetch(`/rooms/${encodeURIComponent(roomName)}.ics`, { cache: "no-store" });
+        if (resp.ok) {
+          const text = await decodeTextWithFallback(resp);
+          roomEvents = parseIcs(text);
+        }
+      } catch {}
+
+      // 2. Fallback to aggregator (from student promo files)
+      if (!roomEvents || roomEvents.length === 0) {
+        const roomMap = await getRoomIndex();
+        roomEvents = roomMap.get(roomName) || [];
+      }
+
       roomEvents.sort((a, b) => new Date(a.start) - new Date(b.start));
       events.value = roomEvents;
       currentWeekStart.value = getRelevantWeekStart(roomEvents);
       statusMessage.value = "";
 
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode: "room", room: roomName }));
+
       const url = new URL(window.location);
       url.searchParams.set("room", roomName);
       url.searchParams.delete("file");
       url.searchParams.delete("teacher");
+      url.searchParams.delete("mode");
       window.history.replaceState({}, "", url);
     } catch (err) {
       statusMessage.value = `Erreur: ${err.message}`;
@@ -431,6 +525,7 @@ export function useSchedule() {
       statusMessage.value = "Déclenchement de la synchronisation...";
       const resp = await fetch("/api/sync", { method: "POST" });
       if (resp.ok) {
+        clearAggregatedCache();
         statusMessage.value = "Synchronisation démarrée en arrière-plan. Actualisation dans quelques instants...";
         setTimeout(init, 4000);
       } else {
@@ -474,6 +569,8 @@ export function useSchedule() {
     init,
     loadSchedule,
     loadPersonalEvents,
+    loadTeacherList,
+    loadRoomList,
     loadTeacherSchedule,
     loadRoomSchedule,
     personalScheduleInfo,

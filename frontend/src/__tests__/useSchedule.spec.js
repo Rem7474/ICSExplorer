@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useSchedule } from "../composables/useSchedule.js";
+import * as aggregator from "../ics/aggregator.js";
 
 describe("useSchedule composable", () => {
   beforeEach(() => {
@@ -176,5 +177,61 @@ describe("useSchedule composable", () => {
 
     expect(schedule.isLoading.value).toBe(false);
     expect(schedule.statusMessage.value).toContain("Impossible d'actualiser");
+  });
+
+  it("loadTeacherList populates availableTeachers from aggregator index", async () => {
+    const mockMap = new Map();
+    mockMap.set("DUPONT Jean", [{ summary: "Maths", start: new Date(), end: new Date() }]);
+    mockMap.set("MARTIN Sophie", [{ summary: "Physique", start: new Date(), end: new Date() }]);
+    vi.spyOn(aggregator, "getTeacherIndex").mockResolvedValue(mockMap);
+
+    const schedule = useSchedule();
+    await schedule.loadTeacherList();
+
+    expect(schedule.availableTeachers.value).toEqual(["DUPONT Jean", "MARTIN Sophie"]);
+  });
+
+  it("loadRoomList populates availableRooms from aggregator index", async () => {
+    const mockMap = new Map();
+    mockMap.set("B148", [{ summary: "TP", start: new Date(), end: new Date() }]);
+    mockMap.set("A042", [{ summary: "CM", start: new Date(), end: new Date() }]);
+    vi.spyOn(aggregator, "getRoomIndex").mockResolvedValue(mockMap);
+
+    const schedule = useSchedule();
+    await schedule.loadRoomList();
+
+    expect(schedule.availableRooms.value).toEqual(["A042", "B148"]);
+  });
+
+  it("loadTeacherSchedule loads teacher events, updates week, localStorage and URL", async () => {
+    const mockMap = new Map();
+    const mockEvent = { summary: "Maths TD", start: new Date("2026-09-01T08:00:00Z"), end: new Date("2026-09-01T10:00:00Z") };
+    mockMap.set("DUPONT Jean", [mockEvent]);
+    vi.spyOn(aggregator, "getTeacherIndex").mockResolvedValue(mockMap);
+
+    const schedule = useSchedule();
+    await schedule.loadTeacherSchedule("DUPONT Jean");
+
+    expect(schedule.events.value).toEqual([mockEvent]);
+    expect(JSON.parse(localStorage.getItem("edtSelection"))).toEqual({ mode: "teacher", teacher: "DUPONT Jean" });
+    const url = new URL(window.location);
+    expect(url.searchParams.get("teacher")).toBe("DUPONT Jean");
+    expect(url.searchParams.get("file")).toBeNull();
+  });
+
+  it("loadRoomSchedule loads room events, updates week, localStorage and URL", async () => {
+    const mockMap = new Map();
+    const mockEvent = { summary: "Automatique TP", start: new Date("2026-09-02T14:00:00Z"), end: new Date("2026-09-02T16:00:00Z") };
+    mockMap.set("A042", [mockEvent]);
+    vi.spyOn(aggregator, "getRoomIndex").mockResolvedValue(mockMap);
+
+    const schedule = useSchedule();
+    await schedule.loadRoomSchedule("A042");
+
+    expect(schedule.events.value).toEqual([mockEvent]);
+    expect(JSON.parse(localStorage.getItem("edtSelection"))).toEqual({ mode: "room", room: "A042" });
+    const url = new URL(window.location);
+    expect(url.searchParams.get("room")).toBe("A042");
+    expect(url.searchParams.get("file")).toBeNull();
   });
 });
