@@ -138,6 +138,15 @@ func TestSyncEndpoint(t *testing.T) {
 	if wAuth.Code != http.StatusAccepted {
 		t.Errorf("expected 202 Accepted, got %d. Body: %s", wAuth.Code, wAuth.Body.String())
 	}
+
+	// Wait for background sync goroutine to finish so it doesn't race with t.TempDir() cleanup
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if srv.syncer.GetStats().LastSyncTime != nil && !srv.syncer.GetStats().IsSyncing {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }
 
 func TestFilesAndRoomsEndpoints(t *testing.T) {
