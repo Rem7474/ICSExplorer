@@ -214,14 +214,13 @@ func resolveStaticPath(primaryPath string) string {
 
 	filename := filepath.Base(cleaned)
 	candidates := []string{
-		filepath.Join("/app", "seed-data", filename),
-		filepath.Join("data", filename),
+		filepath.Clean("/app/seed-data/" + filename),
+		filepath.Clean("data/" + filename),
 	}
 
 	for _, cand := range candidates {
-		candCleaned := filepath.Clean(cand)
-		if _, err := os.Stat(candCleaned); err == nil {
-			return candCleaned
+		if _, err := os.Stat(cand); err == nil {
+			return cand
 		}
 	}
 
