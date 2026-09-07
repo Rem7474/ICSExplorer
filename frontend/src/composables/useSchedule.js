@@ -6,6 +6,7 @@ import { getTeacherIndex, getRoomIndex, clearAggregatedCache } from "../ics/aggr
 import { getSubjectType } from "../utils/colors.js";
 
 const STORAGE_KEY = "edtSelection";
+const BASE_SCHEDULE_KEY = "edtBaseSchedule";
 const PERSONAL_CREDENTIALS_KEY = "edtPersonalCreds";
 const PERSONAL_CACHE_KEY = "edt_cached_personal_ics";
 const PERSONAL_META_KEY = "edt_personal_meta";
@@ -16,6 +17,7 @@ export function useSchedule() {
   const availableRooms = ref([]);
   
   const selectedMode = ref("student"); // "student" | "personal" | "teacher" | "room"
+  const baseSchedule = ref(null); // { mode: "student" | "personal", file?: string, name?: string }
   const selectedYear = ref("");
   const selectedTrack = ref("");
   const selectedType = ref("");
@@ -129,6 +131,14 @@ export function useSchedule() {
       const urlRoom = urlParams.get("room");
 
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+      const savedBase = JSON.parse(localStorage.getItem(BASE_SCHEDULE_KEY) || "null");
+      if (savedBase) {
+        baseSchedule.value = savedBase;
+      } else if (saved.mode === "student" && saved.file) {
+        baseSchedule.value = { mode: "student", file: saved.file, name: saved.file.replace(/\.ics$/i, "") };
+      } else if (saved.mode === "personal") {
+        baseSchedule.value = { mode: "personal", name: "Mon Planning ADE" };
+      }
 
       if (urlTeacher) {
         selectedMode.value = "teacher";
@@ -207,7 +217,10 @@ export function useSchedule() {
       currentWeekStart.value = getRelevantWeekStart(parsed);
       statusMessage.value = "";
 
-      // Save selection
+      // Save selection and update base schedule reference
+      const cleanName = fileName.replace(/\.ics$/i, "");
+      baseSchedule.value = { mode: "student", file: fileName, name: cleanName };
+      localStorage.setItem(BASE_SCHEDULE_KEY, JSON.stringify(baseSchedule.value));
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode: "student", file: fileName }));
       const url = new URL(window.location);
       url.searchParams.set("file", fileName);
@@ -251,6 +264,11 @@ export function useSchedule() {
 
       personalScheduleInfo.value = fullMeta;
 
+      baseSchedule.value = {
+        mode: "personal",
+        name: fullMeta.name || "Mon Planning ADE",
+      };
+      localStorage.setItem(BASE_SCHEDULE_KEY, JSON.stringify(baseSchedule.value));
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode: "personal" }));
       localStorage.setItem(PERSONAL_CACHE_KEY, icsText);
       localStorage.setItem(PERSONAL_META_KEY, JSON.stringify(fullMeta));
@@ -386,12 +404,28 @@ export function useSchedule() {
     }
   };
 
-  // Watch mode switches to load lists lazily when entering teacher/room mode
-  watch(selectedMode, (newMode) => {
+  // Watch mode switches to load lists lazily when entering teacher/room mode,
+  // and automatically restore schedule when returning to student/personal mode
+  watch(selectedMode, (newMode, oldMode) => {
+    if (newMode === oldMode) return;
     if (newMode === "teacher" && availableTeachers.value.length === 0) {
       loadTeacherList();
     } else if (newMode === "room" && availableRooms.value.length === 0) {
       loadRoomList();
+    } else if (newMode === "student" && oldMode && oldMode !== "student") {
+      const targetFile = selectedFile.value || baseSchedule.value?.file || (availableFiles.value.length > 0 ? availableFiles.value[0] : "");
+      if (targetFile) {
+        autoSelectFromFile(targetFile);
+        loadSchedule(targetFile);
+      }
+    } else if (newMode === "personal" && oldMode && oldMode !== "personal") {
+      const cachedIcs = localStorage.getItem(PERSONAL_CACHE_KEY);
+      const meta = JSON.parse(localStorage.getItem(PERSONAL_META_KEY) || "null");
+      if (cachedIcs) {
+        loadPersonalEvents(cachedIcs, meta || {});
+      } else if (localStorage.getItem(PERSONAL_CREDENTIALS_KEY)) {
+        refreshPersonalSchedule().catch(() => {});
+      }
     }
   });
 
@@ -474,6 +508,74 @@ export function useSchedule() {
     }
   };
 
+  const returnToBaseSchedule = async () => {
+    const base = baseSchedule.value || JSON.parse(localStorage.getItem(BASE_SCHEDULE_KEY) || "null");
+
+    if (base?.mode === "personal") {
+      selectedMode.value = "personal";
+      const cachedIcs = localStorage.getItem(PERSONAL_CACHE_KEY);
+      const meta = JSON.parse(localStorage.getItem(PERSONAL_META_KEY) || "null");
+      if (cachedIcs) {
+        loadPersonalEvents(cachedIcs, meta || {});
+      } else if (localStorage.getItem(PERSONAL_CREDENTIALS_KEY)) {
+        await refreshPersonalSchedule();
+      }
+      return;
+    }
+
+    selectedMode.value = "student";
+    const targetFile = base?.file || selectedFile.value || (availableFiles.value.length > 0 ? availableFiles.value[0] : "");
+    if (targetFile) {
+      autoSelectFromFile(targetFile);
+      await loadSchedule(targetFile);
+    }
+  };
+
+  const setMode = async (mode) => {
+    if (selectedMode.value === mode) {
+      if (mode === "student" && selectedFile.value && events.value.length === 0) {
+        await loadSchedule(selectedFile.value);
+      } else if (mode === "personal" && events.value.length === 0) {
+        const cachedIcs = localStorage.getItem(PERSONAL_CACHE_KEY);
+        const meta = JSON.parse(localStorage.getItem(PERSONAL_META_KEY) || "null");
+        if (cachedIcs) loadPersonalEvents(cachedIcs, meta || {});
+      }
+      return;
+    }
+
+    selectedMode.value = mode;
+
+    if (mode === "student") {
+      const targetFile = selectedFile.value || baseSchedule.value?.file || (availableFiles.value.length > 0 ? availableFiles.value[0] : "");
+      if (targetFile) {
+        autoSelectFromFile(targetFile);
+        await loadSchedule(targetFile);
+      }
+    } else if (mode === "personal") {
+      const cachedIcs = localStorage.getItem(PERSONAL_CACHE_KEY);
+      const meta = JSON.parse(localStorage.getItem(PERSONAL_META_KEY) || "null");
+      if (cachedIcs) {
+        loadPersonalEvents(cachedIcs, meta || {});
+      } else if (localStorage.getItem(PERSONAL_CREDENTIALS_KEY)) {
+        await refreshPersonalSchedule();
+      }
+    } else if (mode === "teacher") {
+      if (availableTeachers.value.length === 0) {
+        await loadTeacherList();
+      }
+      if (selectedTeacher.value) {
+        await loadTeacherSchedule(selectedTeacher.value);
+      }
+    } else if (mode === "room") {
+      if (availableRooms.value.length === 0) {
+        await loadRoomList();
+      }
+      if (selectedRoom.value) {
+        await loadRoomSchedule(selectedRoom.value);
+      }
+    }
+  };
+
   const nextWeek = () => {
     const next = new Date(currentWeekStart.value);
     next.setDate(next.getDate() + 7);
@@ -542,6 +644,9 @@ export function useSchedule() {
     availableTeachers,
     availableRooms,
     selectedMode,
+    baseSchedule,
+    returnToBaseSchedule,
+    setMode,
     selectedYear,
     selectedTrack,
     selectedType,

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useSchedule } from "../composables/useSchedule.js";
 import * as aggregator from "../ics/aggregator.js";
+import * as api from "../ics/api.js";
 
 describe("useSchedule composable", () => {
   beforeEach(() => {
@@ -233,5 +234,56 @@ describe("useSchedule composable", () => {
     const url = new URL(window.location);
     expect(url.searchParams.get("room")).toBe("A042");
     expect(url.searchParams.get("file")).toBeNull();
+  });
+
+  it("returnToBaseSchedule restores student base schedule when coming from teacher mode", async () => {
+    const schedule = useSchedule();
+    schedule.availableFiles.value = ["1A-Prepa-TP1.ics", "3A-IR-IR1.ics"];
+    schedule.baseSchedule.value = { mode: "student", file: "1A-Prepa-TP1.ics", name: "1A-Prepa-TP1" };
+    schedule.selectedMode.value = "teacher";
+    schedule.selectedTeacher.value = "DUPONT Jean";
+
+    const fetchSpy = vi.spyOn(api, "fetchIcsText").mockResolvedValue("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nSUMMARY:Prepa Event\r\nDTSTART:20260901T080000Z\r\nDTEND:20260901T100000Z\r\nEND:VEVENT\r\nEND:VCALENDAR");
+
+    await schedule.returnToBaseSchedule();
+
+    expect(schedule.selectedMode.value).toBe("student");
+    expect(schedule.selectedFile.value).toBe("1A-Prepa-TP1.ics");
+    expect(fetchSpy).toHaveBeenCalledWith("1A-Prepa-TP1.ics");
+    expect(schedule.events.value.length).toBe(1);
+    expect(schedule.events.value[0].summary).toBe("Prepa Event");
+  });
+
+  it("returnToBaseSchedule restores personal base schedule when configured", async () => {
+    const schedule = useSchedule();
+    schedule.baseSchedule.value = { mode: "personal", name: "Mon Planning ADE" };
+    schedule.selectedMode.value = "room";
+    schedule.selectedRoom.value = "A042";
+
+    const icsText = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nSUMMARY:Cours\r\nDTSTART:20260901T080000Z\r\nDTEND:20260901T100000Z\r\nEND:VEVENT\r\nEND:VCALENDAR";
+    localStorage.setItem("edt_cached_personal_ics", icsText);
+    localStorage.setItem("edt_personal_meta", JSON.stringify({ name: "Mon Planning ADE" }));
+
+    await schedule.returnToBaseSchedule();
+
+    expect(schedule.selectedMode.value).toBe("personal");
+    expect(schedule.events.value.length).toBe(1);
+    expect(schedule.events.value[0].summary).toBe("Cours");
+  });
+
+  it("setMode changes mode and reloads schedule", async () => {
+    const schedule = useSchedule();
+    schedule.availableFiles.value = ["1A-Prepa-TP1.ics"];
+    schedule.selectedFile.value = "1A-Prepa-TP1.ics";
+    schedule.selectedMode.value = "teacher";
+
+    const fetchSpy = vi.spyOn(api, "fetchIcsText").mockResolvedValue("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nSUMMARY:Prepa Event\r\nDTSTART:20260901T080000Z\r\nDTEND:20260901T100000Z\r\nEND:VEVENT\r\nEND:VCALENDAR");
+
+    await schedule.setMode("student");
+
+    expect(schedule.selectedMode.value).toBe("student");
+    expect(fetchSpy).toHaveBeenCalledWith("1A-Prepa-TP1.ics");
+    expect(schedule.events.value.length).toBe(1);
+    expect(schedule.events.value[0].summary).toBe("Prepa Event");
   });
 });

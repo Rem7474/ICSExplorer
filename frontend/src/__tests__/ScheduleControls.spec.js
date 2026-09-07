@@ -155,5 +155,55 @@ describe("ScheduleControls component", () => {
     expect(searchDropdown.text()).toContain("Salle A042");
     expect(searchDropdown.text()).toContain("Salle");
   });
+
+  it("shows return button in teacher mode and calls returnToBaseSchedule when clicked", async () => {
+    const schedule = useSchedule();
+    schedule.selectedMode.value = "teacher";
+    schedule.baseSchedule.value = { mode: "student", file: "1A-Prepa-TP1.ics", name: "1A-Prepa-TP1" };
+    schedule.returnToBaseSchedule = vi.fn();
+
+    const wrapper = mount(ScheduleControls, {
+      props: { schedule },
+    });
+
+    const returnBtn = wrapper.find(".btn-return-link");
+    expect(returnBtn.exists()).toBe(true);
+    expect(returnBtn.text()).toContain("Revenir à mon planning (1A-Prepa-TP1)");
+
+    await returnBtn.trigger("click");
+    expect(schedule.returnToBaseSchedule).toHaveBeenCalled();
+  });
+
+  it("shows return button in toolbar during room mode and calls returnToBaseSchedule", async () => {
+    const schedule = useSchedule();
+    schedule.selectedMode.value = "room";
+    schedule.returnToBaseSchedule = vi.fn();
+
+    const wrapper = mount(ScheduleControls, {
+      props: { schedule },
+    });
+
+    const toolbarReturnBtn = wrapper.find(".btn-return-base");
+    expect(toolbarReturnBtn.exists()).toBe(true);
+    expect(toolbarReturnBtn.text()).toContain("Revenir à mon planning");
+
+    await toolbarReturnBtn.trigger("click");
+    expect(schedule.returnToBaseSchedule).toHaveBeenCalled();
+  });
+
+  it("calls setMode('student') when clicking the Élèves tab", async () => {
+    const schedule = useSchedule();
+    schedule.selectedMode.value = "teacher";
+    schedule.setMode = vi.fn();
+
+    const wrapper = mount(ScheduleControls, {
+      props: { schedule },
+    });
+
+    const studentTab = wrapper.findAll(".mode-tab-btn")[0];
+    await studentTab.trigger("click");
+
+    expect(schedule.setMode).toHaveBeenCalledWith("student");
+  });
 });
 

@@ -88,18 +88,57 @@ const availableRestFiles = computed(() => unref(props.schedule.availableRestFile
 const availableTeachers = computed(() => unref(props.schedule.availableTeachers) || []);
 const availableRooms = computed(() => unref(props.schedule.availableRooms) || []);
 const personalScheduleInfo = computed(() => unref(props.schedule.personalScheduleInfo) || null);
+const baseSchedule = computed(() => unref(props.schedule.baseSchedule) || null);
+const baseScheduleName = computed(() => baseSchedule.value?.name || "");
 
 const hasPersonalConfig = computed(() => {
   const meta = personalScheduleInfo.value;
   return Boolean(meta?.name && (meta?.universityId || meta?.resourceId || props.schedule.rawPersonalIcs || localStorage.getItem("edt_cached_personal_ics") || localStorage.getItem("edtPersonalCreds")));
 });
 
+const onSelectStudentTab = () => {
+  if (typeof props.schedule.setMode === "function") {
+    props.schedule.setMode("student");
+  } else {
+    props.schedule.selectedMode = "student";
+    const file = props.schedule.selectedFile || props.schedule.availableFiles?.[0];
+    if (file && props.schedule.loadSchedule) {
+      props.schedule.loadSchedule(file);
+    }
+  }
+};
+
 const onSelectPersonalTab = () => {
-  props.schedule.selectedMode = "personal";
+  if (typeof props.schedule.setMode === "function") {
+    props.schedule.setMode("personal");
+  } else {
+    props.schedule.selectedMode = "personal";
+  }
   if (!hasPersonalConfig.value) {
     emit("openPersonalSchedule");
   }
 };
+
+const onTeacherSelectChange = () => {
+  if (!props.schedule.selectedTeacher) {
+    if (typeof props.schedule.returnToBaseSchedule === "function") {
+      props.schedule.returnToBaseSchedule();
+    }
+  } else {
+    props.schedule.loadTeacherSchedule(props.schedule.selectedTeacher);
+  }
+};
+
+const onRoomSelectChange = () => {
+  if (!props.schedule.selectedRoom) {
+    if (typeof props.schedule.returnToBaseSchedule === "function") {
+      props.schedule.returnToBaseSchedule();
+    }
+  } else {
+    props.schedule.loadRoomSchedule(props.schedule.selectedRoom);
+  }
+};
+
 
 const currentIcsUrl = computed(() => {
   const mode = unref(props.schedule.selectedMode);
@@ -199,7 +238,7 @@ const copyShareLink = async () => {
         :class="{ active: isStudentMode }"
         role="tab"
         :aria-selected="isStudentMode"
-        @click="schedule.selectedMode = 'student'"
+        @click="onSelectStudentTab"
       >
         <i class="pi pi-users" style="margin-right: 0.35rem;" aria-hidden="true"></i> Élèves (Promos)
       </button>
@@ -398,12 +437,22 @@ const copyShareLink = async () => {
       <!-- Teacher mode select -->
       <template v-else-if="isTeacherMode">
         <div class="control-group span-3">
-          <label for="teacherSelect">Professeur</label>
+          <div class="control-header-row">
+            <label for="teacherSelect">Professeur</label>
+            <button
+              type="button"
+              class="btn-return-link"
+              title="Revenir à mon emploi du temps principal"
+              @click="schedule.returnToBaseSchedule ? schedule.returnToBaseSchedule() : onSelectStudentTab()"
+            >
+              <i class="pi pi-arrow-left" aria-hidden="true"></i> Revenir à mon planning{{ baseScheduleName ? ` (${baseScheduleName})` : '' }}
+            </button>
+          </div>
           <select
             id="teacherSelect"
             v-model="schedule.selectedTeacher"
             :disabled="schedule.isAggregatorLoading && availableTeachers.length === 0"
-            @change="schedule.loadTeacherSchedule(schedule.selectedTeacher)"
+            @change="onTeacherSelectChange"
           >
             <option v-if="schedule.isAggregatorLoading && availableTeachers.length === 0" value="" disabled>
               Chargement des professeurs...
@@ -419,12 +468,22 @@ const copyShareLink = async () => {
       <!-- Room mode select -->
       <template v-else-if="isRoomMode">
         <div class="control-group span-3">
-          <label for="roomSelect">Salle</label>
+          <div class="control-header-row">
+            <label for="roomSelect">Salle</label>
+            <button
+              type="button"
+              class="btn-return-link"
+              title="Revenir à mon emploi du temps principal"
+              @click="schedule.returnToBaseSchedule ? schedule.returnToBaseSchedule() : onSelectStudentTab()"
+            >
+              <i class="pi pi-arrow-left" aria-hidden="true"></i> Revenir à mon planning{{ baseScheduleName ? ` (${baseScheduleName})` : '' }}
+            </button>
+          </div>
           <select
             id="roomSelect"
             v-model="schedule.selectedRoom"
             :disabled="schedule.isAggregatorLoading && availableRooms.length === 0"
-            @change="schedule.loadRoomSchedule(schedule.selectedRoom)"
+            @change="onRoomSelectChange"
           >
             <option v-if="schedule.isAggregatorLoading && availableRooms.length === 0" value="" disabled>
               Chargement des salles...
@@ -440,6 +499,16 @@ const copyShareLink = async () => {
 
     <!-- Actions toolbar -->
     <div class="actions-row">
+      <button
+        v-if="isTeacherMode || isRoomMode"
+        type="button"
+        class="btn btn-outline btn-return-base"
+        title="Revenir à mon emploi du temps habituel"
+        @click="schedule.returnToBaseSchedule ? schedule.returnToBaseSchedule() : onSelectStudentTab()"
+      >
+        <i class="pi pi-arrow-left" style="margin-right: 0.35rem;" aria-hidden="true"></i> Revenir à mon planning
+      </button>
+
       <button
         type="button"
         class="btn btn-outline"
@@ -803,5 +872,47 @@ const copyShareLink = async () => {
     flex-direction: column;
     align-items: flex-start;
   }
+}
+
+.control-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.35rem;
+}
+
+.control-header-row label {
+  margin-bottom: 0 !important;
+}
+
+.btn-return-link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: var(--radius-sm, 6px);
+  transition: all 0.2s ease;
+}
+
+.btn-return-link:hover {
+  background-color: var(--accent-light, rgba(37, 99, 235, 0.1));
+  text-decoration: underline;
+}
+
+.btn-return-base {
+  color: var(--accent) !important;
+  border-color: var(--accent) !important;
+  font-weight: 600 !important;
+}
+
+.btn-return-base:hover {
+  background-color: var(--accent) !important;
+  color: #fff !important;
 }
 </style>
