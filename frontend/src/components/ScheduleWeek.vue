@@ -64,8 +64,14 @@ const hourEnd = computed(() => {
   const evs = timedEvents.value;
   if (!evs.length) return DEFAULT_HOUR_END;
   const endHours = evs.map((e) => {
+    const s = new Date(e.start);
     const end = new Date(e.end);
-    return end.getHours() + (end.getMinutes() > 0 ? 1 : 0);
+    if (formatDateOnly(s) === formatDateOnly(end)) {
+      return end.getHours() + (end.getMinutes() > 0 ? 1 : 0);
+    }
+    // Multi-day timed event on start day: ensure at least startHour + 2 so slot is visible
+    const sHour = s.getHours() + (s.getMinutes() > 0 ? 1 : 0);
+    return Math.max(DEFAULT_HOUR_END, sHour + 2);
   });
   const maxH = Math.max(DEFAULT_HOUR_END, ...endHours);
   return Math.min(23, maxH);
@@ -119,8 +125,8 @@ const days = computed(() => {
       return s <= dayEndMidnight && end >= dayStartMidnight;
     });
 
-    const dayAllEvents = dayEvents.filter((e) => isAllDayEvent(e));
-    const dayTimedEvents = dayEvents.filter((e) => !isAllDayEvent(e));
+    const dayAllEvents = dayEvents.filter((e) => isAllDayEvent(e, dayDate));
+    const dayTimedEvents = dayEvents.filter((e) => !isAllDayEvent(e, dayDate));
 
     list.push({
       date: dayDate,

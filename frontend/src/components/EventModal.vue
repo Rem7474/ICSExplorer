@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted } from "vue";
 import Dialog from "primevue/dialog";
 import Button from "primevue/button";
-import { formatDateTime, formatTimeOnly } from "../utils/dates.js";
+import { formatDateTime, formatTimeOnly, formatDateOnly, isAllDayEvent } from "../utils/dates.js";
 import { isCercleEvent } from "../utils/colors.js";
 import { useToast } from "../composables/useToast.js";
 import { extractTeacherNames } from "../ics/parser.js";
@@ -17,6 +17,29 @@ const props = defineProps({
 const emit = defineEmits(["close", "selectTeacher", "selectRoom"]);
 
 const { showToast } = useToast();
+
+const formattedSchedule = computed(() => {
+  if (!props.event?.start || !props.event?.end) return "";
+  const s = new Date(props.event.start);
+  const e = new Date(props.event.end);
+  if (isNaN(s.getTime()) || isNaN(e.getTime())) return "";
+
+  const isAllDay = isAllDayEvent(props.event);
+  const sameDay = formatDateOnly(s) === formatDateOnly(e);
+
+  if (isAllDay) {
+    if (sameDay) {
+      return `Le ${formatDateOnly(s)} (Toute la journée)`;
+    }
+    return `Du ${formatDateOnly(s)} au ${formatDateOnly(e)} (Toute la journée)`;
+  }
+
+  if (sameDay) {
+    return `${formatDateTime(s)} - ${formatTimeOnly(e)}`;
+  }
+
+  return `Du ${formatDateTime(s)} au ${formatDateTime(e)}`;
+});
 
 const handleKeydown = (e) => {
   if (e.key === "Escape") {
@@ -128,7 +151,7 @@ const copyDetails = async () => {
       <div class="detail-row">
         <span class="detail-label"><i class="pi pi-clock mr-1" aria-hidden="true"></i> Horaire :</span>
         <span class="detail-value">
-          {{ formatDateTime(event.start) }} - {{ formatTimeOnly(event.end) }}
+          {{ formattedSchedule }}
         </span>
       </div>
 

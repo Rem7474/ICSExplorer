@@ -28,16 +28,43 @@ describe("dates utils", () => {
   });
 
   it("identifies all-day and multi-day events correctly with isAllDayEvent", () => {
-    // 2-hour timed course
-    expect(isAllDayEvent({ start: new Date(2026, 8, 2, 8, 0), end: new Date(2026, 8, 2, 10, 0) })).toBe(false);
+    const wednesday = new Date(2026, 8, 2);
+    const thursday = new Date(2026, 8, 3);
+    const friday = new Date(2026, 8, 4);
+
+    // 2-hour timed course (same day)
+    const timedCourse = { start: new Date(2026, 8, 2, 8, 0), end: new Date(2026, 8, 2, 10, 0) };
+    expect(isAllDayEvent(timedCourse, wednesday)).toBe(false);
+    expect(isAllDayEvent(timedCourse)).toBe(false);
 
     // Full day 10h course (same day)
-    expect(isAllDayEvent({ start: new Date(2026, 8, 2, 8, 0), end: new Date(2026, 8, 2, 18, 0) })).toBe(false);
+    const fullDayCourse = { start: new Date(2026, 8, 2, 8, 0), end: new Date(2026, 8, 2, 18, 0) };
+    expect(isAllDayEvent(fullDayCourse, wednesday)).toBe(false);
+    expect(isAllDayEvent(fullDayCourse)).toBe(false);
+
+    // Afternoon slot EP530 (13h30 - 15h15)
+    const ep530 = { start: new Date(2026, 8, 18, 13, 30), end: new Date(2026, 8, 18, 15, 15) };
+    const fri18 = new Date(2026, 8, 18);
+    expect(isAllDayEvent(ep530, fri18)).toBe(false);
+    expect(isAllDayEvent(ep530)).toBe(false);
+
+    // WEI starting Friday at 18:00 and ending Sunday at 15:00
+    const wei = { start: new Date(2026, 8, 18, 18, 0), end: new Date(2026, 8, 20, 15, 0) };
+    const sat19 = new Date(2026, 8, 19);
+    // Friday: timed start at 18:00 (NOT in all-day banner)
+    expect(isAllDayEvent(wei, fri18)).toBe(false);
+    // Saturday: full intermediate day -> in all-day banner
+    expect(isAllDayEvent(wei, sat19)).toBe(true);
 
     // Multi-day project AU530 (Wed to Fri = 48h)
-    expect(isAllDayEvent({ start: new Date(2026, 8, 2, 8, 0), end: new Date(2026, 8, 4, 18, 0) })).toBe(true);
+    const au530 = { start: new Date(2026, 8, 2, 8, 0), end: new Date(2026, 8, 4, 18, 0) };
+    expect(isAllDayEvent(au530, wednesday)).toBe(false); // start day timed
+    expect(isAllDayEvent(au530, thursday)).toBe(true); // intermediate day all-day banner
+    expect(isAllDayEvent(au530, friday)).toBe(true); // end day late finish all-day banner
 
-    // Explicit 24h all-day event
-    expect(isAllDayEvent({ start: new Date(2026, 8, 2, 0, 0), end: new Date(2026, 8, 3, 0, 0) })).toBe(true);
+    // Explicit 24h all-day event (starts at midnight)
+    const allDayEvent = { start: new Date(2026, 8, 2, 0, 0), end: new Date(2026, 8, 3, 0, 0) };
+    expect(isAllDayEvent(allDayEvent)).toBe(true);
+    expect(isAllDayEvent(allDayEvent, wednesday)).toBe(true);
   });
 });
