@@ -1,7 +1,11 @@
 <script setup>
-import { onMounted, onUnmounted } from "vue";
-import { formatDateTime, formatTimeOnly } from "../utils/dates.js";
+import { computed, onMounted, onUnmounted } from "vue";
+import Dialog from "primevue/dialog";
+import Button from "primevue/button";
+import { formatDateTime, formatTimeOnly, formatDateOnly, isAllDayEvent } from "../utils/dates.js";
 import { isCercleEvent } from "../utils/colors.js";
+import { useToast } from "../composables/useToast.js";
+import { extractTeacherNames } from "../ics/parser.js";
 
 const props = defineProps({
   event: {
@@ -10,7 +14,32 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["close"]);
+const emit = defineEmits(["close", "selectTeacher", "selectRoom"]);
+
+const { showToast } = useToast();
+
+const formattedSchedule = computed(() => {
+  if (!props.event?.start || !props.event?.end) return "";
+  const s = new Date(props.event.start);
+  const e = new Date(props.event.end);
+  if (isNaN(s.getTime()) || isNaN(e.getTime())) return "";
+
+  const isAllDay = isAllDayEvent(props.event);
+  const sameDay = formatDateOnly(s) === formatDateOnly(e);
+
+  if (isAllDay) {
+    if (sameDay) {
+      return `Le ${formatDateOnly(s)} (Toute la journée)`;
+    }
+    return `Du ${formatDateOnly(s)} au ${formatDateOnly(e)} (Toute la journée)`;
+  }
+
+  if (sameDay) {
+    return `${formatDateTime(s)} - ${formatTimeOnly(e)}`;
+  }
+
+  return `Du ${formatDateTime(s)} au ${formatDateTime(e)}`;
+});
 
 const handleKeydown = (e) => {
   if (e.key === "Escape") {
@@ -26,6 +55,31 @@ onUnmounted(() => {
   window.removeEventListener("keydown", handleKeydown);
 });
 
+const extractedRooms = computed(() => {
+  if (!props.event?.location) return [];
+  return props.event.location
+    .split(/[,;\/]/)
+    .map((r) => r.trim())
+    .filter((r) => Boolean(r) && r.length >= 2);
+});
+
+const extractedTeachers = computed(() => {
+  if (!props.event?.description) return [];
+  return extractTeacherNames(props.event.description);
+});
+
+const onGoToTeacher = (teacher) => {
+  emit("selectTeacher", teacher);
+  emit("close");
+  showToast(`Basculement sur le planning de ${teacher}`, "info");
+};
+
+const onGoToRoom = (room) => {
+  emit("selectRoom", room);
+  emit("close");
+  showToast(`Basculement sur le planning de la salle ${room}`, "info");
+};
+
 const downloadSingleEvent = () => {
   if (!props.event) return;
 
@@ -39,24 +93,27 @@ const downloadSingleEvent = () => {
     "VERSION:2.0",
     "PRODID:-//EDT Esisar//FR",
     "BEGIN:VEVENT",
-    `UID:${props.event.uid || Date.now()}`,
+    `UID:${props.event.uid || Date.now()}@edtesisar`,
     `DTSTAMP:${formatDateToICS(new Date())}`,
     `DTSTART:${formatDateToICS(props.event.start)}`,
     `DTEND:${formatDateToICS(props.event.end)}`,
-    `SUMMARY:${props.event.summary || "Cours"}`,
-    props.event.location ? `LOCATION:${props.event.location}` : "",
-    props.event.description ? `DESCRIPTION:${props.event.description.replace(/\n/g, "\\n")}` : "",
+    `SUMMARY:${props.event.summary || 'Cours'}`,
+    `LOCATION:${props.event.location || ''}`,
+    `DESCRIPTION:${(props.event.description || '').replace(/\n/g, "\\n")}`,
     "END:VEVENT",
     "END:VCALENDAR",
-  ].filter(Boolean).join("\r\n");
+  ].join("\r\n");
 
   const blob = new Blob([icsContent], { type: "text/calendar;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${props.event.summary || "cours"}.ics`;
+  a.download = `${(props.event.summary || 'cours').replace(/[^a-zA-Z0-9]/g, "_")}.ics`;
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
   URL.revokeObjectURL(url);
+  showToast("Événement téléchargé !", "success");
 };
 
 const copyDetails = async () => {
@@ -64,66 +121,119 @@ const copyDetails = async () => {
   const text = `${props.event.summary}\nDate: ${formatDateTime(props.event.start)} - ${formatTimeOnly(props.event.end)}\nLieu: ${props.event.location || 'N/A'}\n${props.event.description || ''}`;
   try {
     await navigator.clipboard.writeText(text);
-    alert("Détails copiés !");
-  } catch {}
+    showToast("Détails du cours copiés dans le presse-papier !", "success");
+  } catch {
+    showToast("Impossible d'accéder au presse-papier", "error");
+  }
 };
 </script>
 
 <template>
-  <div v-if="event" class="modal-backdrop" @click="emit('close')">
-    <div class="modal-content" role="dialog" aria-modal="true" @click.stop>
-      <div class="modal-header">
-        <h2>{{ event.summary }}</h2>
-        <button class="close-btn" type="button" aria-label="Fermer" @click="emit('close')">
-          ✕
-        </button>
+  <Dialog
+    :visible="Boolean(event)"
+    modal
+    :header="event ? event.summary : ''"
+    :style="{ width: '92vw', maxWidth: '560px' }"
+    :dismissable-mask="true"
+    append-to="self"
+    @update:visible="emit('close')"
+  >
+    <div v-if="event" class="modal-body-content">
+      <!-- Cercle source notice -->
+      <div v-if="isCercleEvent(event)" class="cercle-source-banner">
+        <i class="pi pi-sparkles" style="color: #a855f7; font-size: 1.25rem;" aria-hidden="true"></i>
+        <div class="cercle-info">
+          <strong>Source : Cercle des Élèves</strong>
+          <p>Cet événement associatif provient directement de l'agenda officiel du Cercle Esisar.</p>
+        </div>
       </div>
 
-      <div class="modal-body">
-        <!-- Cercle source notice -->
-        <div v-if="isCercleEvent(event)" class="cercle-source-banner">
-          <span class="cercle-icon">🎉</span>
-          <div class="cercle-info">
-            <strong>Source : Cercle des Élèves</strong>
-            <p>Cet événement associatif provient directement de l'agenda officiel du Cercle Esisar.</p>
-          </div>
-        </div>
+      <div class="detail-row">
+        <span class="detail-label"><i class="pi pi-clock mr-1" aria-hidden="true"></i> Horaire :</span>
+        <span class="detail-value">
+          {{ formattedSchedule }}
+        </span>
+      </div>
 
-        <div class="detail-row">
-          <span class="detail-label">🕒 Horaire :</span>
-          <span class="detail-value">
-            {{ formatDateTime(event.start) }} - {{ formatTimeOnly(event.end) }}
-          </span>
-        </div>
-
-        <div v-if="event.location" class="detail-row">
-          <span class="detail-label">📍 Lieu :</span>
+      <div v-if="event.location" class="detail-row">
+        <span class="detail-label"><i class="pi pi-map-pin mr-1" aria-hidden="true"></i> Lieu :</span>
+        <div class="detail-value-wrapper">
           <span class="detail-value">{{ event.location }}</span>
-        </div>
-
-        <div v-if="event.description" class="detail-row description-row">
-          <span class="detail-label">📝 Détails :</span>
-          <div class="detail-desc">
-            <p v-for="(line, idx) in event.description.split('\n')" :key="idx">
-              {{ line }}
-            </p>
+          <div v-if="extractedRooms.length > 0" class="rebound-buttons">
+            <button
+              v-for="r in extractedRooms"
+              :key="r"
+              type="button"
+              class="rebound-badge"
+              title="Consulter le planning de cette salle"
+              @click="onGoToRoom(r)"
+            >
+              <i class="pi pi-building mr-1" aria-hidden="true"></i> Salle {{ r }} ➔
+            </button>
           </div>
         </div>
       </div>
 
-      <div class="modal-footer">
-        <button class="btn btn-outline" type="button" @click="copyDetails">
-          📋 Copier
-        </button>
-        <button class="btn btn-outline" type="button" @click="downloadSingleEvent">
-          📥 Ajouter au calendrier
-        </button>
-        <button class="btn btn-primary" type="button" @click="emit('close')">
-          Fermer
-        </button>
+      <div v-if="extractedTeachers.length > 0" class="detail-row">
+        <span class="detail-label"><i class="pi pi-user mr-1" aria-hidden="true"></i> Enseignant :</span>
+        <div class="rebound-buttons">
+          <button
+            v-for="t in extractedTeachers"
+            :key="t"
+            type="button"
+            class="rebound-badge"
+            title="Consulter le planning de cet enseignant"
+            @click="onGoToTeacher(t)"
+          >
+            <i class="pi pi-user mr-1" aria-hidden="true"></i> Planning {{ t }} ➔
+          </button>
+        </div>
+      </div>
+
+      <div v-if="event.sourceFiles && event.sourceFiles.length > 0" class="detail-row">
+        <span class="detail-label"><i class="pi pi-users mr-1" aria-hidden="true"></i> Groupe(s) :</span>
+        <div class="detail-desc">
+          <p>{{ event.sourceFiles.map((f) => f.replace(/\.ics$/i, "")).join(", ") }}</p>
+        </div>
+      </div>
+
+      <div v-if="event.description" class="detail-row description-row">
+        <span class="detail-label"><i class="pi pi-align-left mr-1" aria-hidden="true"></i> Détails :</span>
+        <div class="detail-desc">
+          <p v-for="(line, idx) in event.description.split('\n')" :key="idx">
+            {{ line }}
+          </p>
+        </div>
       </div>
     </div>
-  </div>
+
+    <template #footer>
+      <div class="dialog-actions">
+        <Button
+          label="Copier"
+          icon="pi pi-copy"
+          severity="secondary"
+          outlined
+          size="small"
+          @click="copyDetails"
+        />
+        <Button
+          label="Ajouter au calendrier"
+          icon="pi pi-download"
+          severity="secondary"
+          outlined
+          size="small"
+          @click="downloadSingleEvent"
+        />
+        <Button
+          label="Fermer"
+          severity="primary"
+          size="small"
+          @click="emit('close')"
+        />
+      </div>
+    </template>
+  </Dialog>
 </template>
 
 <style scoped>
@@ -229,6 +339,39 @@ const copyDetails = async () => {
 
 .detail-value {
   color: var(--text);
+}
+
+.detail-value-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.rebound-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.rebound-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.3);
+  color: var(--accent);
+  padding: 0.25rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.rebound-badge:hover {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
 }
 
 .description-row {

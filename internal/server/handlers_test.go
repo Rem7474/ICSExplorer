@@ -22,16 +22,16 @@ func setupTestServer(t *testing.T) (*Server, *config.Config, string) {
 	roomsDir := filepath.Join(tmpDir, "rooms")
 	staticDir := filepath.Join(tmpDir, "static")
 
-	_ = os.MkdirAll(outputDir, 0755)
-	_ = os.MkdirAll(roomsDir, 0755)
-	_ = os.MkdirAll(staticDir, 0755)
+	_ = os.MkdirAll(outputDir, 0o755)
+	_ = os.MkdirAll(roomsDir, 0o755)
+	_ = os.MkdirAll(staticDir, 0o755)
 
 	// Create sample index.html
-	_ = os.WriteFile(filepath.Join(staticDir, "index.html"), []byte("<html><body>EDT App</body></html>"), 0644)
+	_ = os.WriteFile(filepath.Join(staticDir, "index.html"), []byte("<html><body>EDT App</body></html>"), 0o644)
 
 	// Create sample .ics files
-	_ = os.WriteFile(filepath.Join(outputDir, "1A-Test.ics"), make([]byte, 60000), 0644)
-	_ = os.WriteFile(filepath.Join(roomsDir, "A166.ics"), []byte("BEGIN:VCALENDAR\r\nEND:VCALENDAR"), 0644)
+	_ = os.WriteFile(filepath.Join(outputDir, "1A-Test.ics"), make([]byte, 60000), 0o644)
+	_ = os.WriteFile(filepath.Join(roomsDir, "A166.ics"), []byte("BEGIN:VCALENDAR\r\nEND:VCALENDAR"), 0o644)
 
 	cfg := &config.Config{
 		Port:             8080,
@@ -61,7 +61,7 @@ func TestHealthEndpoint(t *testing.T) {
 	handler := srv.applyMiddlewares(mux)
 
 	// Test GET /api/health
-	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/health", http.NoBody)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -86,7 +86,7 @@ func TestStatusEndpoint(t *testing.T) {
 	srv.registerRoutes(mux)
 	handler := srv.applyMiddlewares(mux)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/status", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/status", http.NoBody)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -115,7 +115,7 @@ func TestSyncEndpoint(t *testing.T) {
 	handler := srv.applyMiddlewares(mux)
 
 	// GET not allowed on /api/sync
-	reqGet := httptest.NewRequest(http.MethodGet, "/api/sync", nil)
+	reqGet := httptest.NewRequest(http.MethodGet, "/api/sync", http.NoBody)
 	wGet := httptest.NewRecorder()
 	handler.ServeHTTP(wGet, reqGet)
 	if wGet.Code != http.StatusMethodNotAllowed {
@@ -123,7 +123,7 @@ func TestSyncEndpoint(t *testing.T) {
 	}
 
 	// POST without auth token when token configured -> 401
-	reqNoAuth := httptest.NewRequest(http.MethodPost, "/api/sync", nil)
+	reqNoAuth := httptest.NewRequest(http.MethodPost, "/api/sync", http.NoBody)
 	wNoAuth := httptest.NewRecorder()
 	handler.ServeHTTP(wNoAuth, reqNoAuth)
 	if wNoAuth.Code != http.StatusUnauthorized {
@@ -131,12 +131,21 @@ func TestSyncEndpoint(t *testing.T) {
 	}
 
 	// POST with valid auth token -> 202 Accepted
-	reqAuth := httptest.NewRequest(http.MethodPost, "/api/sync", nil)
+	reqAuth := httptest.NewRequest(http.MethodPost, "/api/sync", http.NoBody)
 	reqAuth.Header.Set("Authorization", "Bearer secret-token")
 	wAuth := httptest.NewRecorder()
 	handler.ServeHTTP(wAuth, reqAuth)
 	if wAuth.Code != http.StatusAccepted {
 		t.Errorf("expected 202 Accepted, got %d. Body: %s", wAuth.Code, wAuth.Body.String())
+	}
+
+	// Wait for background sync goroutine to finish so it doesn't race with t.TempDir() cleanup
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if srv.syncer.GetStats().LastSyncTime != nil && !srv.syncer.GetStats().IsSyncing {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 
@@ -148,7 +157,7 @@ func TestFilesAndRoomsEndpoints(t *testing.T) {
 	handler := srv.applyMiddlewares(mux)
 
 	// GET /api/files
-	reqFiles := httptest.NewRequest(http.MethodGet, "/api/files", nil)
+	reqFiles := httptest.NewRequest(http.MethodGet, "/api/files", http.NoBody)
 	wFiles := httptest.NewRecorder()
 	handler.ServeHTTP(wFiles, reqFiles)
 	if wFiles.Code != http.StatusOK {
@@ -164,7 +173,7 @@ func TestFilesAndRoomsEndpoints(t *testing.T) {
 	}
 
 	// GET /api/rooms
-	reqRooms := httptest.NewRequest(http.MethodGet, "/api/rooms", nil)
+	reqRooms := httptest.NewRequest(http.MethodGet, "/api/rooms", http.NoBody)
 	wRooms := httptest.NewRecorder()
 	handler.ServeHTTP(wRooms, reqRooms)
 	if wRooms.Code != http.StatusOK {
@@ -180,7 +189,7 @@ func TestStaticAndFrontendHandlers(t *testing.T) {
 	handler := srv.applyMiddlewares(mux)
 
 	// GET /output/1A-Test.ics
-	reqOutput := httptest.NewRequest(http.MethodGet, "/output/1A-Test.ics", nil)
+	reqOutput := httptest.NewRequest(http.MethodGet, "/output/1A-Test.ics", http.NoBody)
 	wOutput := httptest.NewRecorder()
 	handler.ServeHTTP(wOutput, reqOutput)
 	if wOutput.Code != http.StatusOK {
@@ -191,7 +200,7 @@ func TestStaticAndFrontendHandlers(t *testing.T) {
 	}
 
 	// GET / (SPA root)
-	reqRoot := httptest.NewRequest(http.MethodGet, "/", nil)
+	reqRoot := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 	wRoot := httptest.NewRecorder()
 	handler.ServeHTTP(wRoot, reqRoot)
 	if wRoot.Code != http.StatusOK {
@@ -202,7 +211,7 @@ func TestStaticAndFrontendHandlers(t *testing.T) {
 	}
 
 	// GET /promo/1A (SPA client route fallback)
-	reqSPA := httptest.NewRequest(http.MethodGet, "/promo/1A", nil)
+	reqSPA := httptest.NewRequest(http.MethodGet, "/promo/1A", http.NoBody)
 	wSPA := httptest.NewRecorder()
 	handler.ServeHTTP(wSPA, reqSPA)
 	if wSPA.Code != http.StatusOK {
@@ -210,5 +219,29 @@ func TestStaticAndFrontendHandlers(t *testing.T) {
 	}
 	if !strings.Contains(wSPA.Body.String(), "EDT App") {
 		t.Errorf("expected SPA fallback to index.html, got: %s", wSPA.Body.String())
+	}
+}
+
+func TestRenderAutoIndexEscaping(t *testing.T) {
+	tmpDir := t.TempDir()
+	specialFile := "test file & special.ics"
+	if err := os.WriteFile(filepath.Join(tmpDir, specialFile), []byte("dummy"), 0o644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	s := &Server{}
+	w := httptest.NewRecorder()
+	s.renderAutoIndex(w, tmpDir)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "test file &amp; special.ics") {
+		t.Errorf("expected & to be escaped as &amp;, got: %s", body)
+	}
+	if !strings.Contains(body, `href="test%20file%20&amp;%20special.ics"`) {
+		t.Errorf("expected href to escape spaces and &, got: %s", body)
 	}
 }

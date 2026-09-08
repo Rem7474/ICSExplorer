@@ -1,15 +1,14 @@
 package ade
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/Rem7474/ICSExplorer/internal/ics"
 )
 
 // Resource represents a promo, student group, or room schedule in ADE.
@@ -109,6 +108,7 @@ func (c *Crawler) crawlBranch(ctx context.Context, branchCode string) error {
 }
 
 func (c *Crawler) extractBranches(htmlContent []byte) ([]string, error) {
+	htmlContent = ics.EnsureUTF8(htmlContent)
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(htmlContent))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse HTML tree: %w", err)
@@ -132,6 +132,7 @@ func (c *Crawler) extractBranches(htmlContent []byte) ([]string, error) {
 }
 
 func (c *Crawler) extractLeaves(htmlContent []byte) ([]Resource, error) {
+	htmlContent = ics.EnsureUTF8(htmlContent)
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(htmlContent))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse final HTML tree: %w", err)
@@ -145,6 +146,15 @@ func (c *Crawler) extractLeaves(htmlContent []byte) ([]Resource, error) {
 		if text != "" && LeafRegex.MatchString(text) {
 			href, exists := s.Attr("href")
 			if exists && strings.Contains(href, "(") {
+				// Exclude branch triggers: branches are folders, not calendar resources,
+				// and cause HTTP 500 when requested via directCal.
+				if strings.Contains(href, "checkBranch") || strings.Contains(href, "openBranch") {
+					return
+				}
+				if s.Parent().HasClass("treebranch") || s.HasClass("treebranch") {
+					return
+				}
+
 				id := extractResourceID(href)
 				if id != "" && !seen[text] {
 					seen[text] = true
@@ -188,46 +198,21 @@ func extractResourceID(href string) string {
 	return strings.Trim(parts[0], "'\" )")
 }
 
-// LoadStaticIDs loads resources from a semicolon or comma-separated file (e.g. IDS.txt or Rooms-IDS.txt).
-func LoadStaticIDs(filePath string, isRoom bool) ([]Resource, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("could not open ID file %s: %w", filePath, err)
+// DefaultRooms returns the default known list of classrooms for Esisar.
+func DefaultRooms() []Resource {
+	return []Resource{
+		{Name: "A042", ID: "9756", IsRoom: true},
+		{Name: "A046", ID: "2101", IsRoom: true},
+		{Name: "A048", ID: "2895", IsRoom: true},
+		{Name: "A049", ID: "9757", IsRoom: true},
+		{Name: "A166", ID: "15186", IsRoom: true},
+		{Name: "B040", ID: "1796", IsRoom: true},
+		{Name: "B042", ID: "2336", IsRoom: true},
+		{Name: "B044", ID: "1814", IsRoom: true},
+		{Name: "B141", ID: "2757", IsRoom: true},
+		{Name: "B148", ID: "1660", IsRoom: true},
+		{Name: "B152", ID: "2706", IsRoom: true},
+		{Name: "C065", ID: "3096", IsRoom: true},
+		{Name: "C080", ID: "2543", IsRoom: true},
 	}
-	defer file.Close()
-
-	var resources []Resource
-	scanner := bufio.NewScanner(file)
-
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-
-		var name, id string
-		if strings.Contains(line, ";") {
-			parts := strings.SplitN(line, ";", 2)
-			name = strings.TrimSpace(parts[0])
-			id = strings.TrimSpace(parts[1])
-		} else if strings.Contains(line, ",") {
-			parts := strings.SplitN(line, ",", 2)
-			name = strings.TrimSpace(parts[0])
-			id = strings.TrimSpace(parts[1])
-		}
-
-		if name != "" && id != "" {
-			resources = append(resources, Resource{
-				Name:   name,
-				ID:     id,
-				IsRoom: isRoom,
-			})
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error reading ID file %s: %w", filePath, err)
-	}
-
-	return resources, nil
 }

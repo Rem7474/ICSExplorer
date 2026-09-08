@@ -1,9 +1,13 @@
+<script setup>
+import Skeleton from "primevue/skeleton";
+</script>
+
 <template>
   <div class="next-course-skeleton card" aria-hidden="true">
-    <div class="skeleton skeleton-heading"></div>
+    <Skeleton width="140px" height="20px" class="skeleton-heading" />
     <div class="skeleton-details">
-      <div class="skeleton skeleton-line-large"></div>
-      <div class="skeleton skeleton-line-small"></div>
+      <Skeleton width="65%" height="28px" class="skeleton-line-large" />
+      <Skeleton width="40%" height="18px" class="skeleton-line-small" />
     </div>
   </div>
 </template>

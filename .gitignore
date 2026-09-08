@@ -8,9 +8,7 @@ icsexplorer
 icsexplorer.exe
 
 # Local data & environment
-/data/output/*.ics
-/data/output/*.json
-/data/rooms/*.ics
+/data/
 *.tmp
 .env
 .env.local
@@ -19,7 +17,12 @@ icsexplorer.exe
 coverage/
 coverage.txt
 coverage.out
+cover
 *.out
+
+# Debug / local CI artifacts
+job_data.json
+pr_body.md
 .system_generated/
 
 # Logs

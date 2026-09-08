@@ -11,7 +11,7 @@ import (
 
 // FetchCercleCalendar downloads the public Google Calendar ICS for Cercle Esisar.
 func FetchCercleCalendar(ctx context.Context, url string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Cercle ICS request: %w", err)
 	}
@@ -26,14 +26,14 @@ func FetchCercleCalendar(ctx context.Context, url string) ([]byte, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Cercle calendar returned HTTP %d", resp.StatusCode)
+		return nil, fmt.Errorf("cercle calendar returned HTTP %d", resp.StatusCode)
 	}
 
 	return io.ReadAll(resp.Body)
 }
 
 // MergeCercleEvents merges Cercle VEVENT blocks into student calendar data without duplicate UIDs.
-func MergeCercleEvents(studentIcsData []byte, cercleIcsData []byte) ([]byte, error) {
+func MergeCercleEvents(studentIcsData, cercleIcsData []byte) ([]byte, error) {
 	studentLines := UnfoldLines(studentIcsData)
 	cercleLines := UnfoldLines(cercleIcsData)
 

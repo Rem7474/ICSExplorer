@@ -51,6 +51,61 @@ export const fetchIcsText = async (fileName) => {
   return decodeTextWithFallback(response);
 };
 
+export const fetchUniversities = async () => {
+  const resp = await fetch("/api/universities", { cache: "no-store" });
+  if (!resp.ok) {
+    throw new Error(`Impossible de récupérer la liste des universités (HTTP ${resp.status})`);
+  }
+  return resp.json();
+};
+
+export const fetchRoomList = async () => {
+  try {
+    const resp = await fetch("/api/rooms", { cache: "no-store" });
+    if (resp.ok) {
+      const list = await resp.json();
+      if (Array.isArray(list) && list.length > 0) {
+        return list
+          .filter((f) => typeof f === "string" && f.endsWith(".ics"))
+          .map((f) => f.replace(/\.ics$/i, ""));
+      }
+    }
+  } catch {}
+  return [];
+};
+
+
+export const fetchTreeNodes = async ({ universityId, adeUrl, login, password, branchId, branchPath, category }) => {
+  const resp = await fetch("/api/tree", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ universityId, adeUrl, login, password, branchId, branchPath, category }),
+  });
+
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => ({}));
+    throw new Error(data.error || `Impossible de récupérer l'arborescence ADE (HTTP ${resp.status})`);
+  }
+
+  const data = await resp.json();
+  return data.nodes || [];
+};
+
+export const fetchPersonalCalendar = async ({ universityId, adeUrl, resourceId, branchPath, login, password }) => {
+  const resp = await fetch("/api/personal-calendar", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ universityId, adeUrl, resourceId, branchPath, login, password }),
+  });
+
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => ({}));
+    throw new Error(data.error || `Impossible de récupérer votre emploi du temps (HTTP ${resp.status})`);
+  }
+
+  return decodeTextWithFallback(resp);
+};
+
 export const fetchFileList = async () => {
   // Strategy 1: Dedicated backend endpoint /api/files
   try {

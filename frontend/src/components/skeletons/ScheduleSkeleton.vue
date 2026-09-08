@@ -1,11 +1,15 @@
+<script setup>
+import Skeleton from "primevue/skeleton";
+</script>
+
 <template>
   <div class="schedule-skeleton" aria-hidden="true">
-    <div class="skeleton-day" v-for="day in 5" :key="day">
-      <div class="skeleton skeleton-title"></div>
+    <div v-for="day in 5" :key="day" class="skeleton-day">
+      <Skeleton width="65%" height="28px" class="skeleton-title" />
       <div class="skeleton-events">
-        <div class="skeleton skeleton-event event-1"></div>
-        <div class="skeleton skeleton-event event-2"></div>
-        <div class="skeleton skeleton-event event-3"></div>
+        <Skeleton height="90px" border-radius="8px" class="skeleton-event" />
+        <Skeleton height="140px" border-radius="8px" class="skeleton-event" />
+        <Skeleton height="75px" border-radius="8px" class="skeleton-event" />
       </div>
     </div>
   </div>

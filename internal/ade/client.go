@@ -3,39 +3,108 @@ package ade
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
+	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/Rem7474/ICSExplorer/internal/ics"
 )
 
-// Client handles HTTP interactions with Grenoble INP ADE servers.
-type Client struct {
-	httpClient   *http.Client
-	login        string
-	password     string
-	academicYear string
-	baseURL      string
+const userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+type sessionCookieJar struct {
+	mu  sync.RWMutex
+	jar http.CookieJar
 }
 
-// NewClient creates a new ADE client with authentication and timeout.
+func newSessionCookieJar() *sessionCookieJar {
+	j, _ := cookiejar.New(nil)
+	return &sessionCookieJar{jar: j}
+}
+
+func (s *sessionCookieJar) SetCookies(u *url.URL, cookies []*http.Cookie) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.jar.SetCookies(u, cookies)
+}
+
+func (s *sessionCookieJar) Cookies(u *url.URL) []*http.Cookie {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.jar.Cookies(u)
+}
+
+func (s *sessionCookieJar) Reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	j, _ := cookiejar.New(nil)
+	s.jar = j
+}
+
+// Client handles HTTP interactions with ADE Campus servers.
+type Client struct {
+	httpClient      *http.Client
+	cookieJar       *sessionCookieJar
+	login           string
+	password        string
+	academicYear    string
+	baseURL         string
+	institutionPath string
+
+	// ADE Campus (Adesoft/Tomcat) requires a server-side session context - a
+	// JSESSIONID cookie plus an internal projectId - to be established via a
+	// GET on the institution's entry page before tree.jsp or directCal will
+	// serve anything; hitting those endpoints cold returns 404/empty/500
+	// responses even with correct Basic Auth credentials.
+	sessionMu        sync.Mutex
+	sessionReady     bool
+	sessionCreatedAt time.Time
+	referer          string
+}
+
+// NewClient creates a new ADE client with authentication and timeout,
+// defaulting to the Grenoble INP / ESISAR instance.
 func NewClient(login, password, academicYear string) *Client {
+	jar := newSessionCookieJar()
 	return &Client{
 		httpClient: &http.Client{
 			Timeout: 45 * time.Second,
+			Jar:     jar,
 		},
-		login:        login,
-		password:     password,
-		academicYear: academicYear,
-		baseURL:      "https://edt.grenoble-inp.fr",
+		cookieJar:       jar,
+		login:           login,
+		password:        password,
+		academicYear:    academicYear,
+		baseURL:         "https://edt.grenoble-inp.fr",
+		institutionPath: "etudiant/esisar",
 	}
 }
 
-// SetBaseURL overrides the base URL (useful for testing).
-func (c *Client) SetBaseURL(url string) {
-	c.baseURL = strings.TrimRight(url, "/")
+// NewClientForInstitution creates an ADE client targeting an arbitrary ADE Campus
+// instance, identified by its base URL and institution path segment (the part of
+// the export URL that follows "directCal/{year}/", e.g. "etudiant/esisar").
+func NewClientForInstitution(login, password, academicYear, baseURL, institutionPath string) *Client {
+	c := NewClient(login, password, academicYear)
+	c.SetBaseURL(baseURL)
+	c.SetInstitutionPath(institutionPath)
+	return c
+}
+
+// SetBaseURL overrides the base URL (useful for testing or targeting another institution).
+func (c *Client) SetBaseURL(rawURL string) {
+	c.baseURL = strings.TrimRight(rawURL, "/")
+}
+
+// SetInstitutionPath overrides the institution path segment used in the export URL.
+func (c *Client) SetInstitutionPath(path string) {
+	c.institutionPath = strings.Trim(path, "/")
 }
 
 // makeRequest prepares and sends an authenticated HTTP GET request.
@@ -45,14 +114,19 @@ func (c *Client) makeRequest(ctx context.Context, endpoint string) (*http.Respon
 		fullURL = fmt.Sprintf("%s/%s", c.baseURL, strings.TrimLeft(endpoint, "/"))
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
 	req.Header.Set("Accept-Language", "fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3")
+	if c.referer != "" {
+		// Adesoft rejects tree/export requests that don't appear to come from
+		// its own entry page.
+		req.Header.Set("Referer", c.referer)
+	}
 
 	if c.login != "" && c.password != "" {
 		auth := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", c.login, c.password)))
@@ -67,8 +141,112 @@ func (c *Client) makeRequest(ctx context.Context, endpoint string) (*http.Respon
 	return resp, nil
 }
 
+// entryURL returns the institution's ADE Campus entry page (e.g. /2026-2027/etudiant/esisar),
+// whose GET establishes the server-side session (JSESSIONID + internal context)
+// that tree.jsp and directCal both require.
+func (c *Client) entryURL() string {
+	return fmt.Sprintf("%s/%s/%s", c.baseURL, c.academicYear, c.institutionPath)
+}
+
+// maxSessionAge defines the duration after which an ADE Campus session is
+// considered expired (Tomcat sessions typically expire after 30 minutes of inactivity).
+const maxSessionAge = 15 * time.Minute
+
+// ResetSession invalidates any current session, forcing a fresh login and
+// new session cookies on the next ADE request.
+func (c *Client) ResetSession() {
+	c.sessionMu.Lock()
+	defer c.sessionMu.Unlock()
+	c.sessionReady = false
+	c.referer = ""
+	if c.cookieJar != nil {
+		c.cookieJar.Reset()
+	}
+}
+
+type sessionHTTPError struct {
+	statusCode int
+	msg        string
+}
+
+func (e *sessionHTTPError) Error() string {
+	return e.msg
+}
+
+func isSessionError(err error) bool {
+	var serr *sessionHTTPError
+	if errors.As(err, &serr) {
+		return serr.statusCode == http.StatusNotFound ||
+			serr.statusCode == http.StatusUnauthorized ||
+			serr.statusCode == http.StatusForbidden
+	}
+	return false
+}
+
+// ensureSession establishes the ADE Campus server-side session once per
+// Client, by GETing the institution's entry page. Subsequent requests reuse
+// the resulting cookies (via the client's cookie jar) and send a matching
+// Referer header, both of which ADE Campus expects to see before serving
+// tree.jsp or directCal.
+func (c *Client) ensureSession(ctx context.Context) error {
+	c.sessionMu.Lock()
+	defer c.sessionMu.Unlock()
+
+	if c.sessionReady && time.Since(c.sessionCreatedAt) < maxSessionAge {
+		return nil
+	}
+
+	c.sessionReady = false
+	if c.cookieJar != nil {
+		c.cookieJar.Reset()
+	}
+
+	entry := c.entryURL()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, entry, http.NoBody)
+	if err != nil {
+		return fmt.Errorf("failed to create session-init request: %w", err)
+	}
+	req.Header.Set("User-Agent", userAgent)
+	if c.login != "" && c.password != "" {
+		req.SetBasicAuth(c.login, c.password)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("session init request failed to %s: %w", entry, err)
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return fmt.Errorf("ADE returned 401 Unauthorized (invalid credentials)")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("ADE session init returned unexpected status %d", resp.StatusCode)
+	}
+
+	c.referer = entry
+	c.sessionReady = true
+	c.sessionCreatedAt = time.Now()
+	return nil
+}
+
 // FetchCalendarRaw fetches the raw ICS calendar for given resource ID(s).
+// If the server returns a session-invalid status (401/403/404), it resets the session and retries once.
 func (c *Client) FetchCalendarRaw(ctx context.Context, resourceIDs string) ([]byte, error) {
+	data, err := c.fetchCalendarRawOnce(ctx, resourceIDs)
+	if err != nil && isSessionError(err) {
+		c.ResetSession()
+		return c.fetchCalendarRawOnce(ctx, resourceIDs)
+	}
+	return data, err
+}
+
+func (c *Client) fetchCalendarRawOnce(ctx context.Context, resourceIDs string) ([]byte, error) {
+	if err := c.ensureSession(ctx); err != nil {
+		return nil, err
+	}
+
 	// Parse base year from academicYear format "YYYY-YYYY+1"
 	parts := strings.Split(c.academicYear, "-")
 	baseYear := time.Now().Year()
@@ -81,8 +259,10 @@ func (c *Client) FetchCalendarRaw(ctx context.Context, resourceIDs string) ([]by
 	startYear := baseYear - 2
 	endYear := baseYear + 3
 
-	endpoint := fmt.Sprintf("directCal/%s/etudiant/esisar?resources=%s&startDay=31&startMonth=08&startYear=%d&endDay=10&endMonth=01&endYear=%d",
-		c.academicYear, resourceIDs, startYear, endYear)
+	resourcesParam := fmt.Sprintf("resources=%s&", resourceIDs)
+
+	endpoint := fmt.Sprintf("directCal/%s/%s?%sstartDay=31&startMonth=08&startYear=%d&endDay=10&endMonth=01&endYear=%d",
+		c.academicYear, c.institutionPath, resourcesParam, startYear, endYear)
 
 	resp, err := c.makeRequest(ctx, endpoint)
 	if err != nil {
@@ -91,10 +271,16 @@ func (c *Client) FetchCalendarRaw(ctx context.Context, resourceIDs string) ([]by
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusUnauthorized {
-		return nil, fmt.Errorf("ADE returned 401 Unauthorized (invalid Agalan credentials)")
+		return nil, &sessionHTTPError{
+			statusCode: resp.StatusCode,
+			msg:        "ADE returned 401 Unauthorized (invalid credentials)",
+		}
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("ADE returned unexpected status %d", resp.StatusCode)
+		return nil, &sessionHTTPError{
+			statusCode: resp.StatusCode,
+			msg:        fmt.Sprintf("ADE returned unexpected status %d", resp.StatusCode),
+		}
 	}
 
 	data, err := io.ReadAll(resp.Body)
@@ -105,8 +291,22 @@ func (c *Client) FetchCalendarRaw(ctx context.Context, resourceIDs string) ([]by
 	return data, nil
 }
 
-// FetchTreePage fetches an HTML page from the ADE tree interface.
+// FetchTreePage fetches an HTML page from the ADE tree interface, ensuring UTF-8 encoding.
+// If the server returns a session-invalid status (401/403/404), it resets the session and retries once.
 func (c *Client) FetchTreePage(ctx context.Context, path string) ([]byte, error) {
+	data, err := c.fetchTreePageOnce(ctx, path)
+	if err != nil && isSessionError(err) {
+		c.ResetSession()
+		return c.fetchTreePageOnce(ctx, path)
+	}
+	return data, err
+}
+
+func (c *Client) fetchTreePageOnce(ctx context.Context, path string) ([]byte, error) {
+	if err := c.ensureSession(ctx); err != nil {
+		return nil, err
+	}
+
 	resp, err := c.makeRequest(ctx, path)
 	if err != nil {
 		return nil, err
@@ -114,7 +314,10 @@ func (c *Client) FetchTreePage(ctx context.Context, path string) ([]byte, error)
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("ADE tree returned status %d", resp.StatusCode)
+		return nil, &sessionHTTPError{
+			statusCode: resp.StatusCode,
+			msg:        fmt.Sprintf("ADE tree returned status %d", resp.StatusCode),
+		}
 	}
 
 	data, err := io.ReadAll(resp.Body)
@@ -122,5 +325,190 @@ func (c *Client) FetchTreePage(ctx context.Context, path string) ([]byte, error)
 		return nil, fmt.Errorf("failed to read tree page: %w", err)
 	}
 
-	return data, nil
+	return ics.EnsureUTF8(data), nil
+}
+
+// maxTreeDepth limits recursive branch traversal in CollectLeavesUnderPath to
+// avoid runaway recursion on unexpectedly deep or cyclic ADE tree structures.
+const maxTreeDepth = 8
+
+// CollectLeavesUnderPath opens the branchPath in a single session and recursively collects all leaf IDs.
+func (c *Client) CollectLeavesUnderPath(ctx context.Context, dataToken, category string, branchPath []string) ([]string, error) {
+	if category == "" {
+		category = "trainee"
+	}
+
+	// 1. Establish session ONCE
+	directPlanningURL := fmt.Sprintf("%s/jsp/custom/modules/plannings/direct_planning.jsp?data=%s", c.baseURL, dataToken)
+	req1, err := http.NewRequestWithContext(ctx, http.MethodGet, directPlanningURL, http.NoBody)
+	if err != nil {
+		return nil, err
+	}
+	req1.Header.Set("User-Agent", userAgent)
+	resp1, err := c.httpClient.Do(req1)
+	if err != nil {
+		return nil, err
+	}
+	resp1.Body.Close()
+
+	// 2. Open category
+	catURL := fmt.Sprintf("%s/jsp/standard/gui/tree.jsp?category=%s&expand=false&forceLoad=false&reload=false&scroll=0",
+		c.baseURL, url.QueryEscape(category))
+	reqCat, err := http.NewRequestWithContext(ctx, http.MethodGet, catURL, http.NoBody)
+	if err != nil {
+		return nil, err
+	}
+	reqCat.Header.Set("User-Agent", userAgent)
+	reqCat.Header.Set("Referer", directPlanningURL)
+	respCat, err := c.httpClient.Do(reqCat)
+	if err != nil {
+		return nil, err
+	}
+	respCat.Body.Close()
+
+	// 3. Open each step along branchPath
+	var lastHTML string
+	for _, bID := range branchPath {
+		bID = strings.TrimSpace(bID)
+		if bID == "" {
+			continue
+		}
+		treeURL := fmt.Sprintf("%s/jsp/standard/gui/tree.jsp?branchId=%s&expand=false&forceLoad=false&reload=false&scroll=0",
+			c.baseURL, url.QueryEscape(bID))
+		reqB, err := http.NewRequestWithContext(ctx, http.MethodGet, treeURL, http.NoBody)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create branch request for %s: %w", bID, err)
+		}
+		reqB.Header.Set("User-Agent", userAgent)
+		reqB.Header.Set("Referer", directPlanningURL)
+		respB, err := c.httpClient.Do(reqB)
+		if err != nil {
+			return nil, err
+		}
+		body, _ := io.ReadAll(respB.Body)
+		respB.Body.Close()
+		lastHTML = string(ics.EnsureUTF8(body))
+	}
+
+	targetID := ""
+	if len(branchPath) > 0 {
+		targetID = branchPath[len(branchPath)-1]
+	}
+
+	children := ParseChildrenOf(lastHTML, targetID)
+	var leaves []string
+	var walk func(currentPath []string, currentID string) error
+	walk = func(currentPath []string, currentID string) error {
+		treeURL := fmt.Sprintf("%s/jsp/standard/gui/tree.jsp?branchId=%s&expand=false&forceLoad=false&reload=false&scroll=0",
+			c.baseURL, url.QueryEscape(currentID))
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, treeURL, http.NoBody)
+		if err != nil {
+			return fmt.Errorf("failed to create walk request for %s: %w", currentID, err)
+		}
+		req.Header.Set("User-Agent", userAgent)
+		req.Header.Set("Referer", directPlanningURL)
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return err
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		html := string(ics.EnsureUTF8(body))
+		subChildren := ParseChildrenOf(html, currentID)
+		for _, sc := range subChildren {
+			if sc.IsLeaf {
+				leaves = append(leaves, sc.ID)
+			} else if len(currentPath) < maxTreeDepth {
+				if err := walk(append(currentPath, sc.ID), sc.ID); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+
+	for _, cNode := range children {
+		if cNode.IsLeaf {
+			leaves = append(leaves, cNode.ID)
+		} else {
+			if err := walk(append(branchPath, cNode.ID), cNode.ID); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return leaves, nil
+}
+
+// FetchDirectTokenCalendar fetches the iCalendar from an ADE Direct Planning instance
+// authenticated via an encrypted data token (e.g. /direct/index.jsp?data=...).
+func (c *Client) FetchDirectTokenCalendar(ctx context.Context, dataToken, resourceIDs string, branchPath []string) ([]byte, error) {
+	effectiveResources := resourceIDs
+
+	// If branchPath is provided, recursively discover all descendant leaves under this branch in a single fast session
+	if len(branchPath) > 0 {
+		if leaves, err := c.CollectLeavesUnderPath(ctx, dataToken, "trainee", branchPath); err == nil && len(leaves) > 0 {
+			effectiveResources = strings.Join(leaves, ",")
+		}
+	}
+
+	directPlanningURL := fmt.Sprintf("%s/jsp/custom/modules/plannings/direct_planning.jsp?data=%s", c.baseURL, dataToken)
+	req1, err := http.NewRequestWithContext(ctx, http.MethodGet, directPlanningURL, http.NoBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create direct planning request: %w", err)
+	}
+	req1.Header.Set("User-Agent", userAgent)
+	resp1, err := c.httpClient.Do(req1)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to ADE direct portal: %w", err)
+	}
+	resp1.Body.Close()
+
+	// Query anonymous_cal.jsp trying project IDs
+	now := time.Now()
+	baseYear := now.Year()
+	startYear := baseYear - 1
+	endYear := baseYear + 2
+
+	projectCandidates := []int{2, 0, 1, 3, 4}
+	var bestBody []byte
+	maxEvents := -1
+
+	for _, projID := range projectCandidates {
+		calURL := fmt.Sprintf("%s/jsp/custom/modules/plannings/anonymous_cal.jsp?resources=%s&projectId=%d&startDay=01&startMonth=09&startYear=%d&endDay=31&endMonth=08&endYear=%d&calType=ical",
+			c.baseURL, effectiveResources, projID, startYear, endYear)
+		req2, err := http.NewRequestWithContext(ctx, http.MethodGet, calURL, http.NoBody)
+		if err != nil {
+			continue
+		}
+		req2.Header.Set("User-Agent", userAgent)
+		req2.Header.Set("Referer", directPlanningURL)
+
+		resp2, err := c.httpClient.Do(req2)
+		if err != nil {
+			continue
+		}
+		body, err := io.ReadAll(resp2.Body)
+		resp2.Body.Close()
+		if err != nil || resp2.StatusCode != http.StatusOK {
+			continue
+		}
+
+		if strings.Contains(string(body), "BEGIN:VCALENDAR") {
+			eventsCount := strings.Count(string(body), "BEGIN:VEVENT")
+			if eventsCount > maxEvents {
+				maxEvents = eventsCount
+				bestBody = body
+				if eventsCount > 0 {
+					break
+				}
+			}
+		}
+	}
+
+	if len(bestBody) == 0 {
+		return nil, fmt.Errorf("ADE direct export returned invalid or empty calendar")
+	}
+
+	return bestBody, nil
 }

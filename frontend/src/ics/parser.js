@@ -5,8 +5,9 @@ export const parseIcsDate = (dateStr) => {
   if (!match) return null;
 
   const [, y, m, d, hh = "00", mm = "00", ss = "00"] = match;
+  if (+y < 2000) return null; // Discard invalid or Unix epoch placeholder dates (e.g. 1970)
 
-  if (dateStr.endsWith("Z")) {
+  if (clean.endsWith("Z")) {
     return new Date(Date.UTC(+y, +m - 1, +d, +hh, +mm, +ss));
   }
   return new Date(+y, +m - 1, +d, +hh, +mm, +ss);
@@ -34,7 +35,11 @@ export const parseIcs = (icsText) => {
       currentEvent = {};
     } else if (line === "END:VEVENT" && currentEvent) {
       if (currentEvent.start && currentEvent.end) {
-        events.push(currentEvent);
+        const s = new Date(currentEvent.start);
+        const e = new Date(currentEvent.end);
+        if (!isNaN(s.getTime()) && !isNaN(e.getTime()) && s.getFullYear() >= 2000 && e.getFullYear() >= 2000 && e > s) {
+          events.push(currentEvent);
+        }
       }
       currentEvent = null;
     } else if (currentEvent) {
@@ -83,12 +88,35 @@ export const extractTeacherNames = (description) => {
 
   for (const line of lines) {
     const trimmed = line.trim();
-    if (trimmed.includes("avec ")) {
-      const parts = trimmed.split("avec ");
-      if (parts.length > 1) {
-        const teacherPart = parts[1].split(",")[0].trim();
-        if (teacherPart && !teacherPart.toLowerCase().includes("eleves")) {
-          names.push(teacherPart);
+    if (!trimmed) continue;
+
+    // Pattern 1: "avec M. Dupont, ..." or "... avec Dupont Jean, Martin Paul"
+    if (trimmed.toLowerCase().includes("avec ")) {
+      const idx = trimmed.toLowerCase().indexOf("avec ");
+      const afterAvec = trimmed.slice(idx + 5);
+      const parts = afterAvec.split(/[,;]/);
+      for (const part of parts) {
+        const clean = part.split("(")[0].trim();
+        if (
+          clean &&
+          !clean.toLowerCase().startsWith("de ") &&
+          !clean.toLowerCase().includes("eleves") &&
+          !clean.toLowerCase().includes("étudiants")
+        ) {
+          names.push(clean);
+        }
+      }
+    }
+
+    // Pattern 2: "Intervenant(s) : ...", "Enseignant(s) : ...", "Professeur(s) : ..."
+    const prefixMatch = trimmed.match(/^(?:enseignants?|intervenants?|professeurs?|prof)\s*:\s*(.+)$/i);
+    if (prefixMatch) {
+      const rawList = prefixMatch[1];
+      const parts = rawList.split(/[,;]/);
+      for (const part of parts) {
+        const clean = part.split("(")[0].trim();
+        if (clean && !clean.toLowerCase().includes("eleves") && !clean.toLowerCase().includes("étudiants")) {
+          names.push(clean);
         }
       }
     }
@@ -96,3 +124,4 @@ export const extractTeacherNames = (description) => {
 
   return [...new Set(names)];
 };
+

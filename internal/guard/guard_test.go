@@ -13,7 +13,7 @@ func TestCheckHealthHealthy(t *testing.T) {
 	// Create dummy fresh ics file of 60KB
 	content := make([]byte, 60000)
 	testFile := filepath.Join(tmpDir, "1A-Test.ics")
-	if err := os.WriteFile(testFile, content, 0644); err != nil {
+	if err := os.WriteFile(testFile, content, 0o644); err != nil {
 		t.Fatalf("failed to write test file: %v", err)
 	}
 
@@ -36,7 +36,7 @@ func TestCheckHealthStale(t *testing.T) {
 
 	content := make([]byte, 60000)
 	testFile := filepath.Join(tmpDir, "1A-Test.ics")
-	if err := os.WriteFile(testFile, content, 0644); err != nil {
+	if err := os.WriteFile(testFile, content, 0o644); err != nil {
 		t.Fatalf("failed to write test file: %v", err)
 	}
 

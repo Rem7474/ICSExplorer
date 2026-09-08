@@ -101,15 +101,16 @@ func ExtractVEvents(lines []string) [][]string {
 	inEvent := false
 
 	for _, line := range lines {
-		if strings.EqualFold(line, "BEGIN:VEVENT") {
+		switch {
+		case strings.EqualFold(line, "BEGIN:VEVENT"):
 			inEvent = true
 			current = []string{line}
-		} else if strings.EqualFold(line, "END:VEVENT") && inEvent {
+		case strings.EqualFold(line, "END:VEVENT") && inEvent:
 			current = append(current, line)
 			events = append(events, current)
 			current = nil
 			inEvent = false
-		} else if inEvent {
+		case inEvent:
 			current = append(current, line)
 		}
 	}

@@ -32,8 +32,103 @@ describe("WeekStats component", () => {
     });
 
     expect(wrapper.exists()).toBe(true);
-    expect(wrapper.text()).toContain("Total : 4.0h");
+    expect(wrapper.text()).toContain("Total semaine : 4.0h");
     expect(wrapper.text()).toContain("IN");
     expect(wrapper.text()).toContain("SN");
+    expect(wrapper.text()).toContain("Informatique");
+  });
+
+  it("emits filter when a subject chip is clicked", async () => {
+    const start = new Date(2026, 8, 1, 8, 0);
+    const end = new Date(2026, 8, 1, 10, 0);
+    const testEvents = [{ summary: "IN101 Algo", start, end }];
+
+    const wrapper = mount(WeekStats, {
+      props: { events: testEvents },
+    });
+
+    const chip = wrapper.find(".chip");
+    expect(chip.exists()).toBe(true);
+    await chip.trigger("click");
+
+    expect(wrapper.emitted("filter")).toBeTruthy();
+    expect(wrapper.emitted("filter")[0]).toEqual(["IN"]);
+  });
+
+  it("applies is-disabled class and recalculates active hours when subject is in disabledSubjects", async () => {
+    const start = new Date(2026, 8, 1, 8, 0);
+    const end = new Date(2026, 8, 1, 10, 0);
+    const testEvents = [
+      { summary: "IN101 Algo", start, end },
+      { summary: "SN201 Signal", start, end },
+    ];
+
+    const wrapper = mount(WeekStats, {
+      props: {
+        events: testEvents,
+        disabledSubjects: ["IN"],
+      },
+    });
+
+    // Active hours is 2.0h (out of 4.0h)
+    expect(wrapper.text()).toContain("2.0h");
+    expect(wrapper.text()).toContain("sur 4.0h");
+    expect(wrapper.text()).toContain("1 matière masquée");
+
+    const chips = wrapper.findAll(".chip");
+    const inChip = chips.find((c) => c.text().includes("IN"));
+    expect(inChip.classes()).toContain("is-disabled");
+
+    // Click reset button
+    const resetBtn = wrapper.find(".clear-filter-btn");
+    expect(resetBtn.exists()).toBe(true);
+    await resetBtn.trigger("click");
+    expect(wrapper.emitted("reset")).toBeTruthy();
+  });
+
+  it("excludes multi-day banner events (> 14h) or invalid durations from weekly hours", () => {
+    const startCourse = new Date(2026, 8, 1, 8, 0);
+    const endCourse = new Date(2026, 8, 1, 10, 0); // 2 hours
+
+    // Multi-week project banner: 30 days
+    const startBanner = new Date(2026, 8, 1, 8, 0);
+    const endBanner = new Date(2026, 9, 1, 18, 0);
+
+    const testEvents = [
+      { summary: "IN101 Algo", start: startCourse, end: endCourse },
+      { summary: "Projet Semestre EP", start: startBanner, end: endBanner },
+    ];
+
+    const wrapper = mount(WeekStats, {
+      props: { events: testEvents },
+    });
+
+    // Only the 2.0h course should be counted
+    expect(wrapper.text()).toContain("Total semaine : 2.0h");
+  });
+
+  it("categorizes events with isCercle: true under CERCLE regardless of summary", () => {
+    const start = new Date(2026, 8, 1, 14, 0);
+    const end = new Date(2026, 8, 1, 16, 0);
+    const testEvents = [
+      { summary: "Rentrée de l'étudiant", isCercle: true, start, end },
+      { summary: "IN101 Algo", start, end },
+    ];
+
+    const wrapper = mount(WeekStats, {
+      props: {
+        events: testEvents,
+        disabledSubjects: ["CERCLE"],
+      },
+    });
+
+    expect(wrapper.text()).toContain("CERCLE");
+    expect(wrapper.text()).toContain("Cercle des Élèves");
+    expect(wrapper.text()).toContain("2.0h (sur 4.0h)");
+
+    const chips = wrapper.findAll(".chip");
+    const cercleChip = chips.find((c) => c.text().includes("CERCLE"));
+    expect(cercleChip.exists()).toBe(true);
+    expect(cercleChip.classes()).toContain("is-disabled");
   });
 });

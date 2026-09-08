@@ -1,8 +1,6 @@
 package ade
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 )
 
@@ -49,26 +47,47 @@ func TestExtractBranchAndResourceID(t *testing.T) {
 	}
 }
 
-func TestLoadStaticIDs(t *testing.T) {
-	tmpDir := t.TempDir()
-	testFile := filepath.Join(tmpDir, "test-ids.txt")
-	content := "1A-Prépa;15388\n2A-Prépa;4858\n# Comment line\n\nRoomA,1001\n"
-	if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
-		t.Fatalf("Failed to create test file: %v", err)
-	}
+func TestExtractLeavesExcludesBranchesAndFixesAccents(t *testing.T) {
+	crawler := &Crawler{}
 
-	resources, err := LoadStaticIDs(testFile, false)
+	// Simulated ADE HTML with Latin-1 encoding:
+	// - Branch 6975: "3A-Ing\xe9-Etu-S9" (has checkBranch, must be excluded)
+	// - Leaf 1001: "1A-Pr\xe9pa-TP1" (has selectLeaf, must be kept and decoded as UTF-8)
+	// - Leaf 2001: "3A-IR-IR1" (has checkTree, must be kept)
+	latin1HTML := []byte(
+		"<html><body>\n" +
+			"<div class=\"treeline\"><span class=\"treebranch\"><a href=\"javascript:checkBranch('6975',false,false)\">3A-Ing\xe9-Etu-S9</a></span></div>\n" +
+			"<div class=\"treeline\"><span><a href=\"javascript:selectLeaf('1001',0)\">1A-Pr\xe9pa-TP1</a></span></div>\n" +
+			"<div class=\"treeline\"><span><a href=\"javascript:checkTree('2001',0)\">3A-IR-IR1</a></span></div>\n" +
+			"</body></html>",
+	)
+
+	leaves, err := crawler.extractLeaves(latin1HTML)
 	if err != nil {
-		t.Fatalf("LoadStaticIDs() unexpected error: %v", err)
+		t.Fatalf("extractLeaves failed: %v", err)
 	}
 
-	if len(resources) != 3 {
-		t.Fatalf("expected 3 resources, got %d", len(resources))
+	if len(leaves) != 2 {
+		t.Fatalf("expected 2 leaf resources, got %d: %+v", len(leaves), leaves)
 	}
-	if resources[0].Name != "1A-Prépa" || resources[0].ID != "15388" {
-		t.Errorf("unexpected resource 0: %+v", resources[0])
+
+	for _, l := range leaves {
+		if l.ID == "6975" {
+			t.Errorf("branch 6975 was incorrectly included as a leaf resource!")
+		}
 	}
-	if resources[2].Name != "RoomA" || resources[2].ID != "1001" {
-		t.Errorf("unexpected resource 2: %+v", resources[2])
+
+	foundPrepa := false
+	for _, l := range leaves {
+		if l.ID == "1001" {
+			foundPrepa = true
+			if l.Name != "1A-Prépa-TP1" {
+				t.Errorf("expected clean UTF-8 '1A-Prépa-TP1', got %q", l.Name)
+			}
+		}
+	}
+
+	if !foundPrepa {
+		t.Errorf("expected to find 1001 (1A-Prépa-TP1) in leaves")
 	}
 }

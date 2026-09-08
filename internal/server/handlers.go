@@ -18,6 +18,9 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/sync", s.handleSync)
 	mux.HandleFunc("GET /api/files", s.handleFilesList)
 	mux.HandleFunc("GET /api/rooms", s.handleRoomsList)
+	mux.HandleFunc("GET /api/universities", s.handleUniversitiesList)
+	mux.HandleFunc("/api/tree", s.handleTree)
+	mux.HandleFunc("/api/personal-calendar", s.handlePersonalCalendar)
 
 	// Static endpoints
 	mux.Handle("/output/", http.StripPrefix("/output/", s.createOutputHandler()))
@@ -54,11 +57,11 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		"sync_stats":    stats,
 		"health_report": report,
 		"config": map[string]any{
-			"academic_year":  s.cfg.AcademicYear,
-			"sync_interval":  s.cfg.SyncInterval.String(),
-			"sync_cercle":    s.cfg.SyncCercle,
-			"concurrency":    s.cfg.Concurrency,
-			"max_data_age":   s.cfg.MaxDataAge.String(),
+			"academic_year": s.cfg.AcademicYear,
+			"sync_interval": s.cfg.SyncInterval.String(),
+			"sync_cercle":   s.cfg.SyncCercle,
+			"concurrency":   s.cfg.Concurrency,
+			"max_data_age":  s.cfg.MaxDataAge.String(),
 		},
 	}
 
