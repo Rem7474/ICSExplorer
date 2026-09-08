@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main, master, dev]
 
+permissions:
+  contents: read
+
 jobs:
   backend-tests:
     name: Backend Go Tests & Lint
@@ -83,7 +86,7 @@ jobs:
           load: true
 
       - name: Run Trivy Vulnerability Scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: 'icsexplorer:test'
           format: 'table'

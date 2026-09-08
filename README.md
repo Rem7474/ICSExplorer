@@ -9,8 +9,8 @@ Fini la lenteur et l'austérité d'ADE Campus sur smartphone : accédez instanta
 [![CI Pipeline](https://github.com/Rem7474/ICSExplorer/actions/workflows/ci.yml/badge.svg)](https://github.com/Rem7474/ICSExplorer/actions/workflows/ci.yml)
 [![Docker](https://img.shields.io/badge/Docker-Multi--stage%20(~25MB)-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![Vue.js](https://img.shields.io/badge/Frontend-Vue%203%20%7C%20PrimeVue%204-4FC08D?logo=vuedotjs&logoColor=white)](frontend/)
-[![Go](https://img.shields.io/badge/Backend-Go%201.24%20%7C%20Stdlib-00ADD8?logo=go&logoColor=white)](cmd/server/)
-[![Tests](https://img.shields.io/badge/Tests-63%2F63%20Passing-brightgreen?logo=vitest&logoColor=white)](frontend/)
+[![Go](https://img.shields.io/badge/Backend-Go%201.25%20%7C%20Stdlib-00ADD8?logo=go&logoColor=white)](cmd/server/)
+[![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen?logo=vitest&logoColor=white)](frontend/)
 [![PWA](https://img.shields.io/badge/PWA-Installable%20%26%20Offline-5A0FC8?logo=pwa&logoColor=white)](frontend/public/manifest.json)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 
@@ -139,7 +139,7 @@ L'application est immédiatement accessible sur **`http://localhost:8080`**.
 
 Si vous souhaitez contribuer ou compiler l'application localement :
 
-**Prérequis :** Go 1.24+ · Node.js 20+ / 22+
+**Prérequis :** Go 1.25+ · Node.js 20+ / 22+
 
 ```bash
 # 1. Lancer le frontend Vue 3 en mode dev (avec rechargement à chaud)
@@ -172,17 +172,19 @@ go run ./cmd/server
 
 ## 📡 API REST
 
-Le backend Go fournit une API REST légère et documentée :
+Le backend Go expose une API REST performante permettant d'interroger la santé du service, d'explorer les plannings ADE Campus et de télécharger les flux iCalendar (RFC 5545).
 
-| Endpoint | Méthode | Rôle |
-|---|:---:|---|
-| `/api/health` | `GET` | État de santé et fraîcheur des données (`200 OK` ou `503`) |
-| `/api/status` | `GET` | Statistiques du serveur (fichiers générés, dernière synchro) |
-| `/api/files` | `GET` | Liste JSON des emplois du temps disponibles |
-| `/output/{fichier}.ics` | `GET` | Téléchargement direct du calendrier au standard iCalendar RFC 5545 |
-| `/api/personal-calendar` | `POST` | Récupération éphémère d'un emploi du temps personnel via ADE |
-| `/api/personal-calendar/tree` | `POST` | Exploration de l'arborescence des catégories et groupes ADE |
-| `/api/sync` | `POST` | Déclenchement manuel d'une synchronisation globale |
+👉 **[Consulter la documentation complète de l'API REST](docs/api.md)**
+
+Principaux points d'entrée :
+- `GET /api/health` : État de santé et fraîcheur des données (`200 OK` / `503 Service Unavailable`)
+- `GET /api/status` : Métriques du serveur, configuration et statistiques de synchronisation
+- `GET /api/files` & `GET /api/rooms` : Liste des calendriers étudiants et de salles disponibles
+- `GET /api/universities` : Liste des universités configurées pour le planning personnel
+- `POST /api/tree` : Exploration dynamique de l'arborescence ADE
+- `POST /api/personal-calendar` : Récupération à la volée d'un emploi du temps personnel
+- `POST /api/sync` : Déclenchement manuel d'une synchronisation globale
+- `GET /output/{fichier}.ics` & `GET /rooms/{fichier}.ics` : Téléchargement direct des calendriers ICS
 
 ---
 
@@ -191,7 +193,7 @@ Le backend Go fournit une API REST légère et documentée :
 Le projet applique une politique de tests rigoureuse assurant une stabilité maximale :
 
 ```bash
-# Exécuter les 63 tests unitaires du frontend (Vitest)
+# Exécuter les tests unitaires du frontend (Vitest)
 cd frontend && npm test
 
 # Vérifier le linter (0 warning, 0 error)
@@ -201,7 +203,7 @@ npm run lint
 go test -v -race ./internal/... ./cmd/...
 ```
 
-- ✅ **63 tests unitaires frontend** couvrant le calendrier, la navigation, le découpage multi-jours, les calculs d'horaires et les modales PrimeVue.
+- ✅ **Suite complète de tests unitaires frontend** couvrant le calendrier, la navigation, le découpage multi-jours, les calculs d'horaires et les modales PrimeVue.
 - ✅ **100% des paquets Go couverts** par des tests automatisés avec race detector.
 - ✅ **Scan de sécurité Trivy** intégré au pipeline GitHub Actions sur chaque image Docker produite.
 
