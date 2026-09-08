@@ -115,20 +115,37 @@ La confidentialité de vos données universitaires est une priorité absolue :
 
 ## 🚀 Démarrage Rapide
 
-### Déploiement en 1 minute avec Docker (Recommandé)
+### 1. Déploiement avec Docker Compose (Recommandé)
 
-Le projet est fourni prêt à l'emploi avec une configuration **Docker Compose** optimisée (~25 Mo d'image finale) :
+Le projet utilise l'image officielle multi-architecture publiée sur GitHub Container Registry (~25 Mo) :
 
 ```bash
 # 1. Cloner le dépôt
 git clone https://github.com/Rem7474/ICSExplorer.git
 cd ICSExplorer
 
-# 2. Configurer les variables d'environnement (optionnel pour Esisar global)
+# 2. Configurer les variables d'environnement (optionnel)
 cp .env.example .env
 
-# 3. Démarrer le conteneur
+# 3. Télécharger l'image officielle et démarrer le conteneur
+docker compose pull
 docker compose up -d
+```
+
+> 💡 **Astuce :** Pour forcer une recompilation locale à partir des sources au lieu de l'image officielle, ajoutez le flag `--build` : `docker compose up -d --build`.
+
+---
+
+### 2. Déploiement direct avec Docker CLI (Sans cloner le dépôt)
+
+```bash
+docker run -d \
+  --name icsexplorer \
+  --restart unless-stopped \
+  -p 8080:8080 \
+  -v ./data/output:/app/data/output \
+  -v ./data/rooms:/app/data/rooms \
+  ghcr.io/rem7474/icsexplorer:latest
 ```
 
 L'application est immédiatement accessible sur **`http://localhost:8080`**.
