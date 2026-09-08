@@ -1,9 +1,9 @@
 services:
   icsexplorer:
+    image: ghcr.io/rem7474/icsexplorer:latest
     build:
       context: .
       dockerfile: Dockerfile
-    image: icsexplorer:latest
     container_name: icsexplorer
     restart: unless-stopped
     ports:
