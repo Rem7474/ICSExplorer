@@ -136,7 +136,7 @@ func (c *Client) fetchDirectTokenTreeNodes(ctx context.Context, dataToken, categ
 
 var (
 	reBranch = regexp.MustCompile(`(?is)openBranch\(['"]?(\d+)['"]?\)[^>]*>.*?<SPAN class="treebranch"><a[^>]*>([^<]+)</a>`)
-	reLeaf   = regexp.MustCompile(`(?is)check\(['"]?(\d+)['"]?[^>]*\)[^>]*>([^<]+)</a>`)
+	reLeaf   = regexp.MustCompile(`(?is)(?:checkTree|checkOrSelect|selectLeaf|selectResource|check)\(\s*['"]?(\d+)['"]?[^>]*\)[^>]*>([^<]+)</a>`)
 )
 
 type parsedLine struct {

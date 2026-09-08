@@ -2,7 +2,9 @@ package server
 
 import (
 	"fmt"
+	"html"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -102,7 +104,9 @@ func (s *Server) renderAutoIndex(w http.ResponseWriter, dir string) {
 	sb.WriteString("<!DOCTYPE html><html><head><title>Index of /output/</title></head><body><h1>Index of /output/</h1><hr><ul>")
 	for _, e := range entries {
 		name := e.Name()
-		fmt.Fprintf(&sb, `<li><a href=%q>%s</a></li>`, name, name)
+		escapedHref := html.EscapeString(url.PathEscape(name))
+		escapedName := html.EscapeString(name)
+		fmt.Fprintf(&sb, `<li><a href="%s">%s</a></li>`, escapedHref, escapedName)
 	}
 	sb.WriteString("</ul><hr></body></html>")
 

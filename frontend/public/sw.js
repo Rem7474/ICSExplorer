@@ -41,6 +41,9 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
+  // Only handle GET requests with caching
+  if (request.method !== 'GET') return;
+
   // Only handle same-origin + http(s)
   if (!url.protocol.startsWith('http') || url.origin !== self.location.origin) return;
 

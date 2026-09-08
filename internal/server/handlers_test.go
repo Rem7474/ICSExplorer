@@ -221,3 +221,28 @@ func TestStaticAndFrontendHandlers(t *testing.T) {
 		t.Errorf("expected SPA fallback to index.html, got: %s", wSPA.Body.String())
 	}
 }
+
+func TestRenderAutoIndexEscaping(t *testing.T) {
+	tmpDir := t.TempDir()
+	specialFile := "test file & special.ics"
+	if err := os.WriteFile(filepath.Join(tmpDir, specialFile), []byte("dummy"), 0o644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	s := &Server{}
+	w := httptest.NewRecorder()
+	s.renderAutoIndex(w, tmpDir)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "test file &amp; special.ics") {
+		t.Errorf("expected & to be escaped as &amp;, got: %s", body)
+	}
+	if !strings.Contains(body, `href="test%20file%20&amp;%20special.ics"`) {
+		t.Errorf("expected href to escape spaces and &, got: %s", body)
+	}
+}
+

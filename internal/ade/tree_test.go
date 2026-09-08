@@ -25,11 +25,20 @@ func TestParseTreeHTML(t *testing.T) {
 	<DIV class="treeline">
 		<SPAN CLASS="treeleaf"><a href="javascript:check('5678')">1A - Groupe 2</a></SPAN>
 	</DIV>
+	<DIV class="treeline">
+		<SPAN CLASS="treeleaf"><a href="javascript:checkTree('9012')">2A - Groupe 1</a></SPAN>
+	</DIV>
+	<DIV class="treeline">
+		<SPAN CLASS="treeleaf"><a href="javascript:selectLeaf(3456)">3A - Groupe 1</a></SPAN>
+	</DIV>
+	<DIV class="treeline">
+		<SPAN CLASS="treeleaf"><a href="javascript:selectResource('7890')">Salle A166</a></SPAN>
+	</DIV>
 	`
 
 	nodes := ParseTreeHTML(html)
-	if len(nodes) != 4 {
-		t.Fatalf("expected 4 nodes, got %d: %+v", len(nodes), nodes)
+	if len(nodes) != 7 {
+		t.Fatalf("expected 7 nodes, got %d: %+v", len(nodes), nodes)
 	}
 
 	if nodes[0].ID != "1674" || nodes[0].Name != "CAMPUS Grenoble" || nodes[0].IsLeaf {
@@ -43,6 +52,15 @@ func TestParseTreeHTML(t *testing.T) {
 	}
 	if nodes[3].ID != "5678" || nodes[3].Name != "1A - Groupe 2" || !nodes[3].IsLeaf {
 		t.Errorf("unexpected node 3: %+v", nodes[3])
+	}
+	if nodes[4].ID != "9012" || nodes[4].Name != "2A - Groupe 1" || !nodes[4].IsLeaf {
+		t.Errorf("unexpected node 4: %+v", nodes[4])
+	}
+	if nodes[5].ID != "3456" || nodes[5].Name != "3A - Groupe 1" || !nodes[5].IsLeaf {
+		t.Errorf("unexpected node 5: %+v", nodes[5])
+	}
+	if nodes[6].ID != "7890" || nodes[6].Name != "Salle A166" || !nodes[6].IsLeaf {
+		t.Errorf("unexpected node 6: %+v", nodes[6])
 	}
 }
 

@@ -147,10 +147,14 @@ export function useAdeTree({ onCalendarLoaded } = {}) {
         branchPath: branchPath || [],
       };
 
-      if (remember.value) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(payloadToSave));
-      } else {
-        localStorage.removeItem(STORAGE_KEY);
+      try {
+        if (remember.value) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(payloadToSave));
+        } else {
+          localStorage.removeItem(STORAGE_KEY);
+        }
+      } catch {
+        // Quota exceeded or private browsing restricted localStorage
       }
 
       onCalendarLoaded?.(icsText, {
@@ -203,7 +207,11 @@ export function useAdeTree({ onCalendarLoaded } = {}) {
 
   /** Wipe saved credentials from localStorage. */
   const forgetCredentials = () => {
-    localStorage.removeItem(STORAGE_KEY);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // Ignore private browsing error
+    }
     password.value = "";
     resourceId.value = "";
     remember.value = false;
