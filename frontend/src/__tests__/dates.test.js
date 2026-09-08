@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatDateTime, formatDateOnly, formatTimeOnly, getWeekStart, getWeekEnd, getRelevantWeekStart } from "../utils/dates.js";
+import { formatDateTime, formatDateOnly, formatTimeOnly, getWeekStart, getWeekEnd, getRelevantWeekStart, isAllDayEvent } from "../utils/dates.js";
 
 describe("dates utils", () => {
   it("formats date and time correctly", () => {
@@ -25,5 +25,19 @@ describe("dates utils", () => {
     ];
     const relevant = getRelevantWeekStart(events);
     expect(relevant).toBeInstanceOf(Date);
+  });
+
+  it("identifies all-day and multi-day events correctly with isAllDayEvent", () => {
+    // 2-hour timed course
+    expect(isAllDayEvent({ start: new Date(2026, 8, 2, 8, 0), end: new Date(2026, 8, 2, 10, 0) })).toBe(false);
+
+    // Full day 10h course (same day)
+    expect(isAllDayEvent({ start: new Date(2026, 8, 2, 8, 0), end: new Date(2026, 8, 2, 18, 0) })).toBe(false);
+
+    // Multi-day project AU530 (Wed to Fri = 48h)
+    expect(isAllDayEvent({ start: new Date(2026, 8, 2, 8, 0), end: new Date(2026, 8, 4, 18, 0) })).toBe(true);
+
+    // Explicit 24h all-day event
+    expect(isAllDayEvent({ start: new Date(2026, 8, 2, 0, 0), end: new Date(2026, 8, 3, 0, 0) })).toBe(true);
   });
 });

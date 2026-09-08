@@ -88,6 +88,13 @@ describe("ScheduleWeek component", () => {
     expect(wrapper.exists()).toBe(true);
     expect(wrapper.text()).toContain("WEI");
     expect(wrapper.text()).toContain("Cercle Esisar");
+
+    // Multi-day event should be in the dedicated all-day container, not the hourly grid
+    expect(wrapper.find(".day-allday-container").exists()).toBe(true);
+    const alldayBadge = wrapper.find(".allday-badge");
+    expect(alldayBadge.exists()).toBe(true);
+    expect(alldayBadge.text()).toContain("WEI");
+    expect(wrapper.findAll(".day-schedule .event").length).toBe(0);
   });
 
   it("triggers datepicker showPicker and emits jumpToWeek on date selection", async () => {

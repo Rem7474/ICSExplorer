@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, unref } from "vue";
 import Button from "primevue/button";
-import { formatDateOnly, formatTimeOnly } from "../utils/dates.js";
+import { formatDateOnly, formatTimeOnly, isAllDayEvent } from "../utils/dates.js";
 import { getSubjectColors, isCercleEvent } from "../utils/colors.js";
 import { useTheme } from "../composables/useTheme.js";
 
@@ -47,41 +47,34 @@ const startDate = computed(() => {
   return d instanceof Date ? d : new Date(d || Date.now());
 });
 
-// Dynamic hour boundaries based on week events
+// Dynamic hour boundaries based ONLY on timed events of the week
+const timedEvents = computed(() => {
+  return rawEvents.value.filter((e) => !isAllDayEvent(e));
+});
+
 const hourStart = computed(() => {
-  const evs = rawEvents.value;
+  const evs = timedEvents.value;
   if (!evs.length) return DEFAULT_HOUR_START;
-  const startHours = [];
-  evs.forEach((e) => {
-    const s = new Date(e.start);
-    startHours.push(s.getHours());
-  });
+  const startHours = evs.map((e) => new Date(e.start).getHours());
   const minH = Math.min(...startHours);
-  return Math.max(6, Math.min(DEFAULT_HOUR_START, minH));
+  return Math.max(7, Math.min(DEFAULT_HOUR_START, minH));
 });
 
 const hourEnd = computed(() => {
-  const evs = rawEvents.value;
+  const evs = timedEvents.value;
   if (!evs.length) return DEFAULT_HOUR_END;
-  const endHours = [];
-  evs.forEach((e) => {
-    const s = new Date(e.start);
+  const endHours = evs.map((e) => {
     const end = new Date(e.end);
-    if (formatDateOnly(s) === formatDateOnly(end)) {
-      endHours.push(end.getHours() + (end.getMinutes() > 0 ? 1 : 0));
-    } else {
-      // Event crosses day boundary: span till evening on start day
-      endHours.push(Math.max(20, Math.min(23, s.getHours() + 4)));
-    }
+    return end.getHours() + (end.getMinutes() > 0 ? 1 : 0);
   });
   const maxH = Math.max(DEFAULT_HOUR_END, ...endHours);
-  return Math.min(24, maxH);
+  return Math.min(23, maxH);
 });
 
 const hoursTotal = computed(() => Math.max(1, hourEnd.value - hourStart.value));
 const pxPerHour = computed(() => SCHEDULE_PX / hoursTotal.value);
 
-// Helper for multi-day time display
+// Helper for timed event display
 function formatChunkTime(event, dayDate) {
   const s = new Date(event.start);
   const e = new Date(event.end);
@@ -100,7 +93,7 @@ function formatChunkTime(event, dayDate) {
   if (isEndDay) {
     return `Jusqu'à ${formatTimeOnly(e)}`;
   }
-  return `Toute la journée`;
+  return `${formatTimeOnly(s)} - ${formatTimeOnly(e)}`;
 }
 
 // Group events by 5 days (Monday to Friday)
@@ -126,15 +119,28 @@ const days = computed(() => {
       return s <= dayEndMidnight && end >= dayStartMidnight;
     });
 
+    const dayAllEvents = dayEvents.filter((e) => isAllDayEvent(e));
+    const dayTimedEvents = dayEvents.filter((e) => !isAllDayEvent(e));
+
     list.push({
       date: dayDate,
       dayKey,
       dayName: dayDate.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" }),
-      events: layoutDayEvents(dayEvents, dayDate),
+      allDayEvents: dayAllEvents,
+      events: layoutDayEvents(dayTimedEvents, dayDate),
     });
   }
 
   return list;
+});
+
+const hasAnyAllDayEvents = computed(() => {
+  return days.value.some((d) => d.allDayEvents && d.allDayEvents.length > 0);
+});
+
+const maxAllDayCount = computed(() => {
+  if (!hasAnyAllDayEvents.value) return 0;
+  return Math.max(1, ...days.value.map((d) => d.allDayEvents?.length || 0));
 });
 
 // Collision packing algorithm bounded per day
@@ -465,6 +471,13 @@ const nextAvailableEvent = computed(() => {
       <!-- Hour Rail -->
       <div class="hour-rail" aria-hidden="true">
         <div class="hour-rail-spacer">&nbsp;</div>
+        <div
+          v-if="hasAnyAllDayEvents"
+          class="hour-rail-allday"
+          :style="{ minHeight: `${maxAllDayCount * 32}px` }"
+        >
+          Journée
+        </div>
         <div class="hour-rail-body" :style="{ minHeight: `${SCHEDULE_PX}px` }">
           <span
             v-for="h in (hourEnd - hourStart + 1)"
@@ -490,6 +503,38 @@ const nextAvailableEvent = computed(() => {
             {{ day.date.getDate() }}
           </span>
         </div>
+
+        <!-- All-Day / Multi-Day Events Banner Area -->
+        <div
+          v-if="hasAnyAllDayEvents"
+          class="day-allday-container"
+          :style="{ minHeight: `${maxAllDayCount * 32}px` }"
+        >
+          <div
+            v-for="ev in day.allDayEvents"
+            :key="ev.uid || ev.summary"
+            class="allday-badge"
+            :class="{ 'event-cercle': isCercleEvent(ev) }"
+            tabindex="0"
+            role="button"
+            :title="ev.summary + (ev.location ? ' — ' + ev.location : '')"
+            :style="{
+              backgroundColor: getSubjectColors(ev, isDark).background,
+              borderColor: getSubjectColors(ev, isDark).border,
+              color: getSubjectColors(ev, isDark).text,
+            }"
+            @click="emit('eventClick', ev)"
+            @keydown.enter="emit('eventClick', ev)"
+            @keydown.space.prevent="emit('eventClick', ev)"
+          >
+            <span v-if="isCercleEvent(ev)" class="cercle-event-badge mr-1">
+              <i class="pi pi-sparkles" aria-hidden="true"></i> Cercle Esisar
+            </span>
+            <span class="allday-title">{{ ev.summary }}</span>
+            <span v-if="ev.location" class="allday-loc">📍 {{ ev.location }}</span>
+          </div>
+        </div>
+
         <div class="day-schedule" :style="{ minHeight: `${SCHEDULE_PX}px` }">
           <!-- Realtime red line indicator with timestamp badge -->
           <div
@@ -741,6 +786,67 @@ const nextAvailableEvent = computed(() => {
   background: var(--accent);
   color: #ffffff;
   box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+}
+
+.hour-rail-allday {
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.day-allday-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.allday-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 6px;
+  border-left-width: 4px;
+  border-left-style: solid;
+  border-top: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.allday-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px -1px rgba(0, 0, 0, 0.15);
+  z-index: 5;
+}
+
+.allday-title {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.allday-loc {
+  font-size: 0.7rem;
+  font-weight: 600;
+  opacity: 0.85;
+  white-space: nowrap;
 }
 
 .empty-state {

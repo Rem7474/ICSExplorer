@@ -56,3 +56,16 @@ export const getRelevantWeekStart = (events) => {
     ? nextEventWeek
     : currentWeekMonday;
 };
+
+export const isAllDayEvent = (event) => {
+  if (!event || !event.start || !event.end) return false;
+  if (event.allDay || event.isAllDay) return true;
+  const s = new Date(event.start);
+  const e = new Date(event.end);
+  if (isNaN(s.getTime()) || isNaN(e.getTime()) || e <= s) return false;
+
+  const durationHours = (e.getTime() - s.getTime()) / (1000 * 60 * 60);
+  if (durationHours >= 14) return true;
+
+  return formatDateOnly(s) !== formatDateOnly(e) && durationHours >= 12;
+};
