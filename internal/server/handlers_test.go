@@ -245,4 +245,3 @@ func TestRenderAutoIndexEscaping(t *testing.T) {
 		t.Errorf("expected href to escape spaces and &, got: %s", body)
 	}
 }
-
