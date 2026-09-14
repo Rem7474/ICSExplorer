@@ -3,6 +3,8 @@ import vue from "@vitejs/plugin-vue";
 import { fileURLToPath, URL } from "node:url";
 
 export default defineConfig({
+  envDir: "../",
+  envPrefix: ["VITE_", "PRIMEUI_"],
   plugins: [vue()],
   resolve: {
     alias: {

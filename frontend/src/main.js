@@ -10,6 +10,7 @@ const app = createApp(App);
 
 const primeuiLicenseKey =
   (typeof window !== "undefined" && window.PRIMEUI_LICENSE) ||
+  import.meta.env.PRIMEUI_LICENSE ||
   import.meta.env.VITE_PRIMEUI_LICENSE;
 
 if (primeuiLicenseKey && typeof window !== "undefined") {
