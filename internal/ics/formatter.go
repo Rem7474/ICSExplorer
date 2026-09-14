@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 )
 
 var (
@@ -15,20 +16,100 @@ var (
 	regexInverted  = regexp.MustCompile(`AM[A-Z]{2}\d{3}_\d{4}_S\d_[A-Z ]+_[A-Z]\d`)
 )
 
-// FormatCalendarLines cleans up and beautifies SUMMARY, LOCATION and DESCRIPTION in an unfolded iCalendar line slice.
+func parseIcsDateTime(val string) (time.Time, bool) {
+	val = strings.TrimSpace(val)
+	val = strings.TrimSuffix(val, "\r")
+	if idx := strings.LastIndex(val, ":"); idx != -1 {
+		val = val[idx+1:]
+	}
+	layouts := []string{
+		"20060102T150405Z",
+		"20060102T150405",
+		"20060102",
+	}
+	for _, l := range layouts {
+		if t, err := time.Parse(l, val); err == nil {
+			return t, true
+		}
+	}
+	return time.Time{}, false
+}
+
+// FormatCalendarLines cleans up and beautifies SUMMARY, LOCATION and DESCRIPTION in an unfolded iCalendar line slice,
+// while sanitizing aberrant dates (e.g. 1-year ADE typos) and discarding corrupted events (end <= start or 1970 epoch).
 func FormatCalendarLines(lines []string) []string {
 	result := make([]string, 0, len(lines))
 	var lastSummary string
 
+	var inEvent bool
+	var eventLines []string
+	var dtStartIdx int = -1
+	var dtStartVal, dtEndVal string
+
+	flushEvent := func() {
+		if len(eventLines) == 0 {
+			return
+		}
+		// Validate event dates if present
+		if dtStartVal != "" && dtEndVal != "" {
+			s, sOk := parseIcsDateTime(dtStartVal)
+			e, eOk := parseIcsDateTime(dtEndVal)
+			if sOk && eOk {
+				// Reject events with invalid years (e.g. Unix epoch 1970) or inverted dates (end <= start)
+				if s.Year() < 2000 || e.Year() < 2000 || !e.After(s) {
+					return
+				}
+
+				// Auto-correct 1-year start date typo from ADE:
+				// e.g. 2026-02-04 09:15 -> 2027-02-04 10:45 (same day & month, 1-year typo)
+				if e.Year() == s.Year()+1 && e.Month() == s.Month() && e.Day() == s.Day() {
+					correctedStart := s.AddDate(1, 0, 0)
+					if e.After(correctedStart) && dtStartIdx >= 0 && dtStartIdx < len(eventLines) {
+						oldLine := eventLines[dtStartIdx]
+						colonIdx := strings.Index(oldLine, ":")
+						if colonIdx != -1 {
+							prefix := oldLine[:colonIdx+1]
+							val := oldLine[colonIdx+1:]
+							if len(val) >= 4 {
+								eventLines[dtStartIdx] = prefix + fmt.Sprintf("%04d", e.Year()) + val[4:]
+								s = correctedStart
+							}
+						}
+					}
+				}
+
+				// Discard aberrant continuous durations (> 30 days)
+				if e.Sub(s) > 30*24*time.Hour {
+					return
+				}
+			}
+		}
+
+		result = append(result, eventLines...)
+	}
+
 	for i := 0; i < len(lines); i++ {
 		line := lines[i]
 
+		if line == "BEGIN:VEVENT" {
+			if inEvent {
+				flushEvent()
+			}
+			inEvent = true
+			eventLines = []string{line}
+			dtStartIdx = -1
+			dtStartVal, dtEndVal = "", ""
+			lastSummary = ""
+			continue
+		}
+
+		// Line formatting for SUMMARY, LOCATION, DESCRIPTION
 		switch {
 		case strings.HasPrefix(line, "SUMMARY:"):
 			val := strings.TrimPrefix(line, "SUMMARY:")
 			val = strings.ReplaceAll(val, "_", " ")
 			lastSummary = val
-			result = append(result, "SUMMARY:"+val)
+			line = "SUMMARY:" + val
 
 		case strings.HasPrefix(line, "LOCATION:"):
 			val := strings.TrimPrefix(line, "LOCATION:")
@@ -37,16 +118,39 @@ func FormatCalendarLines(lines []string) []string {
 			if val == "A166_CM" {
 				val = "A166"
 			}
-			result = append(result, "LOCATION:"+val)
+			line = "LOCATION:" + val
 
 		case strings.HasPrefix(line, "DESCRIPTION:"):
-			// Format the description line using our rule engine
-			formattedDesc := formatDescriptionLine(line, lastSummary)
-			result = append(result, formattedDesc)
-
-		default:
-			result = append(result, line)
+			line = formatDescriptionLine(line, lastSummary)
 		}
+
+		if inEvent {
+			if strings.HasPrefix(line, "DTSTART") {
+				dtStartIdx = len(eventLines)
+				if idx := strings.Index(line, ":"); idx != -1 {
+					dtStartVal = line[idx+1:]
+				}
+			} else if strings.HasPrefix(line, "DTEND") {
+				if idx := strings.Index(line, ":"); idx != -1 {
+					dtEndVal = line[idx+1:]
+				}
+			}
+
+			eventLines = append(eventLines, line)
+
+			if line == "END:VEVENT" {
+				inEvent = false
+				flushEvent()
+				eventLines = nil
+			}
+			continue
+		}
+
+		result = append(result, line)
+	}
+
+	if inEvent {
+		flushEvent()
 	}
 
 	return result

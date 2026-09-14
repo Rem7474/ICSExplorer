@@ -83,4 +83,30 @@ END:VCALENDAR`;
     expect(events).toHaveLength(1);
     expect(events[0].uid).toBe("evt-good");
   });
+
+  it("auto-corrects 1-year start date typo from ADE and discards aberrant durations", () => {
+    const typoICS = `BEGIN:VCALENDAR
+BEGIN:VEVENT
+UID:evt-typo-1year
+SUMMARY:LV510 Anglais
+LOCATION:A046
+DTSTART:20260204T091500Z
+DTEND:20270204T104500Z
+END:VEVENT
+BEGIN:VEVENT
+UID:evt-huge-duration
+SUMMARY:Stage Infini
+DTSTART:20260101T080000Z
+DTEND:20260601T180000Z
+END:VEVENT
+END:VCALENDAR`;
+
+    const events = parseIcs(typoICS);
+    expect(events).toHaveLength(1);
+    expect(events[0].uid).toBe("evt-typo-1year");
+    expect(events[0].start.getUTCFullYear()).toBe(2027);
+    expect(events[0].start.getUTCMonth()).toBe(1); // Feb
+    expect(events[0].start.getUTCDate()).toBe(4);
+    expect(events[0].end.getUTCFullYear()).toBe(2027);
+  });
 });

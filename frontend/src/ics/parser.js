@@ -35,10 +35,29 @@ export const parseIcs = (icsText) => {
       currentEvent = {};
     } else if (line === "END:VEVENT" && currentEvent) {
       if (currentEvent.start && currentEvent.end) {
-        const s = new Date(currentEvent.start);
+        let s = new Date(currentEvent.start);
         const e = new Date(currentEvent.end);
         if (!isNaN(s.getTime()) && !isNaN(e.getTime()) && s.getFullYear() >= 2000 && e.getFullYear() >= 2000 && e > s) {
-          events.push(currentEvent);
+          // Detect common 1-year ADE typo: start year was mistyped as previous year instead of end year
+          // e.g. 2026-02-04 09:15 -> 2027-02-04 10:45 (same day & month, 1-year gap for a standard class)
+          if (
+            e.getFullYear() === s.getFullYear() + 1 &&
+            e.getMonth() === s.getMonth() &&
+            e.getDate() === s.getDate()
+          ) {
+            const correctedStart = new Date(s);
+            correctedStart.setFullYear(e.getFullYear());
+            if (e > correctedStart) {
+              s = correctedStart;
+              currentEvent.start = correctedStart;
+            }
+          }
+
+          // Discard aberrant durations (> 30 days continuous) that clutter weekly schedule
+          const durationDays = (e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24);
+          if (durationDays <= 30) {
+            events.push(currentEvent);
+          }
         }
       }
       currentEvent = null;
