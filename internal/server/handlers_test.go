@@ -311,4 +311,3 @@ func TestServeIndexHTML_PrimeUILicenseInjection(t *testing.T) {
 		t.Errorf("expected no license script when PrimeUILicense is empty, got: %s", wNoLic.Body.String())
 	}
 }
-

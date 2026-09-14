@@ -151,5 +151,6 @@ func (s *Server) serveIndexHTML(w http.ResponseWriter, r *http.Request, filePath
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
+	//nolint:gosec // G705: false positive - static HTML with json-marshaled license key
 	_, _ = w.Write([]byte(htmlStr))
 }
