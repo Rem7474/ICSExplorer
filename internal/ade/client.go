@@ -475,8 +475,8 @@ func (c *Client) FetchDirectTokenCalendar(ctx context.Context, dataToken, resour
 	maxEvents := -1
 
 	for _, projID := range projectCandidates {
-		calURL := fmt.Sprintf("%s/jsp/custom/modules/plannings/anonymous_cal.jsp?resources=%s&projectId=%d&startDay=01&startMonth=09&startYear=%d&endDay=31&endMonth=08&endYear=%d&calType=ical",
-			c.baseURL, effectiveResources, projID, startYear, endYear)
+		calURL := fmt.Sprintf("%s/jsp/custom/modules/plannings/anonymous_cal.jsp?resources=%s&projectId=%d&firstDate=%04d-09-01&lastDate=%04d-08-31&startDay=01&startMonth=09&startYear=%d&endDay=31&endMonth=08&endYear=%d&calType=ical",
+			c.baseURL, effectiveResources, projID, startYear, endYear, startYear, endYear)
 		req2, err := http.NewRequestWithContext(ctx, http.MethodGet, calURL, http.NoBody)
 		if err != nil {
 			continue
