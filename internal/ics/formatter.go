@@ -43,7 +43,7 @@ func FormatCalendarLines(lines []string) []string {
 
 	var inEvent bool
 	var eventLines []string
-	var dtStartIdx int = -1
+	dtStartIdx := -1
 	var dtStartVal, dtEndVal string
 
 	flushEvent := func() {

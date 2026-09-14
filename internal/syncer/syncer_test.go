@@ -183,4 +183,3 @@ func TestSyncerWithCercleIsolation(t *testing.T) {
 		t.Errorf("expected promo file to contain ADE event")
 	}
 }
-
