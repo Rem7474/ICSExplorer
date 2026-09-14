@@ -337,4 +337,32 @@ END:VCALENDAR`;
     expect(schedule.selectedYear.value).toBe("1A");
     expect(schedule.selectedTrack.value).toBe("Prepa");
   });
+
+  it("loadSchedule loads academic file and merges Cercle events on client side", async () => {
+    const schedule = useSchedule();
+    vi.spyOn(api, "fetchIcsText").mockResolvedValue(
+      "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:ade-course-1\r\nSUMMARY:Maths 3A\r\nDTSTART:20260918T080000Z\r\nDTEND:20260918T100000Z\r\nEND:VEVENT\r\nEND:VCALENDAR"
+    );
+    vi.spyOn(api, "fetchCercleEvents").mockResolvedValue([
+      {
+        uid: "cercle-1",
+        summary: "Soirée Cercle",
+        start: new Date("2026-09-18T18:00:00Z"),
+        end: new Date("2026-09-18T23:00:00Z"),
+        isCercle: true,
+        categories: "CERCLE",
+        source: "Cercle Esisar",
+      },
+    ]);
+
+    await schedule.loadSchedule("3A-Ingé-App-S9-SEC.ics");
+
+    expect(schedule.events.value.length).toBe(2);
+    const summaries = schedule.events.value.map((e) => e.summary);
+    expect(summaries).toContain("Maths 3A");
+    expect(summaries).toContain("Soirée Cercle");
+
+    const cercleEvent = schedule.events.value.find((e) => e.summary === "Soirée Cercle");
+    expect(cercleEvent.isCercle).toBe(true);
+  });
 });

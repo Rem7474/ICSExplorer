@@ -103,3 +103,84 @@ func TestSyncerWithMockServer(t *testing.T) {
 		t.Errorf("expected 2 files in files.json, got %d", len(filesList))
 	}
 }
+
+func TestSyncerWithCercleIsolation(t *testing.T) {
+	// Setup mock servers for ADE and Cercle
+	mockADE := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "tree.jsp") {
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`<html><body>
+				<div class="treeline"><span><a href="javascript:selectLeaf('1001',0)">1A-Test</a></span></div>
+			</body></html>`))
+			return
+		}
+		if r.URL.Path == "/2026-2027/etudiant/esisar" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.Header().Set("Content-Type", "text/calendar")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:ade-class-1\r\nSUMMARY:Cours ADE\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"))
+	}))
+	defer mockADE.Close()
+
+	mockCercle := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/calendar")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:cercle-wei-1\r\nSUMMARY:WEI Multi-Day\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"))
+	}))
+	defer mockCercle.Close()
+
+	tmpDir := t.TempDir()
+	outputDir := filepath.Join(tmpDir, "output")
+	roomsDir := filepath.Join(tmpDir, "rooms")
+	dataDir := filepath.Join(tmpDir, "data")
+	_ = os.MkdirAll(dataDir, 0o755)
+
+	cfg := &config.Config{
+		OutputDir:        outputDir,
+		RoomsOutputDir:   roomsDir,
+		DataDir:          dataDir,
+		AcademicYear:     "2026-2027",
+		Concurrency:      2,
+		SyncCercle:       true,
+		CercleIcsURL:     mockCercle.URL,
+		SyncInterval:     30 * time.Minute,
+		MaxDataAge:       24 * time.Hour,
+		MinFileSizeBytes: 10,
+	}
+
+	adeClient := ade.NewClient("", "", cfg.AcademicYear)
+	adeClient.SetBaseURL(mockADE.URL)
+
+	s := New(cfg, adeClient, nil)
+
+	if err := s.Sync(context.Background()); err != nil {
+		t.Fatalf("Sync() failed: %v", err)
+	}
+
+	// Verify cercle.ics is written to outputDir
+	cercleFile := filepath.Join(outputDir, "cercle.ics")
+	cercleContent, err := os.ReadFile(cercleFile)
+	if err != nil {
+		t.Fatalf("expected cercle.ics to exist: %v", err)
+	}
+	if !strings.Contains(string(cercleContent), "cercle-wei-1") {
+		t.Errorf("expected cercle.ics to contain Cercle event")
+	}
+
+	// Verify promo file does NOT contain Cercle event (Option A: pure academic calendar)
+	promoFile := filepath.Join(outputDir, "1A-Test.ics")
+	promoContent, err := os.ReadFile(promoFile)
+	if err != nil {
+		t.Fatalf("expected 1A-Test.ics to exist: %v", err)
+	}
+	if strings.Contains(string(promoContent), "cercle-wei-1") {
+		t.Errorf("expected promo file NOT to contain merged Cercle event, but it did")
+	}
+	if !strings.Contains(string(promoContent), "ade-class-1") {
+		t.Errorf("expected promo file to contain ADE event")
+	}
+}
+

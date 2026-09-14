@@ -99,16 +99,14 @@ func (s *Syncer) Sync(ctx context.Context) error {
 		return err
 	}
 
-	// Step 2: Optionally fetch Cercle events
-	var cercleData []byte
+	// Step 2: Optionally fetch Cercle events and save as standalone cercle.ics
 	if s.cfg.SyncCercle && s.cfg.CercleIcsURL != "" {
 		s.logger.Info("downloading Cercle Esisar public calendar...")
 		cData, err := ics.FetchCercleCalendar(ctx, s.cfg.CercleIcsURL)
 		if err != nil {
 			s.logger.Warn("failed to fetch Cercle calendar", "error", err)
 		} else {
-			cercleData = cData
-			// Save raw cercle.ics in output directory
+			// Save raw cercle.ics in output directory for frontend use
 			_ = os.WriteFile(filepath.Join(s.cfg.OutputDir, "cercle.ics"), cData, 0o644)
 			s.logger.Info("Cercle calendar downloaded successfully")
 		}
@@ -143,7 +141,7 @@ func (s *Syncer) Sync(ctx context.Context) error {
 				case <-ctx.Done():
 					return
 				default:
-					if err := s.processResource(ctx, res, cercleData); err != nil {
+					if err := s.processResource(ctx, res); err != nil {
 						errMu.Lock()
 						syncErrors = append(syncErrors, fmt.Sprintf("%s: %v", res.Name, err))
 						errMu.Unlock()
@@ -220,7 +218,7 @@ func (s *Syncer) discoverResources(ctx context.Context) []ade.Resource {
 	return discovered
 }
 
-func (s *Syncer) processResource(ctx context.Context, res ade.Resource, cercleData []byte) error {
+func (s *Syncer) processResource(ctx context.Context, res ade.Resource) error {
 	raw, err := s.adeClient.FetchCalendarRaw(ctx, res.ID)
 	if err != nil {
 		return fmt.Errorf("fetch calendar failed: %w", err)
@@ -231,14 +229,6 @@ func (s *Syncer) processResource(ctx context.Context, res ade.Resource, cercleDa
 	formatted := ics.FormatCalendarLines(unfolded)
 
 	calendarBytes := []byte(ics.JoinLines(formatted))
-
-	// If not a room and Cercle events exist, merge them
-	if !res.IsRoom && len(cercleData) > 0 {
-		merged, err := ics.MergeCercleEvents(calendarBytes, cercleData)
-		if err == nil {
-			calendarBytes = merged
-		}
-	}
 
 	// Determine output destination
 	targetDir := s.cfg.OutputDir

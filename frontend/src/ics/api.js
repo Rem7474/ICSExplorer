@@ -1,3 +1,5 @@
+import { parseIcs } from "./parser.js";
+
 export const getOutputBase = () => {
   if (typeof window !== "undefined" && window.__EDT_CONFIG__?.outputBase) {
     return window.__EDT_CONFIG__.outputBase;
@@ -49,6 +51,21 @@ export const fetchIcsText = async (fileName) => {
     throw new Error(`Impossible de récupérer le fichier (HTTP ${response.status})`);
   }
   return decodeTextWithFallback(response);
+};
+
+export const fetchCercleEvents = async () => {
+  try {
+    const text = await fetchIcsText("cercle.ics");
+    const parsed = parseIcs(text);
+    return parsed.map((e) => ({
+      ...e,
+      isCercle: true,
+      categories: e.categories ? `${e.categories},CERCLE` : "CERCLE",
+      source: "Cercle Esisar",
+    }));
+  } catch {
+    return [];
+  }
 };
 
 export const fetchUniversities = async () => {

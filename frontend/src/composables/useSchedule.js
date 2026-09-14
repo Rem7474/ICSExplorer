@@ -1,5 +1,5 @@
 import { ref, computed, watch } from "vue";
-import { fetchFileList, fetchRoomList, fetchIcsText, fetchPersonalCalendar, decodeTextWithFallback } from "../ics/api.js";
+import { fetchFileList, fetchRoomList, fetchIcsText, fetchCercleEvents, fetchPersonalCalendar, decodeTextWithFallback } from "../ics/api.js";
 import { parseIcs } from "../ics/parser.js";
 import { getRelevantWeekStart, getWeekStart, getWeekEnd } from "../utils/dates.js";
 import { getTeacherIndex, getRoomIndex, clearAggregatedCache } from "../ics/aggregator.js";
@@ -30,6 +30,7 @@ export function useSchedule() {
   const rawPersonalIcs = ref("");
   
   const events = ref([]);
+  const cercleEvents = ref([]);
   const currentWeekStart = ref(getWeekStart(new Date()));
   const disabledSubjects = ref([]);
   const selectedSubjectFilter = computed(() => disabledSubjects.value[0] || null);
@@ -204,6 +205,26 @@ export function useSchedule() {
     }
   };
 
+  const loadCercleEvents = async () => {
+    if (cercleEvents.value.length > 0) return cercleEvents.value;
+    try {
+      const cEvs = await fetchCercleEvents();
+      cercleEvents.value = cEvs;
+      return cEvs;
+    } catch {
+      return [];
+    }
+  };
+
+  const mergeWithCercle = (studentEvents, cEvents) => {
+    if (!cEvents || !cEvents.length) return studentEvents;
+    const existingUids = new Set(studentEvents.map((e) => e.uid).filter(Boolean));
+    const toAdd = cEvents.filter((e) => !e.uid || !existingUids.has(e.uid));
+    const combined = [...studentEvents, ...toAdd];
+    combined.sort((a, b) => new Date(a.start) - new Date(b.start));
+    return combined;
+  };
+
   const loadSchedule = async (fileName) => {
     if (!fileName) return;
     isLoading.value = true;
@@ -214,10 +235,14 @@ export function useSchedule() {
     autoSelectFromFile(fileName);
 
     try {
-      const text = await fetchIcsText(fileName);
+      const [text, cEvents] = await Promise.all([
+        fetchIcsText(fileName),
+        loadCercleEvents(),
+      ]);
       const parsed = parseIcs(text);
-      events.value = parsed;
-      currentWeekStart.value = getRelevantWeekStart(parsed);
+      const merged = mergeWithCercle(parsed, cEvents);
+      events.value = merged;
+      currentWeekStart.value = getRelevantWeekStart(parsed.length ? parsed : merged);
       statusMessage.value = "";
 
       // Save selection and update base schedule reference
@@ -712,6 +737,8 @@ export function useSchedule() {
     closeRoomModal,
     openEventModal,
     closeEventModal,
+    cercleEvents,
+    loadCercleEvents,
     triggerSync,
   };
 }
