@@ -8,6 +8,12 @@ import "./styles/main.css";
 
 const app = createApp(App);
 
+const primeuiLicenseKey = import.meta.env.VITE_PRIMEUI_LICENSE;
+
+if (primeuiLicenseKey && typeof window !== "undefined") {
+  window.PRIMEUI_LICENSE = primeuiLicenseKey;
+}
+
 app.use(PrimeVue, {
   theme: {
     preset: Aura,
@@ -15,6 +21,7 @@ app.use(PrimeVue, {
       darkModeSelector: ".dark-mode",
     },
   },
+  ...(primeuiLicenseKey ? { licenseKey: primeuiLicenseKey, license: primeuiLicenseKey } : {}),
 });
 app.use(ToastService);
 
