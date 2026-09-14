@@ -49,7 +49,7 @@ const healthBadge = computed(() => {
             type="button"
             :aria-label="isDark ? 'Basculer en mode clair' : 'Basculer en mode sombre'"
             :title="isDark ? 'Passer en mode clair' : 'Passer en mode sombre'"
-            @click="toggleTheme"
+            @click.stop.prevent="toggleTheme"
           >
             <i :class="isDark ? 'pi pi-sun text-amber-300' : 'pi pi-moon text-slate-100'" style="font-size: 1.15rem;" aria-hidden="true"></i>
           </button>
@@ -156,22 +156,35 @@ const healthBadge = computed(() => {
   color: white;
   transition: all 0.2s ease;
   backdrop-filter: blur(8px);
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.theme-toggle-btn:hover {
-  background: rgba(255, 255, 255, 0.25);
-  border-color: rgba(255, 255, 255, 0.4);
-  transform: scale(1.05);
+.theme-toggle-btn i {
+  pointer-events: none;
+}
+
+.theme-toggle-btn:active {
+  transform: scale(0.95);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .theme-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.4);
+    transform: scale(1.05);
+  }
+
+  :global(.dark-mode) .theme-toggle-btn:hover {
+    background: #475569;
+    border-color: #64748b;
+  }
 }
 
 :global(.dark-mode) .theme-toggle-btn {
   background: #334155;
   border-color: #475569;
-}
-
-:global(.dark-mode) .theme-toggle-btn:hover {
-  background: #475569;
-  border-color: #64748b;
 }
 
 @media (max-width: 640px) {

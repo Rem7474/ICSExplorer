@@ -1,5 +1,5 @@
 :root {
-  color-scheme: light;
+  color-scheme: only light;
   --bg: #f5f7fb;
   --card: #ffffff;
   --text: #1f2937;
@@ -31,7 +31,7 @@
 }
 
 html.dark-mode {
-  color-scheme: dark;
+  color-scheme: only dark;
   --bg: #0f172a;
   --card: #1e293b;
   --text: #e2e8f0;
