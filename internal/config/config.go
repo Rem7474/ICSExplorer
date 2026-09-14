@@ -29,6 +29,7 @@ type Config struct {
 	LogLevel         string
 	LogFormat        string
 	AdminToken       string
+	PrimeUILicense   string
 }
 
 // DefaultCercleURL is the official public Google Calendar of Cercle Esisar.
@@ -100,6 +101,7 @@ func Load() (*Config, error) {
 		LogLevel:         strings.ToLower(getEnv("LOG_LEVEL", "info")),
 		LogFormat:        strings.ToLower(getEnv("LOG_FORMAT", "text")),
 		AdminToken:       getEnv("ADMIN_TOKEN", ""),
+		PrimeUILicense:   getEnv("PRIMEUI_LICENSE", getEnv("VITE_PRIMEUI_LICENSE", "")),
 	}
 
 	return cfg, nil

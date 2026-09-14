@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"html"
 	"net/http"
@@ -65,8 +66,14 @@ func (s *Server) createFrontendHandler() http.Handler {
 		// Check if file exists on disk
 		info, err := os.Stat(filePath)
 		if err == nil && !info.IsDir() {
-			// Cache control
-			if strings.HasSuffix(filePath, "index.html") || strings.HasSuffix(filePath, "sw.js") {
+			// Serve index.html with potential license injection
+			if strings.HasSuffix(filePath, "index.html") {
+				s.serveIndexHTML(w, r, filePath)
+				return
+			}
+
+			// Cache control for other assets
+			if strings.HasSuffix(filePath, "sw.js") {
 				w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 			} else if strings.Contains(relPath, "/assets/") {
 				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
@@ -78,8 +85,7 @@ func (s *Server) createFrontendHandler() http.Handler {
 		// Fallback to index.html for SPA routing
 		indexPath := filepath.Join(s.cfg.StaticDir, "index.html")
 		if _, err := os.Stat(indexPath); err == nil {
-			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-			http.ServeFile(w, r, indexPath)
+			s.serveIndexHTML(w, r, indexPath)
 			return
 		}
 
@@ -111,4 +117,39 @@ func (s *Server) renderAutoIndex(w http.ResponseWriter, dir string) {
 	sb.WriteString("</ul><hr></body></html>")
 
 	_, _ = w.Write([]byte(sb.String()))
+}
+
+// serveIndexHTML delivers index.html, optionally injecting the PrimeUI license key.
+func (s *Server) serveIndexHTML(w http.ResponseWriter, r *http.Request, filePath string) {
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+
+	if s.cfg.PrimeUILicense == "" {
+		http.ServeFile(w, r, filePath)
+		return
+	}
+
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		http.ServeFile(w, r, filePath)
+		return
+	}
+
+	jsonLicense, err := json.Marshal(s.cfg.PrimeUILicense)
+	if err != nil {
+		http.ServeFile(w, r, filePath)
+		return
+	}
+
+	injection := fmt.Sprintf("<script>window.PRIMEUI_LICENSE=%s;</script>", jsonLicense)
+
+	htmlStr := string(content)
+	if idx := strings.Index(htmlStr, "</head>"); idx != -1 {
+		htmlStr = htmlStr[:idx] + injection + htmlStr[idx:]
+	} else {
+		htmlStr = injection + htmlStr
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(htmlStr))
 }

@@ -21,6 +21,7 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - LOG_FORMAT=${LOG_FORMAT:-json}
       - ADMIN_TOKEN=${ADMIN_TOKEN:-}
+      - PRIMEUI_LICENSE=${PRIMEUI_LICENSE:-}
     volumes:
       - ./data/output:/app/data/output
       - ./data/rooms:/app/data/rooms

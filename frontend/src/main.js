@@ -8,7 +8,9 @@ import "./styles/main.css";
 
 const app = createApp(App);
 
-const primeuiLicenseKey = import.meta.env.VITE_PRIMEUI_LICENSE;
+const primeuiLicenseKey =
+  (typeof window !== "undefined" && window.PRIMEUI_LICENSE) ||
+  import.meta.env.VITE_PRIMEUI_LICENSE;
 
 if (primeuiLicenseKey && typeof window !== "undefined") {
   window.PRIMEUI_LICENSE = primeuiLicenseKey;
