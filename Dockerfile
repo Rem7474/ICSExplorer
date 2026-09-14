@@ -16,6 +16,9 @@ RUN npm run build
 FROM golang:alpine AS backend-builder
 WORKDIR /app
 
+ARG VERSION=dev
+ARG BUILD_TIME=dev
+
 RUN apk add --no-cache git
 
 COPY go.mod go.sum ./
@@ -24,7 +27,9 @@ RUN go mod download
 COPY cmd/ ./cmd/
 COPY internal/ ./internal/
 
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/icsexplorer ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags="-s -w -X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}" \
+    -o /app/icsexplorer ./cmd/server
 
 # ==========================================
 # Stage 3: Minimal Production Image (~20MB)

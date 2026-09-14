@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -17,9 +18,7 @@ import (
 )
 
 var (
-	// x-release-please-start-version
-	version = "2.0.2"
-	// x-release-please-end
+	version   = "dev"
 	buildTime = "dev"
 )
 
@@ -27,6 +26,12 @@ func main() {
 	syncOnly := flag.Bool("sync-only", false, "Run one-shot calendar sync and exit")
 	showVersion := flag.Bool("version", false, "Print version and exit")
 	flag.Parse()
+
+	if version == "dev" {
+		if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+			version = info.Main.Version
+		}
+	}
 
 	if *showVersion {
 		fmt.Printf("ICSExplorer backend version %s (built: %s)\n", version, buildTime)
