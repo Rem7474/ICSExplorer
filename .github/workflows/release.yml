@@ -2,21 +2,45 @@ name: Release & Multi-Arch Docker Publish
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*.*.*'
   workflow_dispatch:
 
 permissions:
   contents: write
+  pull-requests: write
   packages: write
 
 jobs:
+  release-please:
+    name: Automated Versioning (Release Please)
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - name: Run Release Please
+        uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
   publish-docker:
     name: Build & Push Multi-Arch Docker Image
     runs-on: ubuntu-latest
+    needs: [release-please]
+    if: |
+      always() &&
+      (needs.release-please.outputs.release_created == 'true' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
     steps:
       - name: Checkout Code
         uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name || github.ref }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -37,9 +61,9 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') || startsWith(github.ref, 'refs/tags/v') }}
+            type=semver,pattern={{version}},value=${{ needs.release-please.outputs.tag_name || github.ref_name }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.release-please.outputs.tag_name || github.ref_name }}
+            type=raw,value=latest,enable=true
 
       - name: Build and Push Multi-Arch Image
         uses: docker/build-push-action@v7
@@ -54,9 +78,15 @@ jobs:
   build-binaries:
     name: Build Standalone Binaries
     runs-on: ubuntu-latest
+    needs: [release-please]
+    if: |
+      always() &&
+      (needs.release-please.outputs.release_created == 'true' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch')
     steps:
       - name: Checkout Code
         uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name || github.ref }}
 
       - name: Setup Node.js & Build Frontend
         uses: actions/setup-node@v7
@@ -76,7 +106,7 @@ jobs:
       - name: Build Matrix Binaries
         run: |
           mkdir -p dist
-          TAG_NAME=${GITHUB_REF_NAME:-v2.0.0}
+          TAG_NAME="${{ needs.release-please.outputs.tag_name || github.ref_name || 'v2.0.1' }}"
           BUILD_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
           LDFLAGS="-s -w -X main.version=$TAG_NAME -X main.buildTime=$BUILD_TIME"
           
@@ -88,10 +118,9 @@ jobs:
 
           cd dist && sha256sum * > checksums.txt
 
-      - name: Create GitHub Release
+      - name: Upload Binaries to Release
         uses: softprops/action-gh-release@v3
-        if: startsWith(github.ref, 'refs/tags/v')
         with:
+          tag_name: ${{ needs.release-please.outputs.tag_name || github.ref_name }}
           files: |
             dist/*
-          generate_release_notes: true
