@@ -237,6 +237,12 @@ main {
   padding: 1.5rem;
 }
 
+@media (max-width: 768px) {
+  .schedule-main-card {
+    padding: 0.75rem 0.5rem;
+  }
+}
+
 .footer {
   margin-top: 2rem;
   padding: 1.5rem 0;
