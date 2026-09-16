@@ -1,7 +1,7 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, unref } from "vue";
+import { ref, computed, watch, nextTick, onMounted, onUnmounted, unref } from "vue";
 import Button from "primevue/button";
-import { formatDateOnly, formatTimeOnly, isAllDayEvent } from "../utils/dates.js";
+import { formatDateOnly, formatTimeOnly, isAllDayEvent, getWeekStart } from "../utils/dates.js";
 import { getSubjectColors, isCercleEvent } from "../utils/colors.js";
 import { useTheme } from "../composables/useTheme.js";
 
@@ -257,18 +257,109 @@ const currentTimeTop = computed(() => {
 });
 
 // Mobile Day dots & horizontal scrolling
+function getTodayDayIndex() {
+  const now = new Date();
+  const day = now.getDay(); // 0 = Sun, 1 = Mon ... 5 = Fri, 6 = Sat
+  return day >= 1 && day <= 5 ? day - 1 : 0;
+}
+
 const activeDayIndex = ref(0);
 const scheduleContainer = ref(null);
 
-const scrollDayIntoView = (idx) => {
+const scrollDayIntoView = (idx, behavior = "smooth") => {
   activeDayIndex.value = idx;
   if (scheduleContainer.value) {
     const groups = scheduleContainer.value.querySelectorAll(".day-group");
     if (groups[idx]) {
-      groups[idx].scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
+      if (typeof groups[idx].scrollIntoView === "function") {
+        try {
+          groups[idx].scrollIntoView({ behavior, inline: "start", block: "nearest" });
+        } catch {
+          scheduleContainer.value.scrollLeft = groups[idx].offsetLeft ?? 0;
+        }
+      } else {
+        scheduleContainer.value.scrollLeft = groups[idx].offsetLeft ?? 0;
+      }
+    } else if (idx === 0) {
+      scheduleContainer.value.scrollLeft = 0;
     }
   }
 };
+
+const onScheduleScroll = () => {
+  if (!scheduleContainer.value) return;
+  const container = scheduleContainer.value;
+  if (container.scrollWidth <= container.clientWidth) return;
+
+  const groups = container.querySelectorAll(".day-group");
+  if (!groups || groups.length === 0) return;
+
+  const scrollLeft = container.scrollLeft;
+  let closestIndex = 0;
+  let minDiff = Infinity;
+
+  groups.forEach((group, idx) => {
+    const diff = Math.abs(group.offsetLeft - scrollLeft);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closestIndex = idx;
+    }
+  });
+
+  if (activeDayIndex.value !== closestIndex) {
+    activeDayIndex.value = closestIndex;
+  }
+};
+
+const onPrevWeek = () => {
+  activeDayIndex.value = 0;
+  if (scheduleContainer.value) {
+    scheduleContainer.value.scrollLeft = 0;
+  }
+  emit("prevWeek");
+};
+
+const onNextWeek = () => {
+  activeDayIndex.value = 0;
+  if (scheduleContainer.value) {
+    scheduleContainer.value.scrollLeft = 0;
+  }
+  emit("nextWeek");
+};
+
+const onToday = () => {
+  const todayIdx = getTodayDayIndex();
+  activeDayIndex.value = todayIdx;
+  emit("currentWeek");
+  nextTick(() => {
+    scrollDayIntoView(todayIdx, "smooth");
+  });
+};
+
+const onJumpToNextCourse = () => {
+  if (nextAvailableEvent.value) {
+    const evDate = new Date(nextAvailableEvent.value.start);
+    const day = evDate.getDay();
+    const dayIdx = day >= 1 && day <= 5 ? day - 1 : 0;
+    activeDayIndex.value = dayIdx;
+    emit("jumpToWeek", nextAvailableEvent.value.start);
+  }
+};
+
+watch(startDate, async () => {
+  await nextTick();
+  scrollDayIntoView(activeDayIndex.value, "auto");
+});
+
+watch(
+  () => rawEvents.value.length,
+  async (newLen, oldLen) => {
+    if (newLen > 0 && oldLen === 0) {
+      await nextTick();
+      scrollDayIntoView(activeDayIndex.value, "auto");
+    }
+  }
+);
 
 // Touch gestures (swipe)
 let touchStartX = 0;
@@ -291,13 +382,13 @@ const onTouchEnd = (e) => {
         if (activeDayIndex.value < 4) {
           scrollDayIntoView(activeDayIndex.value + 1);
         } else {
-          emit("nextWeek");
+          onNextWeek();
         }
       } else {
         if (activeDayIndex.value > 0) {
           scrollDayIntoView(activeDayIndex.value - 1);
         } else {
-          emit("prevWeek");
+          onPrevWeek();
         }
       }
     }
@@ -310,11 +401,11 @@ const handleGlobalKeydown = (e) => {
   if (tag === "input" || tag === "select" || tag === "textarea") return;
 
   if (e.key === "t" || e.key === "T") {
-    emit("currentWeek");
+    onToday();
   } else if (e.key === "ArrowLeft") {
-    emit("prevWeek");
+    onPrevWeek();
   } else if (e.key === "ArrowRight") {
-    emit("nextWeek");
+    onNextWeek();
   } else if (e.key === "d" || e.key === "D") {
     toggleTheme();
   }
@@ -325,6 +416,17 @@ onMounted(() => {
     currentTime.value = new Date();
   }, 30000);
   window.addEventListener("keydown", handleGlobalKeydown);
+
+  // If initial week displayed is current week, default activeDayIndex to today
+  const now = new Date();
+  const isCurrentWeek = formatDateOnly(startDate.value) === formatDateOnly(getWeekStart(now));
+  if (isCurrentWeek) {
+    const todayIdx = getTodayDayIndex();
+    activeDayIndex.value = todayIdx;
+    if (scheduleContainer.value) {
+      scrollDayIntoView(todayIdx, "auto");
+    }
+  }
 });
 
 onUnmounted(() => {
@@ -361,7 +463,11 @@ const openDatePicker = () => {
 const onDatePickerChange = (val) => {
   if (val) {
     const [y, m, d] = val.split("-").map(Number);
-    emit("jumpToWeek", new Date(y, m - 1, d, 12, 0, 0));
+    const chosenDate = new Date(y, m - 1, d, 12, 0, 0);
+    const day = chosenDate.getDay();
+    const dayIdx = day >= 1 && day <= 5 ? day - 1 : 0;
+    activeDayIndex.value = dayIdx;
+    emit("jumpToWeek", chosenDate);
   }
 };
 
@@ -369,6 +475,16 @@ const onDatePickerChange = (val) => {
 const nextAvailableEvent = computed(() => {
   const now = new Date();
   return rawAllEvents.value.find((e) => new Date(e.start) > now) || null;
+});
+
+defineExpose({
+  activeDayIndex,
+  getTodayDayIndex,
+  onPrevWeek,
+  onNextWeek,
+  onToday,
+  scrollDayIntoView,
+  onScheduleScroll,
 });
 </script>
 
@@ -384,7 +500,7 @@ const nextAvailableEvent = computed(() => {
           rounded
           aria-label="Semaine précédente (Flèche gauche)"
           title="Semaine précédente (←)"
-          @click="emit('prevWeek')"
+          @click="onPrevWeek"
         />
 
         <div class="week-picker-trigger" @click="openDatePicker">
@@ -416,7 +532,7 @@ const nextAvailableEvent = computed(() => {
           rounded
           aria-label="Semaine suivante (Flèche droite)"
           title="Semaine suivante (→)"
-          @click="emit('nextWeek')"
+          @click="onNextWeek"
         />
       </div>
 
@@ -428,7 +544,7 @@ const nextAvailableEvent = computed(() => {
         size="small"
         class="today-btn"
         title="Revenir à la semaine actuelle (Touche T)"
-        @click="emit('currentWeek')"
+        @click="onToday"
       />
     </div>
 
@@ -462,7 +578,7 @@ const nextAvailableEvent = computed(() => {
         icon="pi pi-arrow-right"
         iconPos="right"
         severity="primary"
-        @click="emit('jumpToWeek', nextAvailableEvent.start)"
+        @click="onJumpToNextCourse"
       />
     </div>
 
@@ -473,6 +589,7 @@ const nextAvailableEvent = computed(() => {
       class="schedule"
       @touchstart="onTouchStart"
       @touchend="onTouchEnd"
+      @scroll.passive="onScheduleScroll"
     >
       <!-- Hour Rail -->
       <div class="hour-rail" aria-hidden="true">

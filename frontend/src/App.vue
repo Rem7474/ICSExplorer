@@ -1,6 +1,7 @@
 <script setup>
-import { ref, onMounted, computed, reactive, unref } from "vue";
+import { ref, onMounted, onUnmounted, computed, reactive, unref } from "vue";
 import { useSchedule } from "./composables/useSchedule.js";
+import { getWeekStart } from "./utils/dates.js";
 
 import AppHeader from "./components/AppHeader.vue";
 import ScheduleControls from "./components/ScheduleControls.vue";
@@ -20,8 +21,15 @@ import ToastContainer from "./components/ToastContainer.vue";
 const schedule = reactive(useSchedule());
 const isPersonalScheduleModalOpen = ref(false);
 
+const rawVersion = import.meta.env.VITE_APP_VERSION || "";
+const appVersion = rawVersion && !rawVersion.startsWith("v") ? `v${rawVersion}` : rawVersion;
+
 onMounted(() => {
   schedule.init();
+});
+
+onUnmounted(() => {
+  schedule.stopHealthPolling?.();
 });
 
 const currentKey = computed(() => {
@@ -69,7 +77,7 @@ const onSelectRoomFromEvent = (room) => {
 };
 
 const onJumpToWeek = (date) => {
-  schedule.currentWeekStart = new Date(date);
+  schedule.currentWeekStart = getWeekStart(new Date(date));
 };
 </script>
 
@@ -158,7 +166,7 @@ const onJumpToWeek = (date) => {
     <!-- Footer -->
     <footer class="footer">
       <div class="container footer-content">
-        <span>EDT Esisar — Propulsé par Vue 3 & Go</span>
+        <span>EDT Esisar<template v-if="appVersion"> {{ appVersion }}</template> — Propulsé par Vue 3 & Go</span>
         <div class="footer-links">
           <a href="/api/health" target="_blank" rel="noopener">Santé API</a>
           <a href="/api/status" target="_blank" rel="noopener">Statut Synchro</a>

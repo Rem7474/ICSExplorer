@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'edt-v22';
+const CACHE_VERSION = 'edt-v23';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

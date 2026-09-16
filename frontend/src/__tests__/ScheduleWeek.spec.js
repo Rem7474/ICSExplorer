@@ -154,4 +154,165 @@ describe("ScheduleWeek component", () => {
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "t" }));
     expect(wrapper.emitted("currentWeek")).toBeTruthy();
   });
+
+  it("resets activeDayIndex to 0 (Monday) and emits prevWeek/nextWeek when clicking week navigation arrows", async () => {
+    const monday = new Date(2026, 8, 14); // Mon Sep 14 2026
+    const wrapper = mount(ScheduleWeek, {
+      props: {
+        events: [],
+        currentWeekStart: monday,
+        allEvents: [],
+      },
+    });
+
+    // Simulate moving to Wednesday (index 2)
+    wrapper.vm.scrollDayIntoView(2);
+    expect(wrapper.vm.activeDayIndex).toBe(2);
+
+    // Find previous and next week buttons
+    const navButtons = wrapper.findAll(".nav-arrows button");
+    const prevBtn = navButtons[0];
+    const nextBtn = navButtons[navButtons.length - 1];
+
+    // Click next week
+    await nextBtn.trigger("click");
+    expect(wrapper.emitted("nextWeek")).toBeTruthy();
+    expect(wrapper.vm.activeDayIndex).toBe(0); // Reset to Monday!
+
+    // Set to Friday (index 4) and click prev week
+    wrapper.vm.scrollDayIntoView(4);
+    await prevBtn.trigger("click");
+    expect(wrapper.emitted("prevWeek")).toBeTruthy();
+    expect(wrapper.vm.activeDayIndex).toBe(0); // Reset to Monday!
+  });
+
+  it("sets activeDayIndex to current day of week and emits currentWeek when clicking Aujourd'hui", async () => {
+    const previousWeekMonday = new Date(2026, 0, 5); // Some past date
+    const wrapper = mount(ScheduleWeek, {
+      props: {
+        events: [],
+        currentWeekStart: previousWeekMonday,
+        allEvents: [],
+      },
+    });
+
+    // Move to Friday
+    wrapper.vm.scrollDayIntoView(4);
+
+    const todayBtn = wrapper.find(".today-btn");
+    expect(todayBtn.exists()).toBe(true);
+
+    await todayBtn.trigger("click");
+    expect(wrapper.emitted("currentWeek")).toBeTruthy();
+    expect(wrapper.vm.activeDayIndex).toBe(wrapper.vm.getTodayDayIndex());
+  });
+
+  it("resets activeDayIndex to 0 and emits prevWeek/nextWeek on swipe boundaries", async () => {
+    const monday = new Date(2026, 8, 14);
+    const testEvents = [
+      {
+        uid: "evt-1",
+        summary: "Test",
+        start: monday,
+        end: new Date(monday.getTime() + 3600000),
+      },
+    ];
+    const wrapper = mount(ScheduleWeek, {
+      props: {
+        events: testEvents,
+        currentWeekStart: monday,
+        allEvents: testEvents,
+      },
+    });
+
+    const scheduleEl = wrapper.find(".schedule");
+    expect(scheduleEl.exists()).toBe(true);
+
+    // Swipe left on Friday (activeDayIndex = 4) -> next week and reset to Monday
+    wrapper.vm.scrollDayIntoView(4);
+    await scheduleEl.trigger("touchstart", {
+      touches: [{ clientX: 200, clientY: 100 }],
+    });
+    await scheduleEl.trigger("touchend", {
+      changedTouches: [{ clientX: 100, clientY: 100 }], // dx = -100 (swipe left)
+    });
+    expect(wrapper.emitted("nextWeek")).toBeTruthy();
+    expect(wrapper.vm.activeDayIndex).toBe(0);
+
+    // Swipe right on Monday (activeDayIndex = 0) -> prev week and activeDayIndex is 0
+    wrapper.vm.scrollDayIntoView(0);
+    await scheduleEl.trigger("touchstart", {
+      touches: [{ clientX: 100, clientY: 100 }],
+    });
+    await scheduleEl.trigger("touchend", {
+      changedTouches: [{ clientX: 200, clientY: 100 }], // dx = +100 (swipe right)
+    });
+    expect(wrapper.emitted("prevWeek")).toBeTruthy();
+    expect(wrapper.vm.activeDayIndex).toBe(0);
+  });
+
+  it("synchronizes activeDayIndex with horizontal scrolling", async () => {
+    const monday = new Date(2026, 8, 14);
+    const testEvents = [
+      {
+        uid: "evt-1",
+        summary: "Test",
+        start: monday,
+        end: new Date(monday.getTime() + 3600000),
+      },
+    ];
+    const wrapper = mount(ScheduleWeek, {
+      props: {
+        events: testEvents,
+        currentWeekStart: monday,
+        allEvents: testEvents,
+      },
+    });
+
+    const container = wrapper.find(".schedule").element;
+    Object.defineProperty(container, "clientWidth", { value: 300, configurable: true });
+    Object.defineProperty(container, "scrollWidth", { value: 1500, configurable: true });
+
+    const groups = container.querySelectorAll(".day-group");
+    groups.forEach((g, idx) => {
+      Object.defineProperty(g, "offsetLeft", { value: idx * 300, configurable: true });
+    });
+
+    // Simulate scrolling to day 2 (Wednesday, offsetLeft = 600)
+    container.scrollLeft = 600;
+    wrapper.vm.onScheduleScroll();
+    expect(wrapper.vm.activeDayIndex).toBe(2);
+
+    // Simulate scrolling to day 4 (Friday, offsetLeft = 1200)
+    container.scrollLeft = 1180;
+    wrapper.vm.onScheduleScroll();
+    expect(wrapper.vm.activeDayIndex).toBe(4);
+  });
+
+  it("jumps to next course date and sets activeDayIndex accordingly", async () => {
+    const monday = new Date(2026, 8, 14);
+    // Next event is on Thursday at 10:00 (Sep 17 2026)
+    const futureThursday = new Date(2026, 8, 17, 10, 0);
+    const futureEvent = {
+      uid: "future-1",
+      summary: "Future Course",
+      start: futureThursday,
+      end: new Date(futureThursday.getTime() + 3600000),
+    };
+
+    const wrapper = mount(ScheduleWeek, {
+      props: {
+        events: [],
+        currentWeekStart: monday,
+        allEvents: [futureEvent],
+      },
+    });
+
+    const jumpBtn = wrapper.find(".empty-state button");
+    expect(jumpBtn.exists()).toBe(true);
+
+    await jumpBtn.trigger("click");
+    expect(wrapper.emitted("jumpToWeek")).toBeTruthy();
+    expect(wrapper.vm.activeDayIndex).toBe(3); // Thursday is index 3
+  });
 });

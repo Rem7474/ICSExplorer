@@ -4,6 +4,9 @@
 FROM node:22-alpine AS frontend-builder
 WORKDIR /app/frontend
 
+ARG VERSION=dev
+ENV VITE_APP_VERSION=${VERSION}
+
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm install
 
