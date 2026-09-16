@@ -10,6 +10,7 @@ const BASE_SCHEDULE_KEY = "edtBaseSchedule";
 const PERSONAL_CREDENTIALS_KEY = "edtPersonalCreds";
 const PERSONAL_CACHE_KEY = "edt_cached_personal_ics";
 const PERSONAL_META_KEY = "edt_personal_meta";
+const HEALTH_CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
 export function useSchedule() {
   const availableFiles = ref([]);
@@ -42,6 +43,8 @@ export function useSchedule() {
   const activeModalEvent = ref(null);
   const isRoomModalOpen = ref(false);
   const serverHealth = ref(null);
+  let healthPollingTimer = null;
+  let lastHealthCheckTime = 0;
 
   // Parse available options for student selects
   const parsedFiles = computed(() => {
@@ -109,17 +112,108 @@ export function useSchedule() {
     }) || null;
   });
 
+  const reloadCurrentScheduleSilently = async () => {
+    try {
+      try {
+        const files = await fetchFileList();
+        if (Array.isArray(files) && files.length > 0) {
+          availableFiles.value = files;
+        }
+      } catch {}
+
+      clearAggregatedCache();
+      cercleEvents.value = [];
+
+      if (selectedMode.value === "student" && selectedFile.value) {
+        const [text, cEvents] = await Promise.all([
+          fetchIcsText(selectedFile.value),
+          loadCercleEvents(),
+        ]);
+        const parsed = parseIcs(text);
+        events.value = mergeWithCercle(parsed, cEvents);
+      } else if (selectedMode.value === "teacher" && selectedTeacher.value) {
+        const teacherMap = await getTeacherIndex();
+        const tEvents = teacherMap.get(selectedTeacher.value) || [];
+        const cEvents = await loadCercleEvents();
+        events.value = mergeWithCercle(tEvents, cEvents);
+      } else if (selectedMode.value === "room" && selectedRoom.value) {
+        try {
+          const text = await fetchIcsText(`${selectedRoom.value}.ics`);
+          events.value = parseIcs(text);
+        } catch {
+          const roomMap = await getRoomIndex();
+          events.value = roomMap.get(selectedRoom.value) || [];
+        }
+      } else if (selectedMode.value === "personal") {
+        if (localStorage.getItem(PERSONAL_CREDENTIALS_KEY)) {
+          await refreshPersonalSchedule().catch(() => {});
+        }
+      }
+    } catch (err) {
+      console.warn("Silent schedule reload failed:", err);
+    }
+  };
+
+  const checkHealth = async () => {
+    lastHealthCheckTime = Date.now();
+    try {
+      if (typeof fetch === "function") {
+        const res = await fetch("/api/health", { cache: "no-store" });
+        if (res && res.ok) {
+          const data = await res.json();
+          const prevSync = serverHealth.value?.last_sync;
+          serverHealth.value = data;
+
+          if (prevSync && data.last_sync && prevSync !== data.last_sync) {
+            await reloadCurrentScheduleSilently();
+          }
+          return data;
+        }
+      }
+    } catch {
+      // Gracefully ignore network errors during background check
+    }
+    return null;
+  };
+
+  const handleVisibilityChange = () => {
+    if (typeof document !== "undefined" && document.visibilityState === "visible") {
+      if (Date.now() - lastHealthCheckTime >= HEALTH_CHECK_INTERVAL_MS) {
+        checkHealth();
+      }
+    }
+  };
+
+  const startHealthPolling = (intervalMs = HEALTH_CHECK_INTERVAL_MS) => {
+    stopHealthPolling();
+    healthPollingTimer = setInterval(() => {
+      checkHealth();
+    }, intervalMs);
+
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+    }
+  };
+
+  const stopHealthPolling = () => {
+    if (healthPollingTimer) {
+      clearInterval(healthPollingTimer);
+      healthPollingTimer = null;
+    }
+    if (typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    }
+  };
+
   // Actions
   const init = async () => {
     isLoading.value = true;
     statusMessage.value = "Chargement des calendriers...";
 
     try {
-      // Check server health
-      fetch("/api/health")
-        .then((r) => r.json())
-        .then((data) => (serverHealth.value = data))
-        .catch(() => {});
+      // Check server health and start periodic polling
+      await checkHealth();
+      startHealthPolling();
 
       const files = await fetchFileList();
       availableFiles.value = files;
@@ -740,5 +834,9 @@ export function useSchedule() {
     cercleEvents,
     loadCercleEvents,
     triggerSync,
+    checkHealth,
+    reloadCurrentScheduleSilently,
+    startHealthPolling,
+    stopHealthPolling,
   };
 }

@@ -365,4 +365,65 @@ END:VCALENDAR`;
     const cercleEvent = schedule.events.value.find((e) => e.summary === "Soirée Cercle");
     expect(cercleEvent.isCercle).toBe(true);
   });
+
+  it("checkHealth updates serverHealth and starts/stops polling cleanly", async () => {
+    const schedule = useSchedule();
+    const mockHealth = {
+      status: "healthy",
+      fresh: true,
+      last_sync: "2026-09-16T12:00:00Z",
+      last_sync_age: "5m",
+    };
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => mockHealth,
+    });
+
+    const result = await schedule.checkHealth();
+    expect(result).toEqual(mockHealth);
+    expect(schedule.serverHealth.value).toEqual(mockHealth);
+
+    // Test start and stop polling
+    vi.useFakeTimers();
+    schedule.startHealthPolling(1000);
+    vi.advanceTimersByTime(2000);
+    expect(fetchSpy).toHaveBeenCalledTimes(3); // 1 initial + 2 interval ticks
+
+    schedule.stopHealthPolling();
+    vi.advanceTimersByTime(2000);
+    expect(fetchSpy).toHaveBeenCalledTimes(3); // no more calls after stop
+    vi.useRealTimers();
+  });
+
+  it("checkHealth triggers reloadCurrentScheduleSilently when last_sync updates", async () => {
+    const schedule = useSchedule();
+    schedule.serverHealth.value = {
+      status: "healthy",
+      last_sync: "2026-09-16T11:00:00Z",
+    };
+    schedule.selectedMode.value = "student";
+    schedule.selectedFile.value = "1A-Prepa-TP1.ics";
+
+    vi.spyOn(api, "fetchFileList").mockResolvedValue(["1A-Prepa-TP1.ics"]);
+    vi.spyOn(api, "fetchIcsText").mockResolvedValue(
+      "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:new-ev\r\nSUMMARY:Updated Course\r\nDTSTART:20260916T080000Z\r\nDTEND:20260916T100000Z\r\nEND:VEVENT\r\nEND:VCALENDAR"
+    );
+    vi.spyOn(api, "fetchCercleEvents").mockResolvedValue([]);
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        status: "healthy",
+        last_sync: "2026-09-16T12:00:00Z",
+      }),
+    });
+
+    await schedule.checkHealth();
+
+    expect(schedule.serverHealth.value.last_sync).toBe("2026-09-16T12:00:00Z");
+    expect(schedule.events.value.length).toBe(1);
+    expect(schedule.events.value[0].summary).toBe("Updated Course");
+  });
 });
+

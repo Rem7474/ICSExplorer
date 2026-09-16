@@ -1,6 +1,7 @@
 <script setup>
-import { ref, onMounted, computed, reactive, unref } from "vue";
+import { ref, onMounted, onUnmounted, computed, reactive, unref } from "vue";
 import { useSchedule } from "./composables/useSchedule.js";
+import { getWeekStart } from "./utils/dates.js";
 
 import AppHeader from "./components/AppHeader.vue";
 import ScheduleControls from "./components/ScheduleControls.vue";
@@ -22,6 +23,10 @@ const isPersonalScheduleModalOpen = ref(false);
 
 onMounted(() => {
   schedule.init();
+});
+
+onUnmounted(() => {
+  schedule.stopHealthPolling?.();
 });
 
 const currentKey = computed(() => {
@@ -69,7 +74,7 @@ const onSelectRoomFromEvent = (room) => {
 };
 
 const onJumpToWeek = (date) => {
-  schedule.currentWeekStart = new Date(date);
+  schedule.currentWeekStart = getWeekStart(new Date(date));
 };
 </script>
 
