@@ -271,14 +271,21 @@ const scrollDayIntoView = (idx, behavior = "smooth") => {
   if (scheduleContainer.value) {
     const groups = scheduleContainer.value.querySelectorAll(".day-group");
     if (groups[idx]) {
-      if (typeof groups[idx].scrollIntoView === "function") {
+      const targetLeft = groups[idx].offsetLeft ?? 0;
+      if (typeof scheduleContainer.value.scrollTo === "function") {
+        try {
+          scheduleContainer.value.scrollTo({ left: targetLeft, behavior });
+        } catch {
+          scheduleContainer.value.scrollLeft = targetLeft;
+        }
+      } else if (typeof groups[idx].scrollIntoView === "function") {
         try {
           groups[idx].scrollIntoView({ behavior, inline: "start", block: "nearest" });
         } catch {
-          scheduleContainer.value.scrollLeft = groups[idx].offsetLeft ?? 0;
+          scheduleContainer.value.scrollLeft = targetLeft;
         }
       } else {
-        scheduleContainer.value.scrollLeft = groups[idx].offsetLeft ?? 0;
+        scheduleContainer.value.scrollLeft = targetLeft;
       }
     } else if (idx === 0) {
       scheduleContainer.value.scrollLeft = 0;
@@ -1102,13 +1109,25 @@ defineExpose({
 
   .schedule {
     grid-template-columns: repeat(5, 100%);
+    gap: 0;
+    padding: 0.5rem 0;
     scroll-snap-type: x mandatory;
-    padding: 0.5rem;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .schedule::-webkit-scrollbar {
+    display: none;
   }
 
   .day-group {
     scroll-snap-align: start;
     scroll-snap-stop: always;
+    box-sizing: border-box;
+    padding: 0 0.5rem;
+    width: 100%;
+    min-width: 100%;
+    max-width: 100%;
   }
 }
 </style>
