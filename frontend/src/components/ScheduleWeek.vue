@@ -318,12 +318,66 @@ const onScheduleScroll = () => {
   }
 };
 
+// Navigation direction & transitions between weeks
+const transitionClass = ref("");
+let isNavigating = false;
+
+function triggerFallbackTransition(direction) {
+  transitionClass.value = "";
+  nextTick(() => {
+    transitionClass.value = `anim-${direction}`;
+  });
+}
+
+const onAnimationEnd = () => {
+  transitionClass.value = "";
+};
+
+function navigateWithDirection(direction, action) {
+  isNavigating = true;
+
+  const performUpdate = () => {
+    action();
+  };
+
+  if (
+    typeof document !== "undefined" &&
+    document.startViewTransition &&
+    !window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches
+  ) {
+    document.documentElement.dataset.navDir = direction;
+    try {
+      const vt = document.startViewTransition(async () => {
+        performUpdate();
+        await nextTick();
+      });
+      vt.finished
+        .catch(() => {})
+        .finally(() => {
+          delete document.documentElement.dataset.navDir;
+          isNavigating = false;
+        });
+    } catch {
+      delete document.documentElement.dataset.navDir;
+      performUpdate();
+      triggerFallbackTransition(direction);
+      isNavigating = false;
+    }
+  } else {
+    performUpdate();
+    triggerFallbackTransition(direction);
+    isNavigating = false;
+  }
+}
+
 const onPrevWeek = () => {
   activeDayIndex.value = 0;
   if (scheduleContainer.value) {
     scheduleContainer.value.scrollLeft = 0;
   }
-  emit("prevWeek");
+  navigateWithDirection("prev", () => {
+    emit("prevWeek");
+  });
 };
 
 const onNextWeek = () => {
@@ -331,13 +385,22 @@ const onNextWeek = () => {
   if (scheduleContainer.value) {
     scheduleContainer.value.scrollLeft = 0;
   }
-  emit("nextWeek");
+  navigateWithDirection("next", () => {
+    emit("nextWeek");
+  });
 };
 
 const onToday = () => {
   const todayIdx = getTodayDayIndex();
   activeDayIndex.value = todayIdx;
-  emit("currentWeek");
+  const now = new Date();
+  const currentWeekTime = getWeekStart(now).getTime();
+  const displayedWeekTime = startDate.value.getTime();
+  const dir = currentWeekTime > displayedWeekTime ? "next" : currentWeekTime < displayedWeekTime ? "prev" : "fade";
+
+  navigateWithDirection(dir, () => {
+    emit("currentWeek");
+  });
   nextTick(() => {
     scrollDayIntoView(todayIdx, "smooth");
   });
@@ -349,13 +412,23 @@ const onJumpToNextCourse = () => {
     const day = evDate.getDay();
     const dayIdx = day >= 1 && day <= 5 ? day - 1 : 0;
     activeDayIndex.value = dayIdx;
-    emit("jumpToWeek", nextAvailableEvent.value.start);
+    navigateWithDirection("next", () => {
+      emit("jumpToWeek", nextAvailableEvent.value.start);
+    });
   }
 };
 
-watch(startDate, async () => {
+watch(startDate, async (newVal, oldVal) => {
   await nextTick();
   scrollDayIntoView(activeDayIndex.value, "auto");
+  if (!isNavigating && newVal && oldVal) {
+    const newT = new Date(newVal).getTime();
+    const oldT = new Date(oldVal).getTime();
+    if (newT !== oldT) {
+      const dir = newT > oldT ? "next" : "prev";
+      triggerFallbackTransition(dir);
+    }
+  }
 });
 
 watch(
@@ -474,7 +547,14 @@ const onDatePickerChange = (val) => {
     const day = chosenDate.getDay();
     const dayIdx = day >= 1 && day <= 5 ? day - 1 : 0;
     activeDayIndex.value = dayIdx;
-    emit("jumpToWeek", chosenDate);
+
+    const chosenWeekTime = getWeekStart(chosenDate).getTime();
+    const currentWeekTime = startDate.value.getTime();
+    const dir = chosenWeekTime > currentWeekTime ? "next" : chosenWeekTime < currentWeekTime ? "prev" : "fade";
+
+    navigateWithDirection(dir, () => {
+      emit("jumpToWeek", chosenDate);
+    });
   }
 };
 
@@ -492,6 +572,8 @@ defineExpose({
   onToday,
   scrollDayIntoView,
   onScheduleScroll,
+  transitionClass,
+  navigateWithDirection,
 });
 </script>
 
@@ -569,8 +651,14 @@ defineExpose({
       </button>
     </div>
 
-    <!-- Empty State -->
-    <div v-if="rawEvents.length === 0" class="empty-state card">
+    <!-- Schedule Viewport (with Week Transition) -->
+    <div
+      class="schedule-viewport"
+      :class="transitionClass"
+      @animationend="onAnimationEnd"
+    >
+      <!-- Empty State -->
+      <div v-if="rawEvents.length === 0" class="empty-state card">
       <div class="empty-state-icon">
         <i class="pi pi-calendar-times" style="font-size: 2.2rem; color: var(--muted);"></i>
       </div>
@@ -714,6 +802,7 @@ defineExpose({
         </div>
       </div>
     </div>
+    </div>
   </div>
 </template>
 
@@ -847,6 +936,145 @@ defineExpose({
   background: var(--accent);
   color: white !important;
   border-color: var(--accent);
+}
+
+.schedule-viewport {
+  position: relative;
+  width: 100%;
+  view-transition-name: schedule-viewport;
+}
+
+/* Fallback CSS animations for browsers without View Transitions */
+@keyframes scheduleSlideInNext {
+  0% {
+    opacity: 0.15;
+    transform: translate3d(36px, 0, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes scheduleSlideInPrev {
+  0% {
+    opacity: 0.15;
+    transform: translate3d(-36px, 0, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes scheduleFadeIn {
+  0% {
+    opacity: 0.2;
+    transform: scale(0.99);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.schedule-viewport.anim-next {
+  animation: scheduleSlideInNext 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+.schedule-viewport.anim-prev {
+  animation: scheduleSlideInPrev 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+.schedule-viewport.anim-fade {
+  animation: scheduleFadeIn 0.2s ease-out both;
+  will-change: transform, opacity;
+}
+
+/* View Transitions Pseudo-elements styling */
+:global(::view-transition-old(root)),
+:global(::view-transition-new(root)) {
+  animation: none !important;
+}
+
+:global(::view-transition-old(schedule-viewport)),
+:global(::view-transition-new(schedule-viewport)) {
+  animation-duration: 0.25s;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  animation-fill-mode: both;
+}
+
+:global(html[data-nav-dir="next"]::view-transition-old(schedule-viewport)) {
+  animation-name: vtSlideOutLeft;
+}
+:global(html[data-nav-dir="next"]::view-transition-new(schedule-viewport)) {
+  animation-name: vtSlideInRight;
+}
+
+:global(html[data-nav-dir="prev"]::view-transition-old(schedule-viewport)) {
+  animation-name: vtSlideOutRight;
+}
+:global(html[data-nav-dir="prev"]::view-transition-new(schedule-viewport)) {
+  animation-name: vtSlideInLeft;
+}
+
+:global(html[data-nav-dir="fade"]::view-transition-old(schedule-viewport)) {
+  animation-name: vtFadeOut;
+}
+:global(html[data-nav-dir="fade"]::view-transition-new(schedule-viewport)) {
+  animation-name: vtFadeIn;
+}
+
+@keyframes vtSlideOutLeft {
+  to {
+    opacity: 0;
+    transform: translate3d(-36px, 0, 0);
+  }
+}
+@keyframes vtSlideInRight {
+  from {
+    opacity: 0;
+    transform: translate3d(36px, 0, 0);
+  }
+}
+@keyframes vtSlideOutRight {
+  to {
+    opacity: 0;
+    transform: translate3d(36px, 0, 0);
+  }
+}
+@keyframes vtSlideInLeft {
+  from {
+    opacity: 0;
+    transform: translate3d(-36px, 0, 0);
+  }
+}
+
+@keyframes vtFadeOut {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes vtFadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .schedule-viewport.anim-next,
+  .schedule-viewport.anim-prev,
+  .schedule-viewport.anim-fade {
+    animation: none !important;
+  }
+
+  :global(::view-transition-group(schedule-viewport)),
+  :global(::view-transition-old(schedule-viewport)),
+  :global(::view-transition-new(schedule-viewport)) {
+    animation: none !important;
+  }
 }
 
 .schedule {
