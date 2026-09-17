@@ -77,17 +77,16 @@ const getFavIcon = (fav) => {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.25rem 0.6rem;
+  padding: 0.2rem 0.3rem 0.2rem 0.65rem;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 9999px;
   font-size: 0.85rem;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
   transition: all 0.15s ease;
-}
-
-.fav-pill:hover {
-  border-color: var(--accent);
 }
 
 .fav-pill.active {
@@ -100,14 +99,30 @@ const getFavIcon = (fav) => {
   background: transparent;
   border: none;
   color: inherit;
-  font-size: 1rem;
+  font-size: 1.15rem;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 28px;
   padding: 0;
+  border-radius: 9999px;
   cursor: pointer;
-  opacity: 0.7;
+  opacity: 0.65;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
 }
 
-.fav-remove:hover {
-  opacity: 1;
+@media (hover: hover) and (pointer: fine) {
+  .fav-pill:hover {
+    border-color: var(--accent);
+  }
+
+  .fav-remove:hover {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.08);
+  }
 }
 </style>

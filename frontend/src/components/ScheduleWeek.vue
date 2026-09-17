@@ -821,16 +821,32 @@ defineExpose({
   color: var(--text);
   font-size: 0.85rem;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.day-dot.today {
+  font-weight: 700;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.day-dot.today:not(.active) {
+  background: rgba(37, 99, 235, 0.08);
+}
+
+:global(.dark-mode) .day-dot.today:not(.active) {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: var(--accent);
+  color: #93c5fd;
 }
 
 .day-dot.active {
   background: var(--accent);
-  color: white;
+  color: white !important;
   border-color: var(--accent);
-}
-
-.day-dot.today {
-  font-weight: bold;
 }
 
 .schedule {
@@ -1041,12 +1057,16 @@ defineExpose({
   transition: transform 0.12s ease, box-shadow 0.12s ease;
   z-index: 2;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-.event:hover {
-  transform: translateY(-1px) scale(1.015);
-  z-index: 5;
-  box-shadow: 0 6px 12px -2px rgba(0, 0, 0, 0.18);
+@media (hover: hover) and (pointer: fine) {
+  .event:hover {
+    transform: translateY(-1px) scale(1.015);
+    z-index: 5;
+    box-shadow: 0 6px 12px -2px rgba(0, 0, 0, 0.18);
+  }
 }
 
 .event-title {
