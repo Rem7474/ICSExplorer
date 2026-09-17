@@ -177,4 +177,30 @@ describe("WeekStats component", () => {
     expect(cercleChip.exists()).toBe(true);
     expect(cercleChip.classes()).toContain("is-disabled");
   });
+
+  it("renders subject chips inside a scrollable container with mousewheel support", async () => {
+    const start = new Date(2026, 8, 1, 8, 0);
+    const end = new Date(2026, 8, 1, 10, 0);
+    const testEvents = [
+      { summary: "IN101 Algo", start, end },
+      { summary: "SN201 Signal", start, end },
+      { summary: "MA102 Maths", start, end },
+      { summary: "PH101 Physique", start, end },
+    ];
+
+    const wrapper = mount(WeekStats, {
+      props: { events: testEvents },
+    });
+
+    const container = wrapper.find(".subject-chips");
+    expect(container.exists()).toBe(true);
+
+    // Mock scrollWidth > clientWidth
+    Object.defineProperty(container.element, "scrollWidth", { value: 600, configurable: true });
+    Object.defineProperty(container.element, "clientWidth", { value: 300, configurable: true });
+
+    container.element.scrollLeft = 0;
+    await container.trigger("wheel", { deltaY: 50, deltaX: 0 });
+    expect(container.element.scrollLeft).toBe(50);
+  });
 });

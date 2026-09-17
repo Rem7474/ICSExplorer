@@ -626,15 +626,17 @@ defineExpose({
       </div>
 
       <Button
-        label="Aujourd'hui"
-        icon="pi pi-compass"
         severity="secondary"
         outlined
         size="small"
         class="today-btn"
+        aria-label="Revenir à la semaine actuelle (Touche T)"
         title="Revenir à la semaine actuelle (Touche T)"
         @click="onToday"
-      />
+      >
+        <i class="pi pi-compass" aria-hidden="true"></i>
+        <span class="today-text">Aujourd'hui</span>
+      </Button>
     </div>
 
     <!-- Mobile Day Dots -->
@@ -816,15 +818,35 @@ defineExpose({
 .week-nav-bar {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  justify-content: space-between;
-  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .nav-arrows {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.today-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 0.4rem 0.75rem;
+  margin-left: 0.25rem;
+  transition: all 0.15s ease;
+}
+
+@media (max-width: 640px) {
+  .today-btn .today-text {
+    display: none !important;
+  }
+  .today-btn {
+    padding: 0.45rem 0.6rem !important;
+    margin-left: 0;
+  }
 }
 
 .nav-btn {
