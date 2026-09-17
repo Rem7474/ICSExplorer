@@ -166,7 +166,10 @@ const onJumpToWeek = (date) => {
     <!-- Footer -->
     <footer class="footer">
       <div class="container footer-content">
-        <span>EDT Esisar<template v-if="appVersion"> {{ appVersion }}</template> — Propulsé par Vue 3 & Go</span>
+        <span class="footer-brand">
+          EDT Esisar
+          <span v-if="appVersion" class="version-tag">{{ appVersion }}</span>
+        </span>
         <div class="footer-links">
           <a href="/api/health" target="_blank" rel="noopener">Santé API</a>
           <a href="/api/status" target="_blank" rel="noopener">Statut Synchro</a>
@@ -257,6 +260,25 @@ main {
   align-items: center;
   flex-wrap: wrap;
   gap: 0.75rem;
+}
+
+.footer-brand {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.version-tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.1rem 0.45rem;
+  border-radius: 9999px;
+  background: var(--border);
+  color: var(--muted);
+  letter-spacing: 0.02em;
+  line-height: 1.2;
 }
 
 .footer-links {

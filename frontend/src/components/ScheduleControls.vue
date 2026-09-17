@@ -627,7 +627,7 @@ const copyShareLink = async () => {
         v-if="canCopyIcsLink"
         :href="currentIcsUrl"
         download
-        class="btn btn-outline"
+        class="btn btn-outline btn-download-ics"
         title="Télécharger le fichier calendrier .ics brut"
       >
         <i class="pi pi-download" style="margin-right: 0.35rem;" aria-hidden="true"></i> Télécharger
@@ -636,20 +636,22 @@ const copyShareLink = async () => {
       <button
         v-if="canCopyIcsLink"
         type="button"
-        class="btn btn-outline"
+        class="btn btn-outline btn-copy-link"
         title="Copier le lien direct du calendrier (.ics) pour s'abonner (Google Agenda, Apple, Outlook...)"
         @click="copyIcsLink"
       >
-        <i class="pi pi-link" style="margin-right: 0.35rem;" aria-hidden="true"></i> Copier le lien
+        <i class="pi pi-link" aria-hidden="true"></i>
+        <span class="btn-text" style="margin-left: 0.35rem;">Copier le lien</span>
       </button>
 
       <button
         type="button"
-        class="btn btn-outline"
+        class="btn btn-outline btn-share"
         title="Copier le lien partageable"
         @click="copyShareLink"
       >
-        <i class="pi pi-share-alt" style="margin-right: 0.35rem;" aria-hidden="true"></i> Partager
+        <i class="pi pi-share-alt" aria-hidden="true"></i>
+        <span class="btn-text" style="margin-left: 0.35rem;">Partager</span>
       </button>
     </div>
   </div>
@@ -671,6 +673,13 @@ const copyShareLink = async () => {
   border: 1px solid var(--border);
   gap: 0.35rem;
   overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+}
+
+.mode-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .mode-tab-btn {
@@ -690,10 +699,15 @@ const copyShareLink = async () => {
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
 }
 
-.mode-tab-btn:hover {
-  color: var(--text);
+@media (hover: hover) and (pointer: fine) {
+  .mode-tab-btn:hover {
+    color: var(--text);
+  }
 }
 
 .mode-tab-btn.active {
@@ -731,6 +745,7 @@ const copyShareLink = async () => {
   border-radius: 8px;
   background: var(--bg);
   color: var(--text);
+  font-size: 1rem; /* 16px to prevent iOS Safari auto-zoom */
   outline: none;
   transition: border-color 0.15s ease;
 }
@@ -1034,5 +1049,26 @@ const copyShareLink = async () => {
 .btn-return-base:hover {
   background-color: var(--accent) !important;
   color: #fff !important;
+}
+
+@media (max-width: 640px) {
+  .btn-download-ics {
+    display: none !important;
+  }
+
+  .btn-copy-link .btn-text,
+  .btn-share .btn-text {
+    display: none !important;
+  }
+
+  .btn-copy-link i,
+  .btn-share i {
+    margin: 0 !important;
+  }
+
+  .btn-copy-link,
+  .btn-share {
+    padding: 0.5rem 0.75rem;
+  }
 }
 </style>

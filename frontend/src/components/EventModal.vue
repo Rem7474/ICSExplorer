@@ -223,6 +223,7 @@ const copyDetails = async () => {
           severity="secondary"
           outlined
           size="small"
+          class="btn-event-download"
           @click="downloadSingleEvent"
         />
         <Button
@@ -400,5 +401,20 @@ const copyDetails = async () => {
   justify-content: flex-end;
   gap: 0.5rem;
   flex-wrap: wrap;
+}
+
+.dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .btn-event-download {
+    display: none !important;
+  }
 }
 </style>
