@@ -321,4 +321,83 @@ describe("ScheduleWeek component", () => {
       vi.useRealTimers();
     }
   });
+
+  it("renders the schedule-viewport wrapper and triggers directional transition classes", async () => {
+    const monday = new Date(2026, 8, 14);
+    const wrapper = mount(ScheduleWeek, {
+      props: {
+        events: [],
+        currentWeekStart: monday,
+        allEvents: [],
+      },
+    });
+
+    const viewport = wrapper.find(".schedule-viewport");
+    expect(viewport.exists()).toBe(true);
+
+    // Clicking next week
+    const navButtons = wrapper.findAll(".nav-arrows button");
+    const prevBtn = navButtons[0];
+    const nextBtn = navButtons[navButtons.length - 1];
+
+    await nextBtn.trigger("click");
+    expect(wrapper.emitted("nextWeek")).toBeTruthy();
+    // In fallback mode (jsdom without startViewTransition)
+    await wrapper.vm.$nextTick();
+    expect(wrapper.vm.transitionClass).toBe("anim-next");
+
+    // Calling onAnimationEnd resets transitionClass
+    wrapper.vm.onAnimationEnd();
+    expect(wrapper.vm.transitionClass).toBe("");
+
+    // Clicking prev week
+    await prevBtn.trigger("click");
+    expect(wrapper.emitted("prevWeek")).toBeTruthy();
+    await wrapper.vm.$nextTick();
+    expect(wrapper.vm.transitionClass).toBe("anim-prev");
+  });
+
+  it("sets document.documentElement data-nav-dir when startViewTransition is available", async () => {
+    const monday = new Date(2026, 8, 14);
+    let capturedCallback = null;
+    let finishTransition;
+    const mockStartViewTransition = vi.fn((cb) => {
+      capturedCallback = cb;
+      return {
+        finished: new Promise((resolve) => {
+          finishTransition = resolve;
+        }),
+      };
+    });
+    document.startViewTransition = mockStartViewTransition;
+
+    try {
+      const wrapper = mount(ScheduleWeek, {
+        props: {
+          events: [],
+          currentWeekStart: monday,
+          allEvents: [],
+        },
+      });
+
+      const navButtons = wrapper.findAll(".nav-arrows button");
+      const nextBtn = navButtons[navButtons.length - 1];
+
+      await nextBtn.trigger("click");
+      expect(mockStartViewTransition).toHaveBeenCalled();
+      expect(document.documentElement.dataset.navDir).toBe("next");
+
+      if (capturedCallback) {
+        await capturedCallback();
+      }
+
+      // Finish transition and verify cleanup
+      if (finishTransition) finishTransition();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(document.documentElement.dataset.navDir).toBeUndefined();
+    } finally {
+      delete document.startViewTransition;
+      delete document.documentElement.dataset.navDir;
+    }
+  });
 });

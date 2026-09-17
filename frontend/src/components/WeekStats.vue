@@ -1,5 +1,5 @@
 <script setup>
-import { computed, unref } from "vue";
+import { ref, computed, unref } from "vue";
 import { getSubjectType, getSubjectColors, getSubjectFullName } from "../utils/colors.js";
 import { useTheme } from "../composables/useTheme.js";
 
@@ -88,6 +88,17 @@ const formatDuration = (minutes) => {
   return m > 0 ? `${h}h${m}` : `${h}h`;
 };
 
+const chipsContainer = ref(null);
+
+const onChipsWheel = (e) => {
+  if (!chipsContainer.value) return;
+  if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+    if (chipsContainer.value.scrollWidth > chipsContainer.value.clientWidth) {
+      chipsContainer.value.scrollLeft += e.deltaY;
+    }
+  }
+};
+
 const onChipClick = (event, type) => {
   event.currentTarget?.blur();
   emit("filter", type);
@@ -126,7 +137,11 @@ const onChipClick = (event, type) => {
       ></div>
     </div>
 
-    <div class="subject-chips">
+    <div
+      ref="chipsContainer"
+      class="subject-chips"
+      @wheel.passive="onChipsWheel"
+    >
       <button
         v-for="sub in stats.subjects"
         :key="sub.type"
@@ -216,9 +231,21 @@ const onChipClick = (event, type) => {
 }
 
 .subject-chips {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-rows: repeat(2, auto);
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
   gap: 0.45rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+  padding: 2px 2px 4px 2px;
+}
+
+.subject-chips::-webkit-scrollbar {
+  display: none;
 }
 
 .chip {
@@ -231,6 +258,7 @@ const onChipClick = (event, type) => {
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
+  white-space: nowrap;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   user-select: none;
