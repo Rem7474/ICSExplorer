@@ -86,6 +86,35 @@ describe("WeekStats component", () => {
     expect(wrapper.emitted("reset")).toBeTruthy();
   });
 
+  it("immediately updates chip disabled state when disabledSubjects prop changes", async () => {
+    const start = new Date(2026, 8, 1, 8, 0);
+    const end = new Date(2026, 8, 1, 10, 0);
+    const testEvents = [
+      { summary: "IN101 Algo", start, end },
+      { summary: "SN201 Signal", start, end },
+    ];
+
+    const wrapper = mount(WeekStats, {
+      props: {
+        events: testEvents,
+        disabledSubjects: [],
+      },
+    });
+
+    const inChip = wrapper.findAll(".chip").find((c) => c.text().includes("IN"));
+    expect(inChip.classes()).not.toContain("is-disabled");
+
+    // Dynamically update disabledSubjects prop
+    await wrapper.setProps({ disabledSubjects: ["IN"] });
+
+    expect(inChip.classes()).toContain("is-disabled");
+    expect(wrapper.text()).toContain("1 matière masquée");
+
+    // Re-enable
+    await wrapper.setProps({ disabledSubjects: [] });
+    expect(inChip.classes()).not.toContain("is-disabled");
+  });
+
   it("excludes multi-day banner events (> 14h) or invalid durations from weekly hours", () => {
     const startCourse = new Date(2026, 8, 1, 8, 0);
     const endCourse = new Date(2026, 8, 1, 10, 0); // 2 hours

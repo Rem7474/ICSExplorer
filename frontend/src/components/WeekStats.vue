@@ -27,15 +27,15 @@ const rawEvents = computed(() => {
   return Array.isArray(evs) ? evs : [];
 });
 
-const disabledList = computed(() => {
+const disabledSet = computed(() => {
   const d = unref(props.disabledSubjects);
-  if (Array.isArray(d)) return d;
-  if (d instanceof Set) return Array.from(d);
-  return [];
+  if (Array.isArray(d)) return new Set(d);
+  if (d instanceof Set) return new Set(d);
+  return new Set();
 });
 
-const isDisabled = (type) => disabledList.value.includes(type);
-const disabledCount = computed(() => disabledList.value.length);
+const isDisabled = (type) => disabledSet.value.has(type);
+const disabledCount = computed(() => disabledSet.value.size);
 
 // Compute stats
 const stats = computed(() => {

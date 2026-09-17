@@ -10,6 +10,7 @@ const BASE_SCHEDULE_KEY = "edtBaseSchedule";
 const PERSONAL_CREDENTIALS_KEY = "edtPersonalCreds";
 const PERSONAL_CACHE_KEY = "edt_cached_personal_ics";
 const PERSONAL_META_KEY = "edt_personal_meta";
+export const DISABLED_SUBJECTS_KEY = "edtDisabledSubjects";
 const HEALTH_CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
 export function useSchedule() {
@@ -35,6 +36,59 @@ export function useSchedule() {
   const currentWeekStart = ref(getWeekStart(new Date()));
   const disabledSubjects = ref([]);
   const selectedSubjectFilter = computed(() => disabledSubjects.value[0] || null);
+
+  const getCurrentScheduleKey = () => {
+    if (selectedMode.value === "personal") return "personal";
+    if (selectedMode.value === "teacher" && selectedTeacher.value) return `teacher_${selectedTeacher.value}`;
+    if (selectedMode.value === "room" && selectedRoom.value) return `room_${selectedRoom.value}`;
+    if (selectedMode.value === "student" && selectedFile.value) return `student_${selectedFile.value}`;
+    if (selectedFile.value) return `student_${selectedFile.value}`;
+    return "default";
+  };
+
+  const loadSavedDisabledSubjects = (key = getCurrentScheduleKey()) => {
+    try {
+      if (typeof localStorage === "undefined") return [];
+      const raw = localStorage.getItem(DISABLED_SUBJECTS_KEY);
+      if (!raw) return [];
+      const data = JSON.parse(raw);
+      if (Array.isArray(data)) {
+        return [...data];
+      }
+      if (data && typeof data === "object") {
+        const list = data[key];
+        return Array.isArray(list) ? [...list] : [];
+      }
+    } catch (e) {
+      console.warn("Erreur lors de la lecture des matières désactivées :", e);
+    }
+    return [];
+  };
+
+  const saveDisabledSubjects = () => {
+    try {
+      if (typeof localStorage === "undefined") return;
+      const key = getCurrentScheduleKey();
+      let data = {};
+      const raw = localStorage.getItem(DISABLED_SUBJECTS_KEY);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            data = parsed;
+          }
+        } catch {}
+      }
+      if (disabledSubjects.value.length > 0) {
+        data[key] = [...disabledSubjects.value];
+      } else {
+        delete data[key];
+      }
+      localStorage.setItem(DISABLED_SUBJECTS_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.warn("Erreur lors de la sauvegarde des matières désactivées :", e);
+    }
+  };
   
   const isLoading = ref(false);
   const isAggregatorLoading = ref(false);
@@ -322,10 +376,10 @@ export function useSchedule() {
   const loadSchedule = async (fileName) => {
     if (!fileName) return;
     isLoading.value = true;
-    disabledSubjects.value = [];
-    statusMessage.value = "Chargement de l'emploi du temps...";
     selectedFile.value = fileName;
     selectedMode.value = "student";
+    disabledSubjects.value = loadSavedDisabledSubjects(`student_${fileName}`);
+    statusMessage.value = "Chargement de l'emploi du temps...";
     autoSelectFromFile(fileName);
 
     try {
@@ -360,11 +414,11 @@ export function useSchedule() {
   // Loads events from raw ICS text obtained out-of-band (e.g. personal calendar)
   const loadPersonalEvents = (icsText, meta = {}) => {
     try {
-      disabledSubjects.value = [];
+      selectedMode.value = "personal";
+      disabledSubjects.value = loadSavedDisabledSubjects("personal");
       const parsed = parseIcs(icsText);
       events.value = parsed;
       currentWeekStart.value = getRelevantWeekStart(parsed);
-      selectedMode.value = "personal";
       rawPersonalIcs.value = icsText;
       statusMessage.value = "";
 
@@ -564,7 +618,9 @@ export function useSchedule() {
   const loadTeacherSchedule = async (teacherName) => {
     if (!teacherName) return;
     isLoading.value = true;
-    disabledSubjects.value = [];
+    selectedMode.value = "teacher";
+    selectedTeacher.value = teacherName;
+    disabledSubjects.value = loadSavedDisabledSubjects(`teacher_${teacherName}`);
     statusMessage.value = "Agrégation des cours du professeur...";
 
     try {
@@ -578,8 +634,6 @@ export function useSchedule() {
       currentWeekStart.value = getRelevantWeekStart(teacherEvents);
       statusMessage.value = "";
 
-      selectedMode.value = "teacher";
-      selectedTeacher.value = teacherName;
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode: "teacher", teacher: teacherName }));
 
       const url = new URL(window.location);
@@ -598,7 +652,9 @@ export function useSchedule() {
   const loadRoomSchedule = async (roomName) => {
     if (!roomName) return;
     isLoading.value = true;
-    disabledSubjects.value = [];
+    selectedMode.value = "room";
+    selectedRoom.value = roomName;
+    disabledSubjects.value = loadSavedDisabledSubjects(`room_${roomName}`);
     statusMessage.value = "Recherche des cours dans la salle...";
 
     try {
@@ -734,16 +790,20 @@ export function useSchedule() {
 
   const toggleSubjectFilter = (type) => {
     if (!type) return;
-    const index = disabledSubjects.value.indexOf(type);
+    const current = [...disabledSubjects.value];
+    const index = current.indexOf(type);
     if (index === -1) {
-      disabledSubjects.value.push(type);
+      current.push(type);
     } else {
-      disabledSubjects.value.splice(index, 1);
+      current.splice(index, 1);
     }
+    disabledSubjects.value = current;
+    saveDisabledSubjects();
   };
 
   const resetSubjectFilters = () => {
     disabledSubjects.value = [];
+    saveDisabledSubjects();
   };
 
   const openRoomModal = () => {
@@ -827,6 +887,9 @@ export function useSchedule() {
     goToCurrentWeek,
     toggleSubjectFilter,
     resetSubjectFilters,
+    loadSavedDisabledSubjects,
+    saveDisabledSubjects,
+    getCurrentScheduleKey,
     openRoomModal,
     closeRoomModal,
     openEventModal,

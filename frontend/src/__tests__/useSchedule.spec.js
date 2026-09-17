@@ -58,16 +58,28 @@ describe("useSchedule composable", () => {
     expect(schedule.currentWeekStart.value).toBeInstanceOf(Date);
   });
 
-  it("toggles subject visibility / deselection properly", () => {
+  it("toggles subject visibility / deselection properly with new array reference and localStorage persistence", () => {
     const schedule = useSchedule();
 
     expect(schedule.disabledSubjects.value).toEqual([]);
+    const ref0 = schedule.disabledSubjects.value;
+
     schedule.toggleSubjectFilter("IN");
     expect(schedule.disabledSubjects.value).toEqual(["IN"]);
+    expect(schedule.disabledSubjects.value).not.toBe(ref0);
     expect(schedule.selectedSubjectFilter.value).toBe("IN");
 
+    // Check localStorage persistence
+    const saved1 = JSON.parse(localStorage.getItem("edtDisabledSubjects") || "{}");
+    expect(saved1["default"]).toEqual(["IN"]);
+
+    const ref1 = schedule.disabledSubjects.value;
     schedule.toggleSubjectFilter("MAC");
     expect(schedule.disabledSubjects.value).toEqual(["IN", "MAC"]);
+    expect(schedule.disabledSubjects.value).not.toBe(ref1);
+
+    const saved2 = JSON.parse(localStorage.getItem("edtDisabledSubjects") || "{}");
+    expect(saved2["default"]).toEqual(["IN", "MAC"]);
 
     schedule.toggleSubjectFilter("IN");
     expect(schedule.disabledSubjects.value).toEqual(["MAC"]);
@@ -75,6 +87,52 @@ describe("useSchedule composable", () => {
     schedule.resetSubjectFilters();
     expect(schedule.disabledSubjects.value).toEqual([]);
     expect(schedule.selectedSubjectFilter.value).toBeNull();
+
+    const saved3 = JSON.parse(localStorage.getItem("edtDisabledSubjects") || "{}");
+    expect(saved3["default"]).toBeUndefined();
+  });
+
+  it("persists disabled subjects per schedule and restores them on load", async () => {
+    vi.spyOn(api, "fetchIcsText").mockResolvedValue(`BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:IN101 Cours\nDTSTART:20260901T080000Z\nDTEND:20260901T100000Z\nUID:1\nEND:VEVENT\nEND:VCALENDAR`);
+    vi.spyOn(api, "fetchCercleEvents").mockResolvedValue([]);
+    vi.spyOn(aggregator, "getTeacherIndex").mockResolvedValue(new Map([
+      ["DUPONT", [{ summary: "MATH101", start: new Date("2026-09-01T08:00:00Z"), end: new Date("2026-09-01T10:00:00Z") }]]
+    ]));
+
+    const schedule = useSchedule();
+
+    // 1. Load student schedule
+    await schedule.loadSchedule("1A-Prepa-TP1.ics");
+    expect(schedule.disabledSubjects.value).toEqual([]);
+
+    // Disable IN for this student schedule
+    schedule.toggleSubjectFilter("IN");
+    expect(schedule.disabledSubjects.value).toEqual(["IN"]);
+
+    // 2. Switch to teacher Dupont
+    await schedule.loadTeacherSchedule("DUPONT");
+    // Dupont should have no disabled subjects yet
+    expect(schedule.disabledSubjects.value).toEqual([]);
+
+    // Disable MATH for Dupont
+    schedule.toggleSubjectFilter("MATH");
+    expect(schedule.disabledSubjects.value).toEqual(["MATH"]);
+
+    // 3. Switch back to student schedule -> IN should be restored!
+    await schedule.loadSchedule("1A-Prepa-TP1.ics");
+    expect(schedule.disabledSubjects.value).toEqual(["IN"]);
+
+    // 4. Switch back to teacher Dupont -> MATH should be restored!
+    await schedule.loadTeacherSchedule("DUPONT");
+    expect(schedule.disabledSubjects.value).toEqual(["MATH"]);
+
+    // 5. Reset Dupont's filters
+    schedule.resetSubjectFilters();
+    expect(schedule.disabledSubjects.value).toEqual([]);
+
+    // Student schedule IN remains intact
+    await schedule.loadSchedule("1A-Prepa-TP1.ics");
+    expect(schedule.disabledSubjects.value).toEqual(["IN"]);
   });
 
   it("filters out deselected subjects from displayedWeekEvents", () => {
