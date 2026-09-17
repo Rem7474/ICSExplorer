@@ -290,29 +290,35 @@ describe("ScheduleWeek component", () => {
   });
 
   it("jumps to next course date and sets activeDayIndex accordingly", async () => {
-    const monday = new Date(2026, 8, 14);
-    // Next event is on Thursday at 10:00 (Sep 17 2026)
-    const futureThursday = new Date(2026, 8, 17, 10, 0);
-    const futureEvent = {
-      uid: "future-1",
-      summary: "Future Course",
-      start: futureThursday,
-      end: new Date(futureThursday.getTime() + 3600000),
-    };
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 8, 14, 8, 0, 0));
+    try {
+      const monday = new Date(2026, 8, 14);
+      // Next event is on Thursday at 10:00 (Sep 17 2026)
+      const futureThursday = new Date(2026, 8, 17, 10, 0);
+      const futureEvent = {
+        uid: "future-1",
+        summary: "Future Course",
+        start: futureThursday,
+        end: new Date(futureThursday.getTime() + 3600000),
+      };
 
-    const wrapper = mount(ScheduleWeek, {
-      props: {
-        events: [],
-        currentWeekStart: monday,
-        allEvents: [futureEvent],
-      },
-    });
+      const wrapper = mount(ScheduleWeek, {
+        props: {
+          events: [],
+          currentWeekStart: monday,
+          allEvents: [futureEvent],
+        },
+      });
 
-    const jumpBtn = wrapper.find(".empty-state button");
-    expect(jumpBtn.exists()).toBe(true);
+      const jumpBtn = wrapper.find(".empty-state button");
+      expect(jumpBtn.exists()).toBe(true);
 
-    await jumpBtn.trigger("click");
-    expect(wrapper.emitted("jumpToWeek")).toBeTruthy();
-    expect(wrapper.vm.activeDayIndex).toBe(3); // Thursday is index 3
+      await jumpBtn.trigger("click");
+      expect(wrapper.emitted("jumpToWeek")).toBeTruthy();
+      expect(wrapper.vm.activeDayIndex).toBe(3); // Thursday is index 3
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

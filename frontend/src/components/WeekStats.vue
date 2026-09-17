@@ -87,6 +87,11 @@ const formatDuration = (minutes) => {
   const m = minutes % 60;
   return m > 0 ? `${h}h${m}` : `${h}h`;
 };
+
+const onChipClick = (event, type) => {
+  event.currentTarget?.blur();
+  emit("filter", type);
+};
 </script>
 
 <template>
@@ -140,7 +145,7 @@ const formatDuration = (minutes) => {
           ? `Cliquer pour réactiver ${sub.fullName} (${sub.type})`
           : `Cliquer pour masquer ${sub.fullName} (${sub.type}) - ${sub.percentage}% du temps`"
         :aria-pressed="!isDisabled(sub.type)"
-        @click="emit('filter', sub.type)"
+        @click="onChipClick($event, sub.type)"
       >
         <span class="chip-code">{{ sub.type }}</span>
         <span class="chip-label">{{ sub.fullName }}</span>
@@ -194,10 +199,6 @@ const formatDuration = (minutes) => {
   padding: 0;
 }
 
-.clear-filter-btn:hover {
-  text-decoration: underline;
-}
-
 /* Distribution bar */
 .distribution-bar {
   display: flex;
@@ -212,10 +213,6 @@ const formatDuration = (minutes) => {
   height: 100%;
   transition: width 0.3s ease;
   min-width: 4px;
-}
-
-.bar-segment:hover {
-  filter: brightness(1.15);
 }
 
 .subject-chips {
@@ -234,12 +231,10 @@ const formatDuration = (minutes) => {
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.chip:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease, filter 0.15s ease;
 }
 
 .total-muted {
@@ -259,11 +254,26 @@ const formatDuration = (minutes) => {
   box-shadow: none;
 }
 
-.chip.is-disabled:hover {
-  opacity: 0.85;
-  filter: grayscale(0.2);
-  transform: translateY(-1px);
-  border-style: solid;
+@media (hover: hover) and (pointer: fine) {
+  .clear-filter-btn:hover {
+    text-decoration: underline;
+  }
+
+  .bar-segment:hover {
+    filter: brightness(1.15);
+  }
+
+  .chip:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+  }
+
+  .chip.is-disabled:hover {
+    opacity: 0.65;
+    filter: grayscale(1);
+    transform: translateY(-1px);
+    border-style: dashed;
+  }
 }
 
 .bar-segment.segment-disabled {

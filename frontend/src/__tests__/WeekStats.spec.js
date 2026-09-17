@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { ref } from "vue";
 import WeekStats from "../components/WeekStats.vue";
@@ -53,6 +53,23 @@ describe("WeekStats component", () => {
 
     expect(wrapper.emitted("filter")).toBeTruthy();
     expect(wrapper.emitted("filter")[0]).toEqual(["IN"]);
+  });
+
+  it("calls blur on the chip element upon click to prevent sticky hover/focus on mobile", async () => {
+    const start = new Date(2026, 8, 1, 8, 0);
+    const end = new Date(2026, 8, 1, 10, 0);
+    const testEvents = [{ summary: "IN101 Algo", start, end }];
+
+    const wrapper = mount(WeekStats, {
+      props: { events: testEvents },
+    });
+
+    const chip = wrapper.find(".chip");
+    const blurSpy = vi.spyOn(chip.element, "blur");
+    await chip.trigger("click");
+
+    expect(blurSpy).toHaveBeenCalled();
+    expect(wrapper.emitted("filter")).toBeTruthy();
   });
 
   it("applies is-disabled class and recalculates active hours when subject is in disabledSubjects", async () => {
