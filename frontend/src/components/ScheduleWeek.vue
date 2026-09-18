@@ -889,7 +889,7 @@ defineExpose({
   }
 }
 
-@media (max-width: 380px) {
+@media (max-width: 640px) {
   .week-label-prefix {
     display: none;
   }
