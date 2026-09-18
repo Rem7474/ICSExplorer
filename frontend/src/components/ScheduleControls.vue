@@ -308,7 +308,9 @@ const copyShareLink = async () => {
         :aria-selected="isPersonalMode"
         @click="onSelectPersonalTab"
       >
-        <i class="pi pi-calendar" style="margin-right: 0.35rem;" aria-hidden="true"></i> Mon Planning ADE
+        <i class="pi pi-calendar" style="margin-right: 0.35rem;" aria-hidden="true"></i>
+        <span class="tab-label-desktop">Mon Planning ADE</span>
+        <span class="tab-label-mobile">Mon ADE</span>
       </button>
       <button
         type="button"
@@ -605,22 +607,25 @@ const copyShareLink = async () => {
 
       <button
         type="button"
-        class="btn btn-outline"
+        class="btn btn-outline btn-pin"
         :class="{ 'btn-pinned': isCurrentPinned }"
         :title="isCurrentPinned ? 'Retirer des favoris' : 'Épingler dans la barre des favoris'"
+        :aria-label="isCurrentPinned ? 'Retirer des favoris' : 'Épingler dans la barre des favoris'"
         @click="onTogglePin"
       >
         <i :class="isCurrentPinned ? 'pi pi-star-fill text-amber-500' : 'pi pi-star'" style="margin-right: 0.35rem;" aria-hidden="true"></i>
-        {{ isCurrentPinned ? 'Épinglé' : 'Épingler' }}
+        <span class="btn-text">{{ isCurrentPinned ? 'Épinglé' : 'Épingler' }}</span>
       </button>
 
       <button
         type="button"
-        class="btn btn-outline"
+        class="btn btn-outline btn-empty-rooms"
         title="Rechercher des salles libres sur un créneau"
+        aria-label="Rechercher des salles libres sur un créneau"
         @click="emit('openEmptyRooms')"
       >
-        <i class="pi pi-building" style="margin-right: 0.35rem;" aria-hidden="true"></i> Salles vides
+        <i class="pi pi-building" style="margin-right: 0.35rem;" aria-hidden="true"></i>
+        <span class="btn-text">Salles vides</span>
       </button>
 
       <a
@@ -1051,24 +1056,81 @@ const copyShareLink = async () => {
   color: #fff !important;
 }
 
+.tab-label-mobile {
+  display: none;
+}
+
 @media (max-width: 640px) {
+  .tab-label-desktop {
+    display: none;
+  }
+
+  .tab-label-mobile {
+    display: inline;
+  }
+
+  .controls-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.5rem !important;
+  }
+
+  .control-group {
+    min-width: 0 !important;
+  }
+
+  .control-group select {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .select-with-btn-row {
+    gap: 0.35rem !important;
+  }
+
+  .btn-load-action {
+    padding: 0.5rem 0.6rem !important;
+  }
+
+  .actions-row {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 0.35rem !important;
+  }
+
   .btn-download-ics {
     display: none !important;
   }
 
+  .btn-pin .btn-text,
   .btn-copy-link .btn-text,
   .btn-share .btn-text {
     display: none !important;
   }
 
+  .btn-pin i,
   .btn-copy-link i,
   .btn-share i {
     margin: 0 !important;
   }
 
+  .btn-pin,
   .btn-copy-link,
   .btn-share {
-    padding: 0.5rem 0.75rem;
+    flex-shrink: 0 !important;
+    padding: 0.5rem 0.65rem !important;
+  }
+
+  .btn-empty-rooms {
+    flex: 1 !important;
+    min-width: 0 !important;
+    justify-content: center !important;
+    padding: 0.5rem 0.5rem !important;
+  }
+
+  .btn-empty-rooms .btn-text {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 }
 </style>
