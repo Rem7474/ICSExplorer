@@ -370,23 +370,25 @@ function navigateWithDirection(direction, action) {
   }
 }
 
-const onPrevWeek = () => {
-  activeDayIndex.value = 0;
-  if (scheduleContainer.value) {
-    scheduleContainer.value.scrollLeft = 0;
-  }
+const onPrevWeek = (targetDay = 0) => {
+  const targetDayIndex = typeof targetDay === "number" ? targetDay : 0;
+  activeDayIndex.value = targetDayIndex;
   navigateWithDirection("prev", () => {
     emit("prevWeek");
   });
+  nextTick(() => {
+    scrollDayIntoView(targetDayIndex, "auto");
+  });
 };
 
-const onNextWeek = () => {
-  activeDayIndex.value = 0;
-  if (scheduleContainer.value) {
-    scheduleContainer.value.scrollLeft = 0;
-  }
+const onNextWeek = (targetDay = 0) => {
+  const targetDayIndex = typeof targetDay === "number" ? targetDay : 0;
+  activeDayIndex.value = targetDayIndex;
   navigateWithDirection("next", () => {
     emit("nextWeek");
+  });
+  nextTick(() => {
+    scrollDayIntoView(targetDayIndex, "auto");
   });
 };
 
@@ -460,9 +462,9 @@ const onTouchEnd = (e) => {
     if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.4) {
       if (rawEvents.value.length === 0) {
         if (dx < 0) {
-          onNextWeek();
+          onNextWeek(0);
         } else {
-          onPrevWeek();
+          onPrevWeek(4);
         }
         return;
       }
@@ -471,13 +473,13 @@ const onTouchEnd = (e) => {
         if (activeDayIndex.value < 4) {
           scrollDayIntoView(activeDayIndex.value + 1);
         } else {
-          onNextWeek();
+          onNextWeek(0);
         }
       } else {
         if (activeDayIndex.value > 0) {
           scrollDayIntoView(activeDayIndex.value - 1);
         } else {
-          onPrevWeek();
+          onPrevWeek(4);
         }
       }
     }

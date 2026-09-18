@@ -239,7 +239,7 @@ describe("ScheduleWeek component", () => {
     expect(wrapper.emitted("nextWeek")).toBeTruthy();
     expect(wrapper.vm.activeDayIndex).toBe(0);
 
-    // Swipe right on Monday (activeDayIndex = 0) -> prev week and activeDayIndex is 0
+    // Swipe right on Monday (activeDayIndex = 0) -> prev week and activeDayIndex is 4 (Vendredi)
     wrapper.vm.scrollDayIntoView(0);
     await scheduleEl.trigger("touchstart", {
       touches: [{ clientX: 100, clientY: 100 }],
@@ -248,7 +248,7 @@ describe("ScheduleWeek component", () => {
       changedTouches: [{ clientX: 200, clientY: 100 }], // dx = +100 (swipe right)
     });
     expect(wrapper.emitted("prevWeek")).toBeTruthy();
-    expect(wrapper.vm.activeDayIndex).toBe(0);
+    expect(wrapper.vm.activeDayIndex).toBe(4);
   });
 
   it("supports swipe left and right on empty-state to navigate weeks", async () => {
