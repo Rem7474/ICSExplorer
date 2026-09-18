@@ -1,12 +1,12 @@
-﻿import { ref } from "vue";
+import { ref } from "vue";
 
 const toasts = ref([]);
 let toastId = 0;
 
 export function useToast() {
-  const showToast = (message, type = "success", duration = 3000) => {
+  const showToast = (message, type = "success", duration = 3000, action = null) => {
     const id = ++toastId;
-    const toast = { id, message, type };
+    const toast = { id, message, type, action };
     toasts.value.push(toast);
 
     if (duration > 0) {
@@ -14,6 +14,7 @@ export function useToast() {
         removeToast(id);
       }, duration);
     }
+    return id;
   };
 
   const removeToast = (id) => {

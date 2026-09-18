@@ -4,6 +4,7 @@ import { parseIcs } from "../ics/parser.js";
 import { getRelevantWeekStart, getWeekStart, getWeekEnd } from "../utils/dates.js";
 import { getTeacherIndex, getRoomIndex, clearAggregatedCache } from "../ics/aggregator.js";
 import { getSubjectType } from "../utils/colors.js";
+import { useToast } from "./useToast.js";
 
 const STORAGE_KEY = "edtSelection";
 const BASE_SCHEDULE_KEY = "edtBaseSchedule";
@@ -11,9 +12,10 @@ const PERSONAL_CREDENTIALS_KEY = "edtPersonalCreds";
 const PERSONAL_CACHE_KEY = "edt_cached_personal_ics";
 const PERSONAL_META_KEY = "edt_personal_meta";
 export const DISABLED_SUBJECTS_KEY = "edtDisabledSubjects";
-const HEALTH_CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+const HEALTH_CHECK_INTERVAL_MS = 3 * 60 * 1000; // 3 minutes
 
 export function useSchedule() {
+  const { showToast } = useToast();
   const availableFiles = ref([]);
   const availableTeachers = ref([]);
   const availableRooms = ref([]);
@@ -99,6 +101,24 @@ export function useSchedule() {
   const serverHealth = ref(null);
   let healthPollingTimer = null;
   let lastHealthCheckTime = 0;
+  const currentTime = ref(Date.now());
+  let timeTickerTimer = null;
+
+  const startTimeTicker = () => {
+    stopTimeTicker();
+    if (typeof setInterval === "function") {
+      timeTickerTimer = setInterval(() => {
+        currentTime.value = Date.now();
+      }, 30000); // 30s ticker
+    }
+  };
+
+  const stopTimeTicker = () => {
+    if (timeTickerTimer) {
+      clearInterval(timeTickerTimer);
+      timeTickerTimer = null;
+    }
+  };
 
   // Parse available options for student selects
   const parsedFiles = computed(() => {
@@ -153,9 +173,9 @@ export function useSchedule() {
     });
   });
 
-  // Next upcoming course (excluding deselected/hidden subjects)
+  // Next upcoming course (excluding deselected/hidden subjects, updates dynamically via currentTime ticker)
   const nextCourse = computed(() => {
-    const now = new Date();
+    const now = new Date(currentTime.value);
     return events.value.find((ev) => {
       if (new Date(ev.end) <= now) return false;
       if (disabledSubjects.value.length > 0) {
@@ -166,7 +186,47 @@ export function useSchedule() {
     }) || null;
   });
 
+  const loadCercleEvents = async () => {
+    if (cercleEvents.value.length > 0) return cercleEvents.value;
+    try {
+      const cEvs = await fetchCercleEvents();
+      cercleEvents.value = cEvs;
+      return cEvs;
+    } catch {
+      return [];
+    }
+  };
+
+  const mergeWithCercle = (studentEvents, cEvents) => {
+    if (!cEvents || !cEvents.length) return studentEvents;
+    const existingUids = new Set(studentEvents.map((e) => e.uid).filter(Boolean));
+    const toAdd = cEvents.filter((e) => !e.uid || !existingUids.has(e.uid));
+    const combined = [...studentEvents, ...toAdd];
+    combined.sort((a, b) => new Date(a.start) - new Date(b.start));
+    return combined;
+  };
+
+  const areEventsEqual = (evs1, evs2) => {
+    if (!Array.isArray(evs1) || !Array.isArray(evs2)) return false;
+    if (evs1.length !== evs2.length) return false;
+    for (let i = 0; i < evs1.length; i++) {
+      const a = evs1[i];
+      const b = evs2[i];
+      if (
+        a.summary !== b.summary ||
+        a.location !== b.location ||
+        a.description !== b.description ||
+        new Date(a.start).getTime() !== new Date(b.start).getTime() ||
+        new Date(a.end).getTime() !== new Date(b.end).getTime()
+      ) {
+        return false;
+      }
+    }
+    return true;
+  };
+
   const reloadCurrentScheduleSilently = async () => {
+    let changed = false;
     try {
       try {
         const files = await fetchFileList();
@@ -178,34 +238,45 @@ export function useSchedule() {
       clearAggregatedCache();
       cercleEvents.value = [];
 
+      let newEvents = [];
       if (selectedMode.value === "student" && selectedFile.value) {
         const [text, cEvents] = await Promise.all([
           fetchIcsText(selectedFile.value),
           loadCercleEvents(),
         ]);
         const parsed = parseIcs(text);
-        events.value = mergeWithCercle(parsed, cEvents);
+        newEvents = mergeWithCercle(parsed, cEvents);
       } else if (selectedMode.value === "teacher" && selectedTeacher.value) {
         const teacherMap = await getTeacherIndex();
         const tEvents = teacherMap.get(selectedTeacher.value) || [];
         const cEvents = await loadCercleEvents();
-        events.value = mergeWithCercle(tEvents, cEvents);
+        newEvents = mergeWithCercle(tEvents, cEvents);
       } else if (selectedMode.value === "room" && selectedRoom.value) {
         try {
           const text = await fetchIcsText(`${selectedRoom.value}.ics`);
-          events.value = parseIcs(text);
+          newEvents = parseIcs(text);
         } catch {
           const roomMap = await getRoomIndex();
-          events.value = roomMap.get(selectedRoom.value) || [];
+          newEvents = roomMap.get(selectedRoom.value) || [];
         }
       } else if (selectedMode.value === "personal") {
-        if (localStorage.getItem(PERSONAL_CREDENTIALS_KEY)) {
+        if (typeof localStorage !== "undefined" && localStorage.getItem(PERSONAL_CREDENTIALS_KEY)) {
           await refreshPersonalSchedule().catch(() => {});
+          return false;
+        }
+      }
+
+      if (newEvents && newEvents.length > 0) {
+        if (!areEventsEqual(events.value, newEvents)) {
+          events.value = newEvents;
+          changed = true;
+          showToast("Planning mis à jour", "info", 3000);
         }
       }
     } catch (err) {
       console.warn("Silent schedule reload failed:", err);
     }
+    return changed;
   };
 
   const checkHealth = async () => {
@@ -213,7 +284,7 @@ export function useSchedule() {
     try {
       if (typeof fetch === "function") {
         const res = await fetch("/api/health", { cache: "no-store" });
-        if (res && res.ok) {
+        if (res && (res.ok || res.status === 200 || res.status === 503)) {
           const data = await res.json();
           const prevSync = serverHealth.value?.last_sync;
           serverHealth.value = data;
@@ -230,23 +301,51 @@ export function useSchedule() {
     return null;
   };
 
-  const handleVisibilityChange = () => {
+  const handleVisibilityChange = async () => {
     if (typeof document !== "undefined" && document.visibilityState === "visible") {
-      if (Date.now() - lastHealthCheckTime >= HEALTH_CHECK_INTERVAL_MS) {
-        checkHealth();
+      // Check if more than 1 minute elapsed since last check
+      if (Date.now() - lastHealthCheckTime >= 60 * 1000) {
+        await checkHealth();
+        await reloadCurrentScheduleSilently();
       }
     }
   };
 
+  const handleOnline = async () => {
+    try {
+      await checkHealth();
+      const updated = await reloadCurrentScheduleSilently();
+      showToast(
+        updated
+          ? "Connexion rétablie : planning actualisé"
+          : "Connexion rétablie : planning synchronisé",
+        "info",
+        3000
+      );
+    } catch (err) {
+      console.warn("Online sync error:", err);
+    }
+  };
+
+  const handleOffline = () => {
+    showToast("Connexion perdue : mode hors-ligne actif", "info", 4000);
+  };
+
   const startHealthPolling = (intervalMs = HEALTH_CHECK_INTERVAL_MS) => {
     stopHealthPolling();
-    healthPollingTimer = setInterval(() => {
-      checkHealth();
+    healthPollingTimer = setInterval(async () => {
+      await checkHealth();
+      await reloadCurrentScheduleSilently();
     }, intervalMs);
 
     if (typeof document !== "undefined") {
       document.addEventListener("visibilitychange", handleVisibilityChange);
     }
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", handleOnline);
+      window.addEventListener("offline", handleOffline);
+    }
+    startTimeTicker();
   };
 
   const stopHealthPolling = () => {
@@ -257,6 +356,11 @@ export function useSchedule() {
     if (typeof document !== "undefined") {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     }
+    if (typeof window !== "undefined") {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    }
+    stopTimeTicker();
   };
 
   // Actions
@@ -351,26 +455,6 @@ export function useSchedule() {
       selectedType.value = item.type;
       selectedFile.value = item.fileName;
     }
-  };
-
-  const loadCercleEvents = async () => {
-    if (cercleEvents.value.length > 0) return cercleEvents.value;
-    try {
-      const cEvs = await fetchCercleEvents();
-      cercleEvents.value = cEvs;
-      return cEvs;
-    } catch {
-      return [];
-    }
-  };
-
-  const mergeWithCercle = (studentEvents, cEvents) => {
-    if (!cEvents || !cEvents.length) return studentEvents;
-    const existingUids = new Set(studentEvents.map((e) => e.uid).filter(Boolean));
-    const toAdd = cEvents.filter((e) => !e.uid || !existingUids.has(e.uid));
-    const combined = [...studentEvents, ...toAdd];
-    combined.sort((a, b) => new Date(a.start) - new Date(b.start));
-    return combined;
   };
 
   const loadSchedule = async (fileName) => {
@@ -863,6 +947,7 @@ export function useSchedule() {
     weekEvents,
     displayedWeekEvents,
     nextCourse,
+    currentTime,
     disabledSubjects,
     selectedSubjectFilter,
     isLoading,

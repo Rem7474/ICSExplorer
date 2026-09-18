@@ -17,19 +17,45 @@ import ScheduleSkeleton from "./components/skeletons/ScheduleSkeleton.vue";
 import NextCourseSkeleton from "./components/skeletons/NextCourseSkeleton.vue";
 import WeekStatsSkeleton from "./components/skeletons/WeekStatsSkeleton.vue";
 import ToastContainer from "./components/ToastContainer.vue";
+import { useToast } from "./composables/useToast.js";
 
 const schedule = reactive(useSchedule());
+const { showToast } = useToast();
 const isPersonalScheduleModalOpen = ref(false);
 
 const rawVersion = import.meta.env.VITE_APP_VERSION || "";
 const appVersion = rawVersion && !rawVersion.startsWith("v") ? `v${rawVersion}` : rawVersion;
 
+const handlePwaUpdate = (e) => {
+  showToast(
+    "Une nouvelle version de l'application est disponible.",
+    "info",
+    0,
+    {
+      label: "Mettre à jour",
+      onClick: () => {
+        if (e.detail && typeof e.detail.update === "function") {
+          e.detail.update();
+        } else {
+          window.location.reload();
+        }
+      },
+    }
+  );
+};
+
 onMounted(() => {
   schedule.init();
+  if (typeof window !== "undefined") {
+    window.addEventListener("pwa-update-available", handlePwaUpdate);
+  }
 });
 
 onUnmounted(() => {
   schedule.stopHealthPolling?.();
+  if (typeof window !== "undefined") {
+    window.removeEventListener("pwa-update-available", handlePwaUpdate);
+  }
 });
 
 const currentKey = computed(() => {

@@ -483,5 +483,78 @@ END:VCALENDAR`;
     expect(schedule.events.value.length).toBe(1);
     expect(schedule.events.value[0].summary).toBe("Updated Course");
   });
+
+  it("updates nextCourse dynamically as currentTime ticks past an event end time", () => {
+    vi.useFakeTimers();
+    const schedule = useSchedule();
+
+    const baseTime = new Date("2026-09-18T08:00:00Z").getTime();
+    vi.setSystemTime(baseTime);
+    schedule.currentTime.value = baseTime;
+
+    const course1 = {
+      summary: "First Course",
+      start: new Date("2026-09-18T08:00:00Z"),
+      end: new Date("2026-09-18T10:00:00Z"),
+    };
+    const course2 = {
+      summary: "Second Course",
+      start: new Date("2026-09-18T10:15:00Z"),
+      end: new Date("2026-09-18T12:00:00Z"),
+    };
+
+    schedule.events.value = [course1, course2];
+    expect(schedule.nextCourse.value?.summary).toBe("First Course");
+
+    // Advance time to 10:01:00 (past course 1)
+    const afterTime = new Date("2026-09-18T10:01:00Z").getTime();
+    vi.setSystemTime(afterTime);
+    schedule.currentTime.value = afterTime;
+
+    expect(schedule.nextCourse.value?.summary).toBe("Second Course");
+    vi.useRealTimers();
+  });
+
+  it("handles online and offline network events by refreshing and displaying toasts", async () => {
+    const schedule = useSchedule();
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: "healthy", last_sync: "2026-09-18T10:00:00Z" }),
+    });
+
+    schedule.startHealthPolling();
+
+    // Trigger online event
+    window.dispatchEvent(new Event("online"));
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(fetchSpy).toHaveBeenCalled();
+
+    schedule.stopHealthPolling();
+  });
+
+  it("reloadCurrentScheduleSilently updates events when promo ICS content changes", async () => {
+    const schedule = useSchedule();
+    schedule.selectedMode.value = "student";
+    schedule.selectedFile.value = "2A-SEM.ics";
+
+    const initialIcs = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:1\r\nSUMMARY:Math\r\nDTSTART:20260918T080000Z\r\nDTEND:20260918T100000Z\r\nEND:VEVENT\r\nEND:VCALENDAR";
+    const updatedIcs = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:1\r\nSUMMARY:Physics (Room Change)\r\nDTSTART:20260918T080000Z\r\nDTEND:20260918T100000Z\r\nLOCATION:Amphi A\r\nEND:VEVENT\r\nEND:VCALENDAR";
+
+    vi.spyOn(api, "fetchFileList").mockResolvedValue(["2A-SEM.ics"]);
+    vi.spyOn(api, "fetchCercleEvents").mockResolvedValue([]);
+    vi.spyOn(api, "fetchIcsText").mockResolvedValue(initialIcs);
+
+    await schedule.loadSchedule("2A-SEM.ics");
+    expect(schedule.events.value[0].summary).toBe("Math");
+
+    // Next reload returns updated ICS
+    vi.spyOn(api, "fetchIcsText").mockResolvedValue(updatedIcs);
+    const changed = await schedule.reloadCurrentScheduleSilently();
+
+    expect(changed).toBe(true);
+    expect(schedule.events.value[0].summary).toBe("Physics (Room Change)");
+    expect(schedule.events.value[0].location).toBe("Amphi A");
+  });
 });
 

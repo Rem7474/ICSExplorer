@@ -21,8 +21,15 @@ self.addEventListener('install', (event) => {
             .catch(() => {})
         )
       )
-    ).then(() => self.skipWaiting())
+    )
   );
+});
+
+// ─── Message: controlled activation on update ──────────────────────────────
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 // ─── Activate: purge old caches ──────────────────────────────────────────────

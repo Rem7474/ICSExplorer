@@ -1,7 +1,14 @@
-﻿<script setup>
+<script setup>
 import { useToast } from "../composables/useToast.js";
 
 const { toasts, removeToast } = useToast();
+
+const handleAction = (toast) => {
+  if (toast.action && typeof toast.action.onClick === "function") {
+    toast.action.onClick();
+  }
+  removeToast(toast.id);
+};
 </script>
 
 <template>
@@ -13,7 +20,7 @@ const { toasts, removeToast } = useToast();
         class="toast-item"
         :class="`toast-${toast.type}`"
         role="alert"
-        @click="removeToast(toast.id)"
+        @click="toast.action ? null : removeToast(toast.id)"
       >
         <span class="toast-icon">
           <template v-if="toast.type === 'success'">✓</template>
@@ -21,6 +28,14 @@ const { toasts, removeToast } = useToast();
           <template v-else>ℹ</template>
         </span>
         <span class="toast-message">{{ toast.message }}</span>
+        <button
+          v-if="toast.action"
+          type="button"
+          class="toast-action"
+          @click.stop="handleAction(toast)"
+        >
+          {{ toast.action.label }}
+        </button>
         <button
           type="button"
           class="toast-close"
@@ -84,6 +99,30 @@ const { toasts, removeToast } = useToast();
 
 .toast-message {
   flex: 1;
+}
+
+.toast-action {
+  background: rgba(255, 255, 255, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  color: #ffffff;
+  padding: 0.3rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  margin-left: 0.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.toast-action:hover {
+  background: rgba(255, 255, 255, 0.4);
+  transform: translateY(-1px);
+}
+
+.toast-action:active {
+  transform: translateY(0);
 }
 
 .toast-close {
