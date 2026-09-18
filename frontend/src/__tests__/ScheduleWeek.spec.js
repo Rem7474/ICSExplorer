@@ -251,6 +251,38 @@ describe("ScheduleWeek component", () => {
     expect(wrapper.vm.activeDayIndex).toBe(0);
   });
 
+  it("supports swipe left and right on empty-state to navigate weeks", async () => {
+    const monday = new Date(2026, 8, 14);
+    const wrapper = mount(ScheduleWeek, {
+      props: {
+        events: [],
+        currentWeekStart: monday,
+        allEvents: [],
+      },
+    });
+
+    const emptyStateEl = wrapper.find(".empty-state");
+    expect(emptyStateEl.exists()).toBe(true);
+
+    // Swipe left -> nextWeek
+    await emptyStateEl.trigger("touchstart", {
+      touches: [{ clientX: 200, clientY: 100 }],
+    });
+    await emptyStateEl.trigger("touchend", {
+      changedTouches: [{ clientX: 100, clientY: 100 }],
+    });
+    expect(wrapper.emitted("nextWeek")).toBeTruthy();
+
+    // Swipe right -> prevWeek
+    await emptyStateEl.trigger("touchstart", {
+      touches: [{ clientX: 100, clientY: 100 }],
+    });
+    await emptyStateEl.trigger("touchend", {
+      changedTouches: [{ clientX: 200, clientY: 100 }],
+    });
+    expect(wrapper.emitted("prevWeek")).toBeTruthy();
+  });
+
   it("synchronizes activeDayIndex with horizontal scrolling", async () => {
     const monday = new Date(2026, 8, 14);
     const testEvents = [

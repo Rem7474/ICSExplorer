@@ -458,6 +458,15 @@ const onTouchEnd = (e) => {
     const dy = e.changedTouches[0].clientY - touchStartY;
 
     if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+      if (rawEvents.value.length === 0) {
+        if (dx < 0) {
+          onNextWeek();
+        } else {
+          onPrevWeek();
+        }
+        return;
+      }
+
       if (dx < 0) {
         if (activeDayIndex.value < 4) {
           scrollDayIntoView(activeDayIndex.value + 1);
@@ -664,7 +673,12 @@ defineExpose({
       @animationend="onAnimationEnd"
     >
       <!-- Empty State -->
-      <div v-if="rawEvents.length === 0" class="empty-state card">
+      <div
+        v-if="rawEvents.length === 0"
+        class="empty-state card"
+        @touchstart="onTouchStart"
+        @touchend="onTouchEnd"
+      >
       <div class="empty-state-icon">
         <i class="pi pi-calendar-times" style="font-size: 2.2rem; color: var(--muted);"></i>
       </div>
@@ -1423,6 +1437,7 @@ defineExpose({
 .empty-state {
   text-align: center;
   padding: 3rem 1rem;
+  touch-action: pan-y;
 }
 
 .empty-state h3 {
