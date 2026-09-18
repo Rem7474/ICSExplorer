@@ -587,6 +587,7 @@ defineExpose({
           severity="secondary"
           text
           rounded
+          class="nav-arrow-btn"
           aria-label="Semaine précédente (Flèche gauche)"
           title="Semaine précédente (←)"
           @click="onPrevWeek"
@@ -601,7 +602,9 @@ defineExpose({
             title="Cliquer pour choisir une date dans le calendrier"
           >
             <i class="pi pi-calendar mr-2" style="color: var(--accent);" aria-hidden="true"></i>
-            <span>Semaine du {{ formatDateOnly(startDate) }}</span>
+            <span class="week-label-text">
+              <span class="week-label-prefix">Semaine du </span>{{ formatDateOnly(startDate) }}
+            </span>
           </Button>
           <input
             ref="datePickerRef"
@@ -619,6 +622,7 @@ defineExpose({
           severity="secondary"
           text
           rounded
+          class="nav-arrow-btn"
           aria-label="Semaine suivante (Flèche droite)"
           title="Semaine suivante (→)"
           @click="onNextWeek"
@@ -819,13 +823,18 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  width: 100%;
 }
 
 .nav-arrows {
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+}
+
+.nav-arrow-btn {
+  flex-shrink: 0;
 }
 
 .today-btn {
@@ -835,17 +844,54 @@ defineExpose({
   font-weight: 600;
   border-radius: 8px;
   padding: 0.4rem 0.75rem;
-  margin-left: 0.25rem;
+  flex-shrink: 0;
   transition: all 0.15s ease;
 }
 
 @media (max-width: 640px) {
+  .week-nav-bar {
+    width: 100%;
+    gap: 0.35rem;
+  }
+
+  .nav-arrows {
+    flex: 1;
+    min-width: 0;
+    gap: 0.25rem;
+    flex-wrap: nowrap !important;
+  }
+
+  .nav-arrow-btn {
+    flex-shrink: 0 !important;
+  }
+
+  .week-picker-trigger {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+  }
+
+  .week-label-btn {
+    width: 100%;
+    font-size: 0.88rem;
+    padding: 0.4rem 0.45rem;
+    justify-content: center;
+  }
+
+  .today-btn {
+    flex-shrink: 0 !important;
+    padding: 0.45rem 0.6rem !important;
+    margin-left: 0;
+  }
+
   .today-btn .today-text {
     display: none !important;
   }
-  .today-btn {
-    padding: 0.45rem 0.6rem !important;
-    margin-left: 0;
+}
+
+@media (max-width: 380px) {
+  .week-label-prefix {
+    display: none;
   }
 }
 
@@ -863,6 +909,11 @@ defineExpose({
   border-color: var(--accent);
 }
 
+.week-picker-trigger {
+  position: relative;
+  display: inline-flex;
+}
+
 .week-label-btn {
   position: relative;
   font-size: 1.05rem;
@@ -871,12 +922,22 @@ defineExpose({
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   padding: 0.4rem 0.75rem;
   border-radius: 8px;
   background: var(--card);
   border: 1px solid var(--border);
   color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   transition: all 0.15s ease;
+}
+
+.week-label-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .week-label-btn:hover {
