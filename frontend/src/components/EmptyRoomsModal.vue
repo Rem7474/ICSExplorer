@@ -6,6 +6,8 @@ import Skeleton from "primevue/skeleton";
 import { getAggregatedEvents } from "../ics/aggregator.js";
 import { formatTimeOnly, formatDateOnly } from "../utils/dates.js";
 import { useToast } from "../composables/useToast.js";
+import { decodeTextWithFallback, fetchRoomList } from "../ics/api.js";
+import { parseIcs } from "../ics/parser.js";
 
 const emit = defineEmits(["close", "selectRoom"]);
 
@@ -57,32 +59,79 @@ const searchEmptyRooms = async () => {
   searchPerformed.value = true;
 
   try {
-    const allEvents = await getAggregatedEvents();
     const [year, month, day] = selectedDate.value.split("-").map(Number);
     const [hours, minutes] = selectedTime.value.split(":").map(Number);
     const targetTime = new Date(year, month - 1, day, hours, minutes);
 
-    const busyRooms = new Set();
-    allEvents.forEach((ev) => {
-      const start = new Date(ev.start);
-      const end = new Date(ev.end);
-      if (start <= targetTime && end > targetTime) {
-        if (ev.location) {
-          ev.location.split(/[,;/]/).forEach((loc) => {
-            const trimmed = loc.trim();
-            if (trimmed) busyRooms.add(trimmed);
-          });
-        }
+    // Dynamic discovery of rooms from /api/rooms if available
+    const roomSet = new Set(KNOWN_ROOMS);
+    try {
+      const apiRooms = await fetchRoomList();
+      if (Array.isArray(apiRooms) && apiRooms.length > 0) {
+        apiRooms.forEach((r) => roomSet.add(r));
+      }
+    } catch {}
+    const roomsToQuery = Array.from(roomSet).sort((a, b) =>
+      a.localeCompare(b, "fr", { numeric: true, sensitivity: "base" })
+    );
+
+    // 1. Fetch direct room calendars (/rooms/{room}.ics) in parallel
+    const directResults = await Promise.allSettled(
+      roomsToQuery.map(async (room) => {
+        try {
+          const resp = await fetch(`/rooms/${encodeURIComponent(room)}.ics`, { cache: "no-store" });
+          if (resp && resp.ok) {
+            const text = await decodeTextWithFallback(resp);
+            return { room, events: parseIcs(text) };
+          }
+        } catch {}
+        return { room, events: null };
+      })
+    );
+
+    const roomEventsMap = new Map();
+    let hasMissingRooms = false;
+
+    directResults.forEach((res) => {
+      if (res.status === "fulfilled" && res.value?.events) {
+        roomEventsMap.set(res.value.room, res.value.events);
+      } else {
+        hasMissingRooms = true;
       }
     });
 
+    // 2. If some rooms don't have a direct .ics file (e.g. D-building or test mock), load aggregated events as fallback
+    let aggregatedEvents = [];
+    if (hasMissingRooms || roomEventsMap.size === 0) {
+      try {
+        aggregatedEvents = await getAggregatedEvents();
+      } catch {
+        aggregatedEvents = [];
+      }
+    }
+
     const result = [];
-    KNOWN_ROOMS.forEach((room) => {
-      if (!busyRooms.has(room)) {
-        const nextCourse = allEvents
+    roomsToQuery.forEach((room) => {
+      let roomEvents = roomEventsMap.get(room);
+      if (!roomEvents) {
+        roomEvents = aggregatedEvents.filter((ev) => {
+          if (!ev.location) return false;
+          return ev.location.split(/[,;/]/).some((l) => l.trim() === room);
+        });
+      }
+
+      // Check if room is busy at targetTime
+      const isBusy = roomEvents.some((ev) => {
+        const start = new Date(ev.start);
+        const end = new Date(ev.end);
+        return start <= targetTime && end > targetTime;
+      });
+
+      if (!isBusy) {
+        const nextCourse = roomEvents
           .filter((ev) => {
             const start = new Date(ev.start);
-            return start > targetTime && ev.location?.includes(room);
+            return start > targetTime;
           })
           .sort((a, b) => new Date(a.start) - new Date(b.start))[0];
 

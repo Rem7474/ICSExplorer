@@ -306,7 +306,6 @@ export function useSchedule() {
       // Check if more than 1 minute elapsed since last check
       if (Date.now() - lastHealthCheckTime >= 60 * 1000) {
         await checkHealth();
-        await reloadCurrentScheduleSilently();
       }
     }
   };
@@ -314,14 +313,7 @@ export function useSchedule() {
   const handleOnline = async () => {
     try {
       await checkHealth();
-      const updated = await reloadCurrentScheduleSilently();
-      showToast(
-        updated
-          ? "Connexion rétablie : planning actualisé"
-          : "Connexion rétablie : planning synchronisé",
-        "info",
-        3000
-      );
+      showToast("Connexion rétablie", "info", 3000);
     } catch (err) {
       console.warn("Online sync error:", err);
     }
@@ -335,7 +327,6 @@ export function useSchedule() {
     stopHealthPolling();
     healthPollingTimer = setInterval(async () => {
       await checkHealth();
-      await reloadCurrentScheduleSilently();
     }, intervalMs);
 
     if (typeof document !== "undefined") {

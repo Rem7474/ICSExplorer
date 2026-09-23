@@ -484,6 +484,30 @@ END:VCALENDAR`;
     expect(schedule.events.value[0].summary).toBe("Updated Course");
   });
 
+  it("checkHealth does NOT reload schedule when last_sync has not changed", async () => {
+    const schedule = useSchedule();
+    schedule.serverHealth.value = {
+      status: "healthy",
+      last_sync: "2026-09-16T12:00:00Z",
+    };
+    schedule.selectedMode.value = "student";
+    schedule.selectedFile.value = "1A-Prepa-TP1.ics";
+
+    const fetchIcsSpy = vi.spyOn(api, "fetchIcsText");
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        status: "healthy",
+        last_sync: "2026-09-16T12:00:00Z",
+      }),
+    });
+
+    await schedule.checkHealth();
+
+    expect(fetchIcsSpy).not.toHaveBeenCalled();
+  });
+
   it("updates nextCourse dynamically as currentTime ticks past an event end time", () => {
     vi.useFakeTimers();
     const schedule = useSchedule();
