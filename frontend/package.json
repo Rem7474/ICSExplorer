@@ -21,7 +21,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@vitejs/plugin-vue": "^6.0.8",
-    "@vue/test-utils": "^2.4.6",
+    "@vue/test-utils": "^2.5.1",
     "eslint": "^10.10.0",
     "eslint-plugin-vue": "^10.11.0",
     "globals": "^17.12.0",
