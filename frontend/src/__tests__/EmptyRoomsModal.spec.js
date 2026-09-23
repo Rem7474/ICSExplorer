@@ -44,4 +44,33 @@ describe("EmptyRoomsModal component", () => {
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     expect(wrapper.emitted("close")).toBeTruthy();
   });
+
+  it("uses direct room calendar to accurately calculate room availability", async () => {
+    const mockRoomIcs = `BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:test-ds
+SUMMARY:DS Maths S1
+LOCATION:A049
+DTSTART:20260923T080000Z
+DTEND:20260923T100000Z
+END:VEVENT
+END:VCALENDAR`;
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      if (typeof url === "string" && url.includes("/rooms/A049.ics")) {
+        return {
+          ok: true,
+          arrayBuffer: async () => new TextEncoder().encode(mockRoomIcs),
+        };
+      }
+      return { ok: false };
+    });
+
+    const wrapper = mount(EmptyRoomsModal);
+    await new Promise((r) => setTimeout(r, 50));
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain("A049");
+  });
 });
