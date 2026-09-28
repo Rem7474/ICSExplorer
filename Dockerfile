@@ -5,7 +5,7 @@
 # ==========================================
 # Built once on the native build platform: the output is platform-independent,
 # so there is no need to run npm under QEMU for every target architecture.
-FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend-builder
+FROM --platform=$BUILDPLATFORM node:26-alpine AS frontend-builder
 WORKDIR /app/frontend
 
 ARG VERSION=dev
