@@ -1,4 +1,6 @@
 import { createApp } from "vue";
+import { createPinia } from "pinia";
+import { router } from "./router/index.js";
 import PrimeVue from "primevue/config";
 import Aura from "@primeuix/themes/aura";
 import ToastService from "primevue/toastservice";
@@ -27,6 +29,8 @@ app.use(PrimeVue, {
   ...(primeuiLicenseKey ? { licenseKey: primeuiLicenseKey, license: primeuiLicenseKey } : {}),
 });
 app.use(ToastService);
+app.use(createPinia());
+app.use(router);
 
 app.mount("#app");
 

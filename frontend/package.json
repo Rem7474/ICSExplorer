@@ -14,9 +14,11 @@
   },
   "dependencies": {
     "@primeuix/themes": "~3.0.1",
+    "pinia": "^3.0.4",
     "primeicons": "^8.0.2",
     "primevue": "~5.0.1",
-    "vue": "^3.5.43"
+    "vue": "^3.5.43",
+    "vue-router": "^4.6.4"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
