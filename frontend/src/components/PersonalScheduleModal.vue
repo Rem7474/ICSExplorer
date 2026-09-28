@@ -125,6 +125,10 @@ onUnmounted(() => {
         <input v-model="tree.remember.value" type="checkbox" />
         <span>Se souvenir de moi sur cet appareil</span>
       </label>
+      <p v-if="tree.remember.value" class="field-hint remember-hint">
+        Vos identifiants seront conservés dans ce navigateur pour actualiser votre planning automatiquement.
+        À éviter sur un appareil partagé.
+      </p>
 
       <p class="disclaimer">
         <i class="pi pi-shield"></i>
