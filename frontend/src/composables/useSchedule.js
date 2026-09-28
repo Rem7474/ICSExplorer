@@ -108,6 +108,24 @@ export function useSchedule() {
   const isLoading = ref(false);
   const isAggregatorLoading = ref(false);
   const statusMessage = ref("");
+  // Optional call-to-action attached to the current status message
+  // ("configure-personal"), so the UI never has to parse message text.
+  const statusAction = ref(null);
+  let statusActionMessage = "";
+  const setStatus = (message, action = null) => {
+    statusActionMessage = action ? message : "";
+    statusAction.value = action;
+    statusMessage.value = message;
+  };
+  watch(statusMessage, (msg) => {
+    if (msg !== statusActionMessage) statusAction.value = null;
+  });
+  // Progress of the teacher/room index build ({ loaded, total }), null when idle.
+  const indexProgress = ref(null);
+  const onIndexProgress = (loaded, total) => {
+    indexProgress.value = loaded >= total ? null : { loaded, total };
+  };
+  const isOnline = ref(typeof navigator === "undefined" ? true : navigator.onLine !== false);
   
   const activeModalEvent = ref(null);
   const isRoomModalOpen = ref(false);
@@ -373,6 +391,7 @@ export function useSchedule() {
   };
 
   const handleOnline = async () => {
+    isOnline.value = true;
     try {
       await checkHealth();
       showToast("Connexion rétablie", "info", 3000);
@@ -382,6 +401,7 @@ export function useSchedule() {
   };
 
   const handleOffline = () => {
+    isOnline.value = false;
     showToast("Connexion perdue : mode hors-ligne actif", "info", 4000);
   };
 
@@ -397,11 +417,15 @@ export function useSchedule() {
     if (typeof window !== "undefined") {
       window.addEventListener("online", handleOnline);
       window.addEventListener("offline", handleOffline);
+      window.addEventListener("popstate", handlePopState);
     }
     startTimeTicker();
   };
 
   const stopHealthPolling = () => {
+    if (typeof window !== "undefined") {
+      window.removeEventListener("popstate", handlePopState);
+    }
     if (healthPollingTimer) {
       clearInterval(healthPollingTimer);
       healthPollingTimer = null;
@@ -416,9 +440,55 @@ export function useSchedule() {
     stopTimeTicker();
   };
 
+  // Browser history: user-initiated schedule changes push an entry so the
+  // Back button returns to the previous schedule; restoring state (initial
+  // load, popstate) only replaces the current entry.
+  let restoringHistory = false;
+  const updateUrl = (params) => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location);
+    for (const key of ["file", "mode", "teacher", "room"]) {
+      if (params[key]) url.searchParams.set(key, params[key]);
+      else url.searchParams.delete(key);
+    }
+    if (url.href === window.location.href) return;
+    if (restoringHistory) window.history.replaceState({}, "", url);
+    else window.history.pushState({}, "", url);
+  };
+
+  const withHistoryRestore = async (fn) => {
+    restoringHistory = true;
+    try {
+      await fn();
+    } finally {
+      restoringHistory = false;
+    }
+  };
+
+  const applyUrlState = async () => {
+    const params = new URLSearchParams(window.location.search);
+    const teacher = params.get("teacher");
+    const room = params.get("room");
+    const file = params.get("file");
+    if (teacher) {
+      await loadTeacherSchedule(teacher);
+    } else if (room) {
+      await loadRoomSchedule(room);
+    } else if (file && availableFiles.value.includes(file)) {
+      await loadSchedule(file);
+    } else if (params.get("mode") === "personal") {
+      await setMode("personal");
+    } else {
+      await returnToBaseSchedule();
+    }
+  };
+
+  const handlePopState = () => withHistoryRestore(applyUrlState);
+
   // Actions
   const init = async () => {
     scrubStoredCredentials();
+    restoringHistory = true;
     isLoading.value = true;
     statusMessage.value = "Chargement des calendriers...";
 
@@ -498,6 +568,7 @@ export function useSchedule() {
       statusMessage.value = `Erreur: ${err.message}`;
     } finally {
       isLoading.value = false;
+      restoringHistory = false;
     }
   };
 
@@ -538,12 +609,7 @@ export function useSchedule() {
       baseSchedule.value = { mode: "student", file: fileName, name: cleanName };
       localStorage.setItem(BASE_SCHEDULE_KEY, JSON.stringify(baseSchedule.value));
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode: "student", file: fileName }));
-      const url = new URL(window.location);
-      url.searchParams.set("file", fileName);
-      url.searchParams.delete("mode");
-      url.searchParams.delete("teacher");
-      url.searchParams.delete("room");
-      window.history.replaceState({}, "", url);
+      updateUrl({ file: fileName });
     } catch (err) {
       statusMessage.value = `Erreur: ${err.message}`;
     } finally {
@@ -589,12 +655,7 @@ export function useSchedule() {
       localStorage.setItem(PERSONAL_CACHE_KEY, icsText);
       localStorage.setItem(PERSONAL_META_KEY, JSON.stringify(fullMeta));
 
-      const url = new URL(window.location);
-      url.searchParams.set("mode", "personal");
-      url.searchParams.delete("file");
-      url.searchParams.delete("teacher");
-      url.searchParams.delete("room");
-      window.history.replaceState({}, "", url);
+      updateUrl({ mode: "personal" });
     } catch (err) {
       statusMessage.value = `Erreur de traitement du calendrier: ${err.message}`;
     }
@@ -609,7 +670,7 @@ export function useSchedule() {
     }
 
     if (!creds) {
-      statusMessage.value = "Aucun identifiant sauvegardé pour actualiser le planning personnel.";
+      setStatus("Aucun identifiant sauvegardé pour actualiser le planning personnel.", "configure-personal");
       return;
     }
 
@@ -628,7 +689,7 @@ export function useSchedule() {
       });
       statusMessage.value = "";
     } catch (err) {
-      statusMessage.value = `Impossible d'actualiser le planning : ${err.message}`;
+      setStatus(`Impossible d'actualiser le planning : ${err.message}`, "configure-personal");
     } finally {
       isLoading.value = false;
     }
@@ -674,7 +735,7 @@ export function useSchedule() {
     if (availableTeachers.value.length > 0) return;
     isAggregatorLoading.value = true;
     try {
-      const teacherMap = await getTeacherIndex();
+      const teacherMap = await getTeacherIndex(onIndexProgress);
       availableTeachers.value = Array.from(teacherMap.keys()).sort((a, b) =>
         a.localeCompare(b, "fr", { sensitivity: "base" })
       );
@@ -682,6 +743,7 @@ export function useSchedule() {
       // Graceful degradation when offline or unindexed
     } finally {
       isAggregatorLoading.value = false;
+      indexProgress.value = null;
     }
   };
 
@@ -704,7 +766,7 @@ export function useSchedule() {
 
       // Aggregated rooms from all parsed student calendars
       try {
-        const roomMap = await getRoomIndex();
+        const roomMap = await getRoomIndex(onIndexProgress);
         for (const room of roomMap.keys()) {
           roomSet.add(room);
         }
@@ -717,6 +779,7 @@ export function useSchedule() {
       // Graceful degradation when offline or unindexed
     } finally {
       isAggregatorLoading.value = false;
+      indexProgress.value = null;
     }
   };
 
@@ -781,12 +844,7 @@ export function useSchedule() {
 
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode: "teacher", teacher: teacherName }));
 
-      const url = new URL(window.location);
-      url.searchParams.set("teacher", teacherName);
-      url.searchParams.delete("file");
-      url.searchParams.delete("room");
-      url.searchParams.delete("mode");
-      window.history.replaceState({}, "", url);
+      updateUrl({ teacher: teacherName });
     } catch (err) {
       statusMessage.value = `Erreur: ${err.message}`;
     } finally {
@@ -832,12 +890,7 @@ export function useSchedule() {
       selectedRoom.value = roomName;
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode: "room", room: roomName }));
 
-      const url = new URL(window.location);
-      url.searchParams.set("room", roomName);
-      url.searchParams.delete("file");
-      url.searchParams.delete("teacher");
-      url.searchParams.delete("mode");
-      window.history.replaceState({}, "", url);
+      updateUrl({ room: roomName });
     } catch (err) {
       statusMessage.value = `Erreur: ${err.message}`;
     } finally {
@@ -996,7 +1049,10 @@ export function useSchedule() {
     selectedSubjectFilter,
     isLoading,
     isAggregatorLoading,
+    indexProgress,
+    isOnline,
     statusMessage,
+    statusAction,
     activeModalEvent,
     isRoomModalOpen,
     serverHealth,

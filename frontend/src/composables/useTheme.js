@@ -1,6 +1,9 @@
 import { ref, watchEffect } from "vue";
 
 const THEME_KEY = "edt_theme";
+
+// Browser UI color (address bar, PWA title bar), matching the app header in each theme.
+export const THEME_COLORS = { light: "#1e3a8a", dark: "#1e293b" };
 const TOGGLE_COOLDOWN_MS = 350;
 
 function getInitialTheme() {
@@ -37,6 +40,10 @@ function applyTheme(dark) {
       document.documentElement.classList.add("dark-mode");
     } else {
       document.documentElement.classList.remove("dark-mode");
+    }
+    const themeMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeMeta) {
+      themeMeta.setAttribute("content", dark ? THEME_COLORS.dark : THEME_COLORS.light);
     }
   }
   try {

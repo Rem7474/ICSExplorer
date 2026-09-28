@@ -9,6 +9,15 @@ function getDayWeekday(date) {
   return date.toLocaleDateString("fr-FR", { weekday: "short" }).replace(".", "").toUpperCase();
 }
 
+// Screen-reader description of a course block, e.g.
+// "Algorithmique, lundi 14 septembre, 08h15 - 10h15, salle A042".
+function eventAriaLabel(ev, day, time = "") {
+  const dayLabel = day.date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+  return [ev.summary || "Événement", dayLabel, time || "toute la journée", ev.location ? `salle ${ev.location}` : ""]
+    .filter(Boolean)
+    .join(", ");
+}
+
 const props = defineProps({
   events: {
     type: [Array, Object],
@@ -699,12 +708,15 @@ defineExpose({
 
     <!-- Mobile Day Navigation & View Mode Toggle -->
     <div class="mobile-nav-bar">
-      <div class="day-dots" role="tablist">
+      <div class="day-dots" role="tablist" aria-label="Jour affiché">
         <button
           v-for="(day, idx) in days"
           :key="day.dayKey"
           type="button"
           class="day-dot"
+          role="tab"
+          :aria-selected="mobileViewMode === 'day' && activeDayIndex === idx"
+          :aria-label="day.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })"
           :class="{ active: mobileViewMode === 'day' && activeDayIndex === idx, today: isDayToday(day.date) }"
           :title="`Afficher ${day.dayName}`"
           @click="onSelectMobileDay(idx)"
@@ -718,6 +730,7 @@ defineExpose({
           type="button"
           class="view-toggle-btn"
           :class="{ active: mobileViewMode === 'day' }"
+          :aria-pressed="mobileViewMode === 'day'"
           title="Vue 1 jour"
           aria-label="Vue 1 jour"
           @click="setMobileViewMode('day')"
@@ -728,6 +741,7 @@ defineExpose({
           type="button"
           class="view-toggle-btn"
           :class="{ active: mobileViewMode === 'week' }"
+          :aria-pressed="mobileViewMode === 'week'"
           title="Vue semaine complète (5 jours)"
           aria-label="Vue semaine"
           @click="setMobileViewMode('week')"
@@ -838,6 +852,7 @@ defineExpose({
             }"
             tabindex="0"
             role="button"
+            :aria-label="eventAriaLabel(ev, day)"
             :title="ev.summary + (ev.location ? ' — ' + ev.location : '')"
             :style="{
               backgroundColor: getSubjectColors(ev, isDark).background,
@@ -882,6 +897,7 @@ defineExpose({
             }"
             tabindex="0"
             role="button"
+            :aria-label="eventAriaLabel(ev, day, ev.displayTime)"
             :style="{
               top: `${ev.top}px`,
               height: `${ev.height}px`,

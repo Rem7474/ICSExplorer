@@ -91,6 +91,22 @@ onUnmounted(() => {
         <p class="field-hint">
           Collez n'importe quelle URL menant à votre planning ADE — elle sera analysée automatiquement.
         </p>
+        <details class="url-help">
+          <summary>Où trouver mon URL ADE ?</summary>
+          <ol>
+            <li>Ouvrez votre planning ADE habituel dans un navigateur (ENT, lien de l'école…).</li>
+            <li>Affichez l'emploi du temps de votre groupe.</li>
+            <li>
+              Copiez l'adresse de la page, ou mieux, le lien d'export
+              (bouton « Exporter » / « Lien ICS » / icône de calendrier dans ADE).
+            </li>
+            <li>Collez-la ici. Seules les adresses <code>https://</code> publiques sont acceptées.</li>
+          </ol>
+          <p>
+            Les liens contenant <code>?data=…</code> ou <code>resources=…</code> fonctionnent souvent
+            sans identifiant.
+          </p>
+        </details>
       </div>
 
       <p v-if="tree.inputMode.value === 'url'" class="field-hint">
@@ -276,6 +292,32 @@ onUnmounted(() => {
   margin: 0;
   font-size: 0.78rem;
   color: var(--muted);
+}
+
+.url-help {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.url-help summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 600;
+  width: fit-content;
+}
+
+.url-help ol {
+  margin: 0.4rem 0 0.3rem;
+  padding-left: 1.2rem;
+}
+
+.url-help li + li {
+  margin-top: 0.2rem;
+}
+
+.url-help p {
+  margin: 0;
 }
 
 .remember-field {
