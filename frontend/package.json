@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@primeuix/themes": "~3.0.1",
-    "primeicons": "^8.0.1",
+    "primeicons": "^8.0.2",
     "primevue": "~5.0.1",
     "vue": "^3.5.43"
   },
