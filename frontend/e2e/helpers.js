@@ -41,3 +41,9 @@ export const openApp = async (page, query = "") => {
 };
 
 export const isMobile = (testInfo) => testInfo.project.name !== "desktop-chromium";
+
+/** Clicks a destination in the main navigation (tab bar on phones, rail on desktop). */
+export const goToTab = (page, label) =>
+  page.getByRole("navigation", { name: "Navigation principale" }).getByRole("button", { name: label, exact: true }).click();
+
+export const topBarTitle = (page) => page.locator(".top-bar-title");

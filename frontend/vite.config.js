@@ -33,6 +33,21 @@ export default defineConfig({
   envDir: "../",
   envPrefix: ["VITE_", "PRIMEUI_"],
   plugins: [vue(), vuetify({ autoImport: true }), serviceWorkerVersionPlugin(appVersion)],
+  build: {
+    rolldownOptions: {
+      output: {
+        // Long-lived vendor chunks: they change far less often than the app
+        // code, so browsers keep them cached across releases.
+        codeSplitting: {
+          groups: [
+            { name: "vuetify", test: /node_modules[\/]vuetify/ },
+            { name: "primevue", test: /node_modules[\/](primevue|@primevue|@primeuix)/ },
+            { name: "vue", test: /node_modules[\/](vue|@vue|vue-router|pinia)[\/]/ },
+          ],
+        },
+      },
+    },
+  },
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
