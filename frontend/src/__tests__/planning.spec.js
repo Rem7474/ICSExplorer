@@ -188,3 +188,35 @@ describe("EventSheet", () => {
     expect(document.body.textContent).toContain("Du 18/09/2026 à 18h00 au 20/09/2026 à 15h00");
   });
 });
+
+describe("PlanningGrid — back to today", () => {
+  beforeEach(() => localStorage.clear());
+  afterEach(() => (document.body.innerHTML = ""));
+
+  // Same rule as the component: weekends target next Monday.
+  const todayTargetWeek = () => {
+    const d = new Date();
+    if (d.getDay() === 6) d.setDate(d.getDate() + 2);
+    else if (d.getDay() === 0) d.setDate(d.getDate() + 1);
+    return getWeekStart(d);
+  };
+
+  it("hides the floating button while today is on screen", async () => {
+    const wrapper = mount(PlanningGrid, { props: { weekStart: todayTargetWeek(), events: [] }, attachTo: document.body });
+    await flushPromises();
+    expect(wrapper.find(".today-fab").exists()).toBe(false);
+  });
+
+  it("shows it on another week and jumps back to today's week", async () => {
+    const past = todayTargetWeek();
+    past.setDate(past.getDate() - 21);
+    const wrapper = mount(PlanningGrid, { props: { weekStart: past, events: [] }, attachTo: document.body });
+    await flushPromises();
+    const fab = wrapper.find(".today-fab");
+    expect(fab.exists()).toBe(true);
+    expect(fab.text()).toContain("Aujourd'hui");
+    await fab.trigger("click");
+    const [[target]] = wrapper.emitted("update:weekStart");
+    expect(target.getTime()).toBe(todayTargetWeek().getTime());
+  });
+});

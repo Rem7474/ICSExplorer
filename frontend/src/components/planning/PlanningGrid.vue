@@ -221,7 +221,23 @@ const goToDate = (date) => {
   }
 };
 
-const goToToday = () => goToDate(new Date());
+// "Today" target: today on weekdays, next Monday on weekends (the grid shows
+// Monday–Friday only).
+const todayTarget = () => {
+  const d = new Date(now.value);
+  const day = d.getDay();
+  if (day === 6) d.setDate(d.getDate() + 2);
+  else if (day === 0) d.setDate(d.getDate() + 1);
+  return d;
+};
+
+const goToToday = () => goToDate(todayTarget());
+
+// The floating "Aujourd'hui" button only shows when that day is off screen.
+const todayVisible = computed(() => {
+  const key = todayTarget().toDateString();
+  return columns.value.slice(activeIndex.value, activeIndex.value + perPage.value).some((c) => c.key === key);
+});
 
 const dateInput = ref(null);
 const dateInputValue = computed(() => {
@@ -360,7 +376,6 @@ defineExpose({ goToDate, goToToday, step, mode, activeIndex });
       </button>
       <input ref="dateInput" type="date" class="date-input" tabindex="-1" aria-hidden="true" :value="dateInputValue" @change="onDatePicked($event.target.value)" />
       <v-btn :icon="mdiChevronRight" variant="text" density="comfortable" :aria-label="mode === 'day' ? 'Jour suivant' : 'Semaine suivante'" @click="step(1)" />
-      <v-btn :icon="mdiCalendarToday" variant="text" density="comfortable" aria-label="Aujourd'hui (T)" title="Aujourd'hui (T)" @click="goToToday" />
       <slot name="toolbar-actions" />
       <div class="span-toggle" role="group" aria-label="Nombre de jours affichés">
         <button
@@ -480,11 +495,20 @@ defineExpose({ goToDate, goToToday, step, mode, activeIndex });
         </div>
       </section>
     </div>
+
+    <!-- Contextual "back to today" button (hidden while today is on screen) -->
+    <transition name="today-fab">
+      <button v-if="!todayVisible" type="button" class="today-fab" title="Revenir à aujourd'hui (T)" @click="goToToday">
+        <v-icon :icon="mdiCalendarToday" size="18" />
+        Aujourd'hui
+      </button>
+    </transition>
   </div>
 </template>
 
 <style scoped>
 .planning-grid {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -841,6 +865,45 @@ button.day-date {
   padding-right: 4px;
 }
 
+.today-fab {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 16px;
+  background: #1e3a8a;
+  color: #fff;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  box-shadow: 0 6px 16px -4px rgba(15, 23, 42, 0.45);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.today-fab-enter-active,
+.today-fab-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.today-fab-enter-from,
+.today-fab-leave-to {
+  opacity: 0;
+  transform: translateY(8px) scale(0.96);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .today-fab-enter-active,
+  .today-fab-leave-active {
+    transition: none;
+  }
+}
+
 .event-inline {
   display: block;
   white-space: nowrap;
@@ -893,5 +956,10 @@ button.day-date {
 
 .v-theme--dark .planning-grid .next-course-hint {
   background: rgba(var(--v-theme-primary), 0.14);
+}
+
+.v-theme--dark .planning-grid .today-fab {
+  background: rgb(var(--v-theme-primary));
+  color: rgb(var(--v-theme-on-primary));
 }
 </style>

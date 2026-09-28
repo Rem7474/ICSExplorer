@@ -84,6 +84,17 @@ test.describe("native planning grid", () => {
     expect(scroll).toBeLessThanOrEqual(client + 1);
   });
 
+  test("a floating 'Aujourd'hui' button appears away from today and brings you back", async ({ page }) => {
+    await openApp(page);
+    await page.getByRole("button", { name: "Vue jour" }).click();
+    const fab = page.getByRole("button", { name: "Aujourd'hui" });
+    await page.getByRole("button", { name: "Semaine suivante" }).or(page.getByRole("button", { name: "Jour suivant" })).first().click();
+    await page.getByRole("button", { name: "Jour suivant" }).click();
+    await expect(fab).toBeVisible();
+    await fab.click();
+    await expect(fab).toHaveCount(0);
+  });
+
   test("course details open in a sheet and close with Escape", async ({ page }) => {
     await openApp(page);
     await page.locator(".event:visible", { hasText: FIXTURE.courseA }).first().click();
