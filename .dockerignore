@@ -21,3 +21,8 @@ pr_body.md
 coverage/
 *.out
 
+
+# Playwright artifacts
+frontend/e2e/.data
+frontend/test-results
+frontend/playwright-report

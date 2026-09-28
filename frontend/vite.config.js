@@ -46,6 +46,8 @@ export default defineConfig({
     },
   },
   test: {
+    // e2e/ holds Playwright specs, run separately with `npm run test:e2e`.
+    include: ["src/**/*.{test,spec}.js"],
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/__tests__/setup.js"],
