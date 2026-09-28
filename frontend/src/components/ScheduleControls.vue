@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, unref, onMounted, onUnmounted } from "vue";
+import { ref, computed, unref, watch, onMounted, onUnmounted } from "vue";
 import { fileUrl } from "../ics/api.js";
 import { useFavorites } from "../composables/useFavorites.js";
 import { useToast } from "../composables/useToast.js";
@@ -19,6 +19,7 @@ const { showToast } = useToast();
 const searchInputRef = ref(null);
 const searchQuery = ref("");
 const showSearchResults = ref(false);
+const activeResultIndex = ref(-1);
 
 const handleGlobalKeydown = (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === "k") {
@@ -203,6 +204,10 @@ const absoluteIcsUrl = computed(() => {
   }
 });
 
+// webcal:// lets calendar apps (Apple Calendar, Outlook, Thunderbird)
+// subscribe to the feed instead of importing a one-off copy.
+const webcalUrl = computed(() => absoluteIcsUrl.value.replace(/^https?:/, "webcal:"));
+
 const copyIcsLink = async () => {
   const url = absoluteIcsUrl.value;
   if (!url) return;
@@ -248,8 +253,18 @@ const searchResults = computed(() => {
   return results.slice(0, 10);
 });
 
-const onSearchFocus = () => {
-  showSearchResults.value = true;
+const MIN_QUERY_LENGTH = 2;
+const trimmedQuery = computed(() => searchQuery.value.trim());
+const showSearchPanel = computed(() => showSearchResults.value && trimmedQuery.value.length >= MIN_QUERY_LENGTH);
+const isIndexing = computed(() => Boolean(unref(props.schedule.isAggregatorLoading)));
+const indexProgress = computed(() => unref(props.schedule.indexProgress) || null);
+const activeDescendant = computed(() =>
+  showSearchPanel.value && activeResultIndex.value >= 0 ? `quick-search-option-${activeResultIndex.value}` : undefined
+);
+
+// Building the teacher/room index downloads every promo calendar, so it only
+// starts once the user actually types a query (not on mere focus).
+const ensureSearchIndex = () => {
   if (props.schedule.loadTeacherList && !unref(props.schedule.availableTeachers)?.length) {
     props.schedule.loadTeacherList();
   }
@@ -257,6 +272,57 @@ const onSearchFocus = () => {
     props.schedule.loadRoomList();
   }
 };
+
+watch(searchQuery, (q) => {
+  activeResultIndex.value = -1;
+  if (q.trim().length >= MIN_QUERY_LENGTH) {
+    showSearchResults.value = true;
+    ensureSearchIndex();
+  }
+});
+
+const onSearchFocus = () => {
+  showSearchResults.value = true;
+};
+
+const onSearchBlur = () => {
+  // Delay so a click on a result registers before the list is removed.
+  window.setTimeout(() => {
+    showSearchResults.value = false;
+  }, 150);
+};
+
+const onSearchKeydown = (e) => {
+  const count = searchResults.value.length;
+  switch (e.key) {
+    case "ArrowDown":
+      e.preventDefault();
+      showSearchResults.value = true;
+      if (count) activeResultIndex.value = (activeResultIndex.value + 1) % count;
+      break;
+    case "ArrowUp":
+      e.preventDefault();
+      if (count) activeResultIndex.value = (activeResultIndex.value - 1 + count) % count;
+      break;
+    case "Enter":
+      if (showSearchPanel.value && count) {
+        e.preventDefault();
+        selectSearchResult(searchResults.value[Math.max(0, activeResultIndex.value)]);
+      }
+      break;
+    case "Escape":
+      if (showSearchPanel.value) {
+        e.preventDefault();
+        showSearchResults.value = false;
+        activeResultIndex.value = -1;
+      }
+      break;
+    default:
+      break;
+  }
+};
+
+const searchTypeLabel = (type) => ({ student: "Élève", teacher: "Prof", room: "Salle" })[type] || type;
 
 const selectSearchResult = (item) => {
   if (item.type === "teacher") {
@@ -273,6 +339,7 @@ const selectSearchResult = (item) => {
   }
   searchQuery.value = "";
   showSearchResults.value = false;
+  activeResultIndex.value = -1;
   showToast(`Planning chargé : ${item.label}`, "success");
 };
 
@@ -336,25 +403,54 @@ const copyShareLink = async () => {
 
     <div class="quick-search-row">
       <div class="search-box">
+        <label for="quickSearchInput" class="sr-only">Rechercher un planning (promo, professeur ou salle)</label>
         <input
+          id="quickSearchInput"
           ref="searchInputRef"
           v-model="searchQuery"
           type="text"
+          role="combobox"
+          autocomplete="off"
+          aria-autocomplete="list"
+          aria-controls="quickSearchListbox"
+          :aria-expanded="showSearchPanel"
+          :aria-activedescendant="activeDescendant"
           placeholder="🔍 Recherche rapide (ex: 1A-Prépa, 3A-IN, Professeur...) [Ctrl+K]"
           @focus="onSearchFocus"
-          @blur="setTimeout(() => (showSearchResults = false), 200)"
+          @blur="onSearchBlur"
+          @keydown="onSearchKeydown"
         />
-        <div v-if="showSearchResults && searchResults.length > 0" class="search-dropdown">
-          <div
-            v-for="res in searchResults"
-            :key="res.value"
-            class="search-item"
-            :title="res.label"
-            @mousedown="selectSearchResult(res)"
+        <div v-if="showSearchPanel" class="search-dropdown">
+          <ul
+            v-if="searchResults.length > 0"
+            id="quickSearchListbox"
+            class="search-list"
+            role="listbox"
+            aria-label="Résultats de recherche"
           >
-            <span class="search-tag">{{ res.type === 'student' ? 'Élève' : res.type === 'teacher' ? 'Prof' : res.type === 'room' ? 'Salle' : res.type }}</span>
-            <span class="search-label" :title="res.label">{{ res.label }}</span>
-          </div>
+            <li
+              v-for="(res, idx) in searchResults"
+              :id="`quick-search-option-${idx}`"
+              :key="`${res.type}-${res.value}`"
+              class="search-item"
+              :class="{ active: idx === activeResultIndex }"
+              role="option"
+              :aria-selected="idx === activeResultIndex"
+              :title="res.label"
+              @mousedown.prevent="selectSearchResult(res)"
+              @mouseenter="activeResultIndex = idx"
+            >
+              <span class="search-tag">{{ searchTypeLabel(res.type) }}</span>
+              <span class="search-label">{{ res.label }}</span>
+            </li>
+          </ul>
+          <p v-if="isIndexing" class="search-status" aria-live="polite">
+            <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
+            Indexation des professeurs et salles{{ indexProgress ? ` (${indexProgress.loaded}/${indexProgress.total} plannings)` : "" }}…
+          </p>
+          <p v-else-if="searchResults.length === 0" class="search-status" aria-live="polite">
+            Aucun résultat pour « {{ trimmedQuery }} »
+          </p>
         </div>
       </div>
     </div>
@@ -609,6 +705,7 @@ const copyShareLink = async () => {
         type="button"
         class="btn btn-outline btn-pin"
         :class="{ 'btn-pinned': isCurrentPinned }"
+        :aria-pressed="isCurrentPinned"
         :title="isCurrentPinned ? 'Retirer des favoris' : 'Épingler dans la barre des favoris'"
         :aria-label="isCurrentPinned ? 'Retirer des favoris' : 'Épingler dans la barre des favoris'"
         @click="onTogglePin"
@@ -632,6 +729,7 @@ const copyShareLink = async () => {
         type="button"
         class="btn btn-outline btn-ru-menu"
         :class="{ 'btn-ru-active': schedule.showRuMenu }"
+        :aria-pressed="Boolean(unref(schedule.showRuMenu))"
         :title="schedule.showRuMenu ? 'Masquer le menu du restaurant universitaire (RU Briff\'O)' : 'Afficher le menu du restaurant universitaire (RU Briff\'O)'"
         :aria-label="schedule.showRuMenu ? 'Masquer le menu du RU' : 'Afficher le menu du RU'"
         @click="schedule.toggleRuMenu?.()"
@@ -660,6 +758,16 @@ const copyShareLink = async () => {
         <i class="pi pi-link" aria-hidden="true"></i>
         <span class="btn-text" style="margin-left: 0.35rem;">Copier le lien</span>
       </button>
+
+      <a
+        v-if="canCopyIcsLink && webcalUrl"
+        :href="webcalUrl"
+        class="btn btn-outline btn-subscribe"
+        title="S'abonner dans votre application d'agenda (Apple Calendar, Outlook, Thunderbird) : le planning se mettra à jour automatiquement"
+      >
+        <i class="pi pi-calendar-plus" aria-hidden="true"></i>
+        <span class="btn-text" style="margin-left: 0.35rem;">S'abonner</span>
+      </a>
 
       <button
         type="button"
@@ -798,8 +906,29 @@ const copyShareLink = async () => {
   border-bottom: none;
 }
 
-.search-item:hover {
+.search-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.search-item:hover,
+.search-item.active {
   background: var(--bg);
+}
+
+.search-item.active {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.search-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.6rem 1rem;
+  font-size: 0.85rem;
+  color: var(--muted);
 }
 
 .search-tag {
