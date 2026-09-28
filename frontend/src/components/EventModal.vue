@@ -6,6 +6,7 @@ import { formatDateTime, formatTimeOnly, formatDateOnly, isAllDayEvent } from ".
 import { isCercleEvent, isRuEvent } from "../utils/colors.js";
 import { useToast } from "../composables/useToast.js";
 import { extractTeacherNames } from "../ics/parser.js";
+import { buildSingleEventIcs } from "../utils/icsExport.js";
 
 const props = defineProps({
   event: {
@@ -83,26 +84,7 @@ const onGoToRoom = (room) => {
 const downloadSingleEvent = () => {
   if (!props.event) return;
 
-  const formatDateToICS = (d) => {
-    const date = new Date(d);
-    return date.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
-  };
-
-  const icsContent = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//EDT Esisar//FR",
-    "BEGIN:VEVENT",
-    `UID:${props.event.uid || Date.now()}@edtesisar`,
-    `DTSTAMP:${formatDateToICS(new Date())}`,
-    `DTSTART:${formatDateToICS(props.event.start)}`,
-    `DTEND:${formatDateToICS(props.event.end)}`,
-    `SUMMARY:${props.event.summary || 'Cours'}`,
-    `LOCATION:${props.event.location || ''}`,
-    `DESCRIPTION:${(props.event.description || '').replace(/\n/g, "\\n")}`,
-    "END:VEVENT",
-    "END:VCALENDAR",
-  ].join("\r\n");
+  const icsContent = buildSingleEventIcs(props.event);
 
   const blob = new Blob([icsContent], { type: "text/calendar;charset=utf-8" });
   const url = URL.createObjectURL(blob);
