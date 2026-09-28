@@ -1,6 +1,6 @@
 <script setup>
-import { computed, inject } from "vue";
-import { mdiChevronRight } from "@mdi/js";
+import { computed, inject, ref } from "vue";
+import { mdiChevronRight, mdiFilterVariant } from "@mdi/js";
 import { formatTimeOnly } from "../utils/dates.js";
 import { isCercleEvent } from "../utils/colors.js";
 import WeekStats from "../components/WeekStats.vue";
@@ -19,6 +19,10 @@ const nextLabel = computed(() => {
   return [c.summary, `${day} ${formatTimeOnly(start)}`, c.location].filter(Boolean).join(" · ");
 });
 const nextIsCercle = computed(() => schedule.nextCourse && isCercleEvent(schedule.nextCourse));
+
+// Phones: subject stats/filters live in a sheet opened from the grid toolbar,
+// to leave the height to the planning.
+const filtersOpen = ref(false);
 
 const weekStart = computed({
   get: () => schedule.currentWeekStart,
@@ -54,6 +58,7 @@ const weekStart = computed({
 
       <WeekStats
         compact
+        class="stats-row"
         :events="schedule.weekEvents"
         :disabled-subjects="schedule.disabledSubjects"
         @filter="schedule.toggleSubjectFilter"
@@ -68,7 +73,39 @@ const weekStart = computed({
         class="grid-fill"
         :events="schedule.displayedEvents"
         @event-click="schedule.openEventModal"
-      />
+      >
+        <template #toolbar-actions>
+          <v-btn
+            class="filters-btn"
+            variant="text"
+            density="comfortable"
+            icon
+            :aria-label="schedule.disabledSubjects.length ? `Matières (${schedule.disabledSubjects.length} masquées)` : 'Matières et heures de la semaine'"
+            @click="filtersOpen = true"
+          >
+            <v-badge v-if="schedule.disabledSubjects.length" :content="schedule.disabledSubjects.length" color="error" floating>
+              <v-icon :icon="mdiFilterVariant" />
+            </v-badge>
+            <v-icon v-else :icon="mdiFilterVariant" />
+          </v-btn>
+        </template>
+      </PlanningGrid>
+
+      <v-bottom-sheet v-model="filtersOpen">
+        <v-card class="filters-sheet">
+          <div class="grabber" aria-hidden="true" />
+          <v-card-title class="filters-title">Matières de la semaine</v-card-title>
+          <v-card-text>
+            <p class="filters-hint">Touchez une matière pour la masquer du planning.</p>
+            <WeekStats
+              :events="schedule.weekEvents"
+              :disabled-subjects="schedule.disabledSubjects"
+              @filter="schedule.toggleSubjectFilter"
+              @reset="schedule.resetSubjectFilters"
+            />
+          </v-card-text>
+        </v-card>
+      </v-bottom-sheet>
     </template>
   </div>
 </template>
@@ -80,8 +117,8 @@ const weekStart = computed({
   flex-direction: column;
   gap: 6px;
   height: calc(100dvh - var(--v-layout-top, 64px) - var(--nav-h));
-  padding-top: 8px;
-  padding-bottom: 8px;
+  padding-top: 6px;
+  padding-bottom: 6px;
 }
 
 @media (min-width: 960px) {
@@ -112,12 +149,51 @@ const weekStart = computed({
   flex: 1;
 }
 
+/* Phones: stats move to the filters sheet; wider screens keep the chip row. */
+.filters-btn {
+  display: none;
+}
+
+@media (max-width: 599px) {
+  .stats-row {
+    display: none;
+  }
+
+  .filters-btn {
+    display: inline-flex;
+  }
+}
+
+.filters-sheet {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.grabber {
+  width: 36px;
+  height: 4px;
+  margin: 10px auto 0;
+  border-radius: 2px;
+  background: rgb(var(--v-theme-on-surface-variant));
+  opacity: 0.4;
+}
+
+.filters-title {
+  font-weight: 700;
+}
+
+.filters-hint {
+  margin: 0 0 12px;
+  font-size: 0.85rem;
+  color: rgb(var(--v-theme-on-surface-variant));
+}
+
 .next-banner {
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 8px 10px 8px 12px;
+  min-height: 36px;
+  padding: 5px 8px 5px 12px;
   border: 0;
   border-radius: 14px;
   background: rgba(37, 99, 235, 0.08);

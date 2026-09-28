@@ -53,6 +53,35 @@ describe("PlanningGrid", () => {
     expect(localStorage.getItem("edtMobileViewMode")).toBe("day");
   });
 
+  it("fits the whole day to the available height", async () => {
+    const desc = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientHeight");
+    Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+      configurable: true,
+      get() {
+        return this.classList?.contains("grid-scroller") ? 500 : 0;
+      },
+    });
+    try {
+      localStorage.setItem("edtMobileViewMode", "day");
+      const wrapper = mountGrid({ events: [course("IN101", 0, 8, 10)] });
+      await flushPromises();
+      const tops = wrapper.findAll(".day-col")[5].findAll(".hour-line").map((l) => parseFloat(l.attributes("style").match(/top: ([\d.]+)px/)[1]));
+      // 8h–18h in 500px minus margins: ~48px per hour, 18h line inside the scroller.
+      expect(tops[1] - tops[0]).toBeCloseTo((500 - 16 - 2) / 10, 1);
+      expect(tops.at(-1)).toBeLessThan(500);
+    } finally {
+      if (desc) Object.defineProperty(HTMLElement.prototype, "clientHeight", desc);
+    }
+  });
+
+  it("shows the day only once in the 1-day view (chips, no column date)", () => {
+    localStorage.setItem("edtMobileViewMode", "day");
+    const wrapper = mountGrid({ events: [course("IN101", 0, 8, 10)] });
+    expect(wrapper.find(".day-chips").exists()).toBe(true);
+    expect(wrapper.find(".day-date").exists()).toBe(false);
+    expect(wrapper.find(".period-btn").text()).toMatch(/–/); // week range, not the day
+  });
+
   it("only offers 1-day and 5-day views", () => {
     const wrapper = mountGrid();
     expect(wrapper.findAll(".span-btn").map((b) => b.text())).toEqual(["1J", "5J"]);

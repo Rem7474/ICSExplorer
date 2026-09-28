@@ -20,7 +20,11 @@ const emit = defineEmits(["update:weekStart", "eventClick"]);
 const { isDark } = useTheme();
 
 const RAIL = 44;
-const PX_PER_HOUR = 60;
+// Hour height adapts so the whole day fits the available height (like v2),
+// but never below a readable minimum: then the grid scrolls vertically.
+const MIN_PX_PER_HOUR = 34;
+const MAX_PX_PER_HOUR = 90;
+const BODY_GAP = 8; // space above and below the hours
 const DAYS_PER_WEEK = 5;
 const MIDDLE = DAYS_PER_WEEK; // first column of the current week
 const VIEW_MODE_KEY = "edtMobileViewMode"; // "day" | "week" (kept from v2)
@@ -63,21 +67,35 @@ const range = computed(() => hourRange(columns.value.flatMap((c) => c.timed)));
 
 // Same header height for every column (room for the most all-day banners),
 // so hours stay aligned across days.
-const headHeight = computed(() => 52 + 26 * Math.max(0, ...columns.value.map((c) => c.allDay.length)));
-const gridHeight = computed(() => (range.value.end - range.value.start) * PX_PER_HOUR);
+// Column headers share one height so hours stay aligned. In the 1-day view the
+// day is already shown by the chips above: the header only holds all-day banners.
+const maxAllDay = computed(() => Math.max(0, ...columns.value.map((c) => c.allDay.length)));
+const headHeight = computed(() => {
+  if (mode.value === "week") return 52 + 26 * maxAllDay.value;
+  return maxAllDay.value ? 10 + 26 * maxAllDay.value : 0;
+});
+
+const availableHeight = ref(0); // scroller height, measured by the ResizeObserver
+const pxPerHour = computed(() => {
+  const hoursCount = Math.max(1, range.value.end - range.value.start);
+  const fit = (availableHeight.value - headHeight.value - 2 * BODY_GAP - 2) / hoursCount;
+  if (!Number.isFinite(fit) || fit <= 0) return 60;
+  return Math.min(MAX_PX_PER_HOUR, Math.max(MIN_PX_PER_HOUR, fit));
+});
+const gridHeight = computed(() => (range.value.end - range.value.start) * pxPerHour.value);
 const hours = computed(() => Array.from({ length: range.value.end - range.value.start + 1 }, (_, i) => range.value.start + i));
 
 const laidOut = computed(() =>
   columns.value.map((c) => ({
     ...c,
-    items: layoutDay(c.timed, c.date, { hourStart: range.value.start, hourEnd: range.value.end, pxPerHour: PX_PER_HOUR }),
+    items: layoutDay(c.timed, c.date, { hourStart: range.value.start, hourEnd: range.value.end, pxPerHour: pxPerHour.value }),
   }))
 );
 
 const nowTop = computed(() => {
   const h = now.value.getHours() + now.value.getMinutes() / 60;
   if (h < range.value.start || h > range.value.end) return null;
-  return (h - range.value.start) * PX_PER_HOUR;
+  return (h - range.value.start) * pxPerHour.value;
 });
 
 // -------------------------------------------------------------------- scroll
@@ -145,10 +163,10 @@ const scrollToFirstHour = () => {
   const visible = laidOut.value.slice(activeIndex.value, activeIndex.value + perPage.value);
   const todayShown = visible.some((c) => isToday(c.date));
   let target = 0;
-  if (todayShown && nowTop.value !== null) target = nowTop.value - PX_PER_HOUR;
+  if (todayShown && nowTop.value !== null) target = nowTop.value - pxPerHour.value;
   else {
     const tops = visible.flatMap((c) => c.items.map((i) => i.top));
-    if (tops.length) target = Math.min(...tops) - PX_PER_HOUR / 2;
+    if (tops.length) target = Math.min(...tops) - pxPerHour.value / 2;
   }
   el.scrollTop = Math.max(0, target);
 };
@@ -221,10 +239,8 @@ const onDatePicked = (value) => {
   if (value) goToDate(new Date(`${value}T12:00:00`));
 };
 
+// Week range in both views: in the 1-day view the chips below show the day.
 const periodLabel = computed(() => {
-  if (mode.value === "day") {
-    return currentWeek.value[activeDay.value].date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
-  }
   const first = currentWeek.value[0].date;
   const last = currentWeek.value[DAYS_PER_WEEK - 1].date;
   const fmt = (d) => d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
@@ -288,7 +304,11 @@ onMounted(async () => {
   window.addEventListener("keydown", onKeydown);
   scroller.value?.addEventListener("scrollend", settle);
   clock = setInterval(() => (now.value = new Date()), 30000);
-  resizeObserver = new ResizeObserver(() => scrollToColumn(activeIndex.value));
+  resizeObserver = new ResizeObserver(() => {
+    availableHeight.value = scroller.value?.clientHeight || 0;
+    scrollToColumn(activeIndex.value);
+  });
+  availableHeight.value = scroller.value?.clientHeight || 0;
   if (scroller.value) resizeObserver.observe(scroller.value);
   await nextTick();
   scrollToColumn(landingColumn(defaultDayIndex()));
@@ -317,6 +337,7 @@ defineExpose({ goToDate, goToToday, step, mode, activeIndex });
       <input ref="dateInput" type="date" class="date-input" tabindex="-1" aria-hidden="true" :value="dateInputValue" @change="onDatePicked($event.target.value)" />
       <v-btn :icon="mdiChevronRight" variant="text" density="comfortable" :aria-label="mode === 'day' ? 'Jour suivant' : 'Semaine suivante'" @click="step(1)" />
       <v-btn :icon="mdiCalendarToday" variant="text" density="comfortable" aria-label="Aujourd'hui (T)" title="Aujourd'hui (T)" @click="goToToday" />
+      <slot name="toolbar-actions" />
       <div class="span-toggle" role="group" aria-label="Nombre de jours affichés">
         <button
           v-for="opt in [{ v: 'day', l: '1J', a: 'Vue jour' }, { v: 'week', l: '5J', a: 'Vue semaine' }]"
@@ -367,7 +388,7 @@ defineExpose({ goToDate, goToToday, step, mode, activeIndex });
       <div class="rail" aria-hidden="true">
         <div class="rail-corner" />
         <div class="rail-hours">
-          <span v-for="h in hours" :key="h" class="hour" :style="{ top: `${(h - range.start) * PX_PER_HOUR}px` }">{{ h }}h</span>
+          <span v-for="h in hours" :key="h" class="hour" :style="{ top: `${(h - range.start) * pxPerHour}px` }">{{ h }}h</span>
         </div>
       </div>
 
@@ -378,9 +399,10 @@ defineExpose({ goToDate, goToToday, step, mode, activeIndex });
         :class="{ today: isToday(c.date), 'week-start': c.date.getDay() === 1 }"
         :aria-label="dayLabel(c.date)"
       >
-        <header class="day-head">
+        <header class="day-head" :class="{ empty: headHeight === 0 }">
           <component
             :is="mode === 'week' && c.week === 0 ? 'button' : 'span'"
+            v-if="mode === 'week'"
             class="day-date"
             :type="mode === 'week' && c.week === 0 ? 'button' : undefined"
             :aria-label="mode === 'week' && c.week === 0 ? `Afficher ${dayLabel(c.date)}` : undefined"
@@ -403,7 +425,7 @@ defineExpose({ goToDate, goToToday, step, mode, activeIndex });
         </header>
 
         <div class="day-body">
-          <div v-for="h in hours" :key="h" class="hour-line" :style="{ top: `${(h - range.start) * PX_PER_HOUR}px` }" />
+          <div v-for="h in hours" :key="h" class="hour-line" :style="{ top: `${(h - range.start) * pxPerHour}px` }" />
           <div v-if="isToday(c.date) && nowTop !== null" class="now-line" :style="{ top: `${nowTop}px` }" aria-hidden="true">
             <span class="now-badge">{{ formatTimeOnly(now) }}</span>
           </div>
@@ -443,8 +465,9 @@ defineExpose({ goToDate, goToToday, step, mode, activeIndex });
 .grid-toolbar {
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 4px 0;
+  gap: 0;
+  padding: 0;
+  min-height: 40px;
 }
 
 .period-btn {
@@ -460,7 +483,7 @@ defineExpose({ goToDate, goToToday, step, mode, activeIndex });
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  padding: 8px 4px;
+  padding: 6px 4px;
   border-radius: 10px;
   cursor: pointer;
 }
@@ -501,7 +524,7 @@ defineExpose({ goToDate, goToToday, step, mode, activeIndex });
 .day-chips {
   display: flex;
   gap: 4px;
-  padding: 4px 0 8px;
+  padding: 2px 0 6px;
 }
 
 .day-chip {
@@ -509,11 +532,11 @@ defineExpose({ goToDate, goToToday, step, mode, activeIndex });
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 4px 0;
+  padding: 2px 0;
   border: 0;
   background: none;
   font: inherit;
-  border-radius: 14px;
+  border-radius: 12px;
   color: rgb(var(--v-theme-on-surface-variant));
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -525,8 +548,9 @@ defineExpose({ goToDate, goToToday, step, mode, activeIndex });
 }
 
 .day-chip .num {
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 700;
+  line-height: 1.2;
 }
 
 .day-chip.active {
@@ -592,7 +616,7 @@ defineExpose({ goToDate, goToToday, step, mode, activeIndex });
 .rail-hours {
   position: relative;
   height: var(--grid-h);
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .hour {
@@ -634,6 +658,11 @@ defineExpose({ goToDate, goToToday, step, mode, activeIndex });
   padding: 6px 4px;
   background: rgb(var(--v-theme-surface));
   border-bottom: 1px solid rgb(var(--v-theme-outline-variant));
+}
+
+.day-head.empty {
+  padding: 0;
+  border-bottom: 0;
 }
 
 .day-date {
@@ -700,7 +729,7 @@ button.day-date {
 .day-body {
   position: relative;
   height: var(--grid-h);
-  margin: 10px 0;
+  margin: 8px 0;
 }
 
 .day-col.today .day-body {

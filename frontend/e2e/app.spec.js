@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { FIXTURE } from "./global-setup.js";
-import { openApp, expectNoHorizontalOverflow, goToTab, topBarTitle } from "./helpers.js";
+import { openApp, expectNoHorizontalOverflow, goToTab, topBarTitle, isMobile } from "./helpers.js";
 
 const promoA = FIXTURE.promoA.replace(/\.ics$/, "");
 const promoAQuery = new RegExp(`/\\?file=${encodeURIComponent(FIXTURE.promoA)}`);
@@ -74,6 +74,14 @@ test.describe("native planning grid", () => {
 
     await page.getByRole("button", { name: `Afficher ${longDay(nextMonday)}` }).click();
     await expect(page.getByRole("button", { name: "Vue jour" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("the whole day fits on a phone without vertical scrolling", async ({ page }, testInfo) => {
+    test.skip(!isMobile(testInfo), "phone layout");
+    await openApp(page);
+    await page.getByRole("button", { name: "Vue jour" }).click();
+    const { client, scroll } = await page.locator(".grid-scroller").evaluate((el) => ({ client: el.clientHeight, scroll: el.scrollHeight }));
+    expect(scroll).toBeLessThanOrEqual(client + 1);
   });
 
   test("course details open in a sheet and close with Escape", async ({ page }) => {
