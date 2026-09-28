@@ -106,11 +106,11 @@ func (c *Client) FetchMenu(ctx context.Context) ([]FilteredDayMenu, error) {
 		return nil, fmt.Errorf("failed to decode CROUStillant JSON: %w", err)
 	}
 
-	return parseAndFilterMenus(apiResp)
+	return parseAndFilterMenus(apiResp), nil
 }
 
 // parseAndFilterMenus processes the raw API response and keeps only Saveurs du jour & Pâtes.
-func parseAndFilterMenus(apiResp APIResponse) ([]FilteredDayMenu, error) {
+func parseAndFilterMenus(apiResp APIResponse) []FilteredDayMenu {
 	var result []FilteredDayMenu
 
 	for _, day := range apiResp.Data {
@@ -154,7 +154,7 @@ func parseAndFilterMenus(apiResp APIResponse) ([]FilteredDayMenu, error) {
 		}
 	}
 
-	return result, nil
+	return result
 }
 
 // cleanDishName cleans and capitalizes dish names.

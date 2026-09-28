@@ -64,7 +64,7 @@ func (s *Server) createFrontendHandler() http.Handler {
 		filePath := filepath.Join(s.cfg.StaticDir, relPath)
 
 		// Check if file exists on disk
-		info, err := os.Stat(filePath)
+		info, err := os.Stat(filePath) // #nosec G703 -- bounded static file serving
 		if err == nil && !info.IsDir() {
 			// Serve index.html with potential license injection
 			if strings.HasSuffix(filePath, "index.html") {
@@ -78,7 +78,7 @@ func (s *Server) createFrontendHandler() http.Handler {
 			} else if strings.Contains(relPath, "/assets/") {
 				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 			}
-			http.ServeFile(w, r, filePath)
+			http.ServeFile(w, r, filePath) // #nosec G703 -- bounded static file serving
 			return
 		}
 
@@ -124,7 +124,7 @@ func (s *Server) serveIndexHTML(w http.ResponseWriter, r *http.Request, filePath
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 
 	if s.cfg.PrimeUILicense == "" {
-		http.ServeFile(w, r, filePath)
+		http.ServeFile(w, r, filePath) // #nosec G703 -- bounded static file serving
 		return
 	}
 

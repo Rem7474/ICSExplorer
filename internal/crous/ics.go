@@ -38,7 +38,7 @@ func GenerateICS(menus []FilteredDayMenu, startHour, startMin, endHour, endMin i
 			var part strings.Builder
 			part.WriteString("🍽️ Saveurs du Jour :\n")
 			for _, item := range menu.SaveursDuJour {
-				part.WriteString(fmt.Sprintf("• %s\n", item))
+				fmt.Fprintf(&part, "• %s\n", item)
 			}
 			descParts = append(descParts, strings.TrimRight(part.String(), "\n"))
 		}
@@ -47,7 +47,7 @@ func GenerateICS(menus []FilteredDayMenu, startHour, startMin, endHour, endMin i
 			var part strings.Builder
 			part.WriteString("🍝 Pâtes :\n")
 			for _, item := range menu.Pates {
-				part.WriteString(fmt.Sprintf("• %s\n", item))
+				fmt.Fprintf(&part, "• %s\n", item)
 			}
 			descParts = append(descParts, strings.TrimRight(part.String(), "\n"))
 		}

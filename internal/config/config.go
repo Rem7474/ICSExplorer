@@ -137,7 +137,7 @@ func getEnvBool(key string, fallback bool) bool {
 	return fallback
 }
 
-func parseTimeSlot(slotStr string, fallbackHour, fallbackMin int) (int, int) {
+func parseTimeSlot(slotStr string, fallbackHour, fallbackMin int) (hour, minute int) {
 	parts := strings.Split(strings.TrimSpace(slotStr), ":")
 	if len(parts) == 2 {
 		h, err1 := strconv.Atoi(parts[0])

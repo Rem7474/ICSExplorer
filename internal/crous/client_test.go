@@ -63,10 +63,7 @@ func TestParseAndFilterMenus(t *testing.T) {
 		},
 	}
 
-	filtered, err := parseAndFilterMenus(sampleResp)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	filtered := parseAndFilterMenus(sampleResp)
 
 	if len(filtered) != 1 {
 		t.Fatalf("expected 1 filtered day, got %d", len(filtered))
@@ -150,6 +147,6 @@ func TestLiveFetchAndGenerate(t *testing.T) {
 	if len(icsData) == 0 {
 		t.Fatal("generated ICS is empty")
 	}
-	_ = os.WriteFile("../../data/output/ru.ics", icsData, 0644)
+	_ = os.WriteFile("../../data/output/ru.ics", icsData, 0o644)
 	t.Logf("successfully fetched %d days of menu and wrote ru.ics", len(menus))
 }
