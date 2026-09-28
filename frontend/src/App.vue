@@ -109,9 +109,13 @@ const onJumpToWeek = (date) => {
 
 <template>
   <div class="app-root">
+    <a class="skip-link" href="#planning">Aller au planning</a>
+
     <AppHeader
       :health="schedule.serverHealth"
       :is-personal-active="schedule.selectedMode === 'personal'"
+      :is-online="schedule.isOnline"
+      :now="schedule.currentTime"
       @open-personal-schedule="isPersonalScheduleModalOpen = true"
     />
 
@@ -135,10 +139,10 @@ const onJumpToWeek = (date) => {
       <FavoritesBar :current-key="currentKey" @select="onSelectFavorite" />
 
       <!-- Status or error message -->
-      <div v-if="schedule.statusMessage" class="status-banner card">
+      <div v-if="schedule.statusMessage" class="status-banner card" role="status">
         <span class="status-message-text">{{ schedule.statusMessage }}</span>
         <button
-          v-if="schedule.statusMessage.toLowerCase().includes('identifiant') || schedule.statusMessage.toLowerCase().includes('compte ade') || schedule.statusMessage.toLowerCase().includes('planning personnel')"
+          v-if="schedule.statusAction === 'configure-personal'"
           type="button"
           class="btn btn-primary btn-sm status-action-btn"
           @click="isPersonalScheduleModalOpen = true"
@@ -163,7 +167,7 @@ const onJumpToWeek = (date) => {
       </div>
 
       <!-- Schedule Section -->
-      <div v-else class="card schedule-main-card">
+      <div v-else id="planning" class="card schedule-main-card" tabindex="-1">
         <!-- Week Statistics & Subject Filter Chips -->
         <WeekStatsSkeleton v-if="schedule.isLoading && schedule.weekEvents.length === 0" />
         <WeekStats
@@ -194,13 +198,19 @@ const onJumpToWeek = (date) => {
     <footer class="footer">
       <div class="container footer-content">
         <span class="footer-brand">
-          EDT Esisar
+          ICSExplorer
           <span v-if="appVersion" class="version-tag">{{ appVersion }}</span>
         </span>
         <div class="footer-links">
-          <a href="/api/health" target="_blank" rel="noopener">Santé API</a>
-          <a href="/api/status" target="_blank" rel="noopener">Statut Synchro</a>
-          <a href="/output/files.json" target="_blank" rel="noopener">Index Fichiers</a>
+          <a href="https://github.com/Rem7474/ICSExplorer" target="_blank" rel="noopener">Code source</a>
+          <details class="footer-diagnostics">
+            <summary>Diagnostic</summary>
+            <div class="footer-diagnostics-links">
+              <a href="/api/health" target="_blank" rel="noopener">Santé API</a>
+              <a href="/api/status" target="_blank" rel="noopener">Statut synchro</a>
+              <a href="/output/files.json" target="_blank" rel="noopener">Index des fichiers</a>
+            </div>
+          </details>
         </div>
       </div>
     </footer>
@@ -310,7 +320,54 @@ main {
 
 .footer-links {
   display: flex;
+  align-items: flex-start;
   gap: 1rem;
+}
+
+.footer-diagnostics summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.footer-diagnostics summary::-webkit-details-marker {
+  display: none;
+}
+
+.footer-diagnostics summary::after {
+  content: " ▾";
+}
+
+.footer-diagnostics[open] summary::after {
+  content: " ▴";
+}
+
+.footer-diagnostics-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.35rem;
+}
+
+.skip-link {
+  position: absolute;
+  left: 0.75rem;
+  top: -3rem;
+  z-index: 2000;
+  padding: 0.5rem 0.9rem;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+  transition: top 0.15s ease;
+}
+
+.skip-link:focus {
+  top: 0.75rem;
+}
+
+.schedule-main-card:focus {
+  outline: none;
 }
 
 .footer-links a {

@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from "vue";
 import { useTheme } from "../composables/useTheme.js";
+import { formatRelativeTime, formatDateTime } from "../utils/dates.js";
 
 const props = defineProps({
   health: {
@@ -11,18 +12,43 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  isOnline: {
+    type: Boolean,
+    default: true,
+  },
+  // Current time (ms), refreshed by the parent so relative ages stay live.
+  now: {
+    type: Number,
+    default: () => Date.now(),
+  },
 });
 
 defineEmits(["openPersonalSchedule"]);
 
 const { isDark, toggleTheme } = useTheme();
 
+// Visitor-facing freshness indicator: how old the displayed data is, rather
+// than server-side sync jargon.
 const healthBadge = computed(() => {
-  if (!props.health) return { text: "En ligne", class: "status-online" };
-  if (props.health.status === "healthy") {
-    return { text: "Synchronisé", class: "status-online", title: `Dernière synchro: ${props.health.last_sync_age || 'récente'}` };
+  if (!props.isOnline) {
+    return {
+      text: "Hors ligne",
+      class: "status-offline",
+      title: "Pas de connexion : affichage des dernières données enregistrées sur cet appareil",
+    };
   }
-  return { text: "Synchro requise", class: "status-warning", title: props.health.errors?.join(", ") || "Synchronisation requise" };
+  const lastSync = props.health?.last_sync;
+  const age = formatRelativeTime(lastSync, props.now);
+  const syncedAt = lastSync ? `Dernière mise à jour des plannings : ${formatDateTime(lastSync)}` : "";
+
+  if (!props.health) return { text: "En ligne", class: "status-online", title: "" };
+  if (props.health.status === "healthy") {
+    return { text: age ? `À jour · ${age}` : "À jour", class: "status-online", title: syncedAt };
+  }
+  if (lastSync) {
+    return { text: `Données anciennes · ${age}`, class: "status-warning", title: syncedAt };
+  }
+  return { text: "Mise à jour en attente", class: "status-warning", title: "Les plannings n'ont pas encore été synchronisés" };
 });
 </script>
 
@@ -32,9 +58,14 @@ const healthBadge = computed(() => {
       <div class="header-content">
         <div class="brand-area">
           <div class="brand-title-row">
-            <h1 class="brand-title">EDT Esisar</h1>
-            <span class="status-pill" :class="healthBadge.class" :title="healthBadge.title">
-              <span class="status-dot">●</span>
+            <h1 class="brand-title">ICSExplorer</h1>
+            <span
+              class="status-pill"
+              :class="healthBadge.class"
+              :title="healthBadge.title || undefined"
+              role="status"
+            >
+              <span class="status-dot" aria-hidden="true">●</span>
               {{ healthBadge.text }}
             </span>
           </div>
@@ -134,6 +165,10 @@ const healthBadge = computed(() => {
 
 .status-warning .status-dot {
   color: #fbbf24;
+}
+
+.status-offline .status-dot {
+  color: #cbd5e1;
 }
 
 .header-actions {

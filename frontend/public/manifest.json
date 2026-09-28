@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "ICSExplorer — Emplois du temps",
   "short_name": "ICSExplorer",
   "description": "Visualisez et explorez vos emplois du temps universitaires au format ICS. Plannings semaine, salles libres, planning personnel ADE.",
@@ -9,7 +9,7 @@
   "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "orientation": "portrait-primary",
   "background_color": "#0f172a",
-  "theme_color": "#7c3aed",
+  "theme_color": "#1e3a8a",
   "lang": "fr",
   "categories": ["productivity", "education"],
   "icons": [
