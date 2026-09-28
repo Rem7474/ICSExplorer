@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, unref } from "vue";
-import { getSubjectType, getSubjectColors, getSubjectFullName } from "../utils/colors.js";
+import { getSubjectType, getSubjectColors, getSubjectFullName, isRuEvent } from "../utils/colors.js";
 import { useTheme } from "../composables/useTheme.js";
 
 const props = defineProps({
@@ -49,8 +49,8 @@ const stats = computed(() => {
     if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) continue;
 
     const duration = (end - start) / (1000 * 60); // in minutes
-    // Exclude multi-day / banner events (> 14h) or negative durations from weekly course stats
-    if (duration <= 0 || duration > 14 * 60) continue;
+    // Exclude multi-day / banner events (> 14h), negative durations, or RU meal slots from weekly course stats
+    if (duration <= 0 || duration > 14 * 60 || ev.isRu || isRuEvent(ev)) continue;
 
     totalMinutes += duration;
 

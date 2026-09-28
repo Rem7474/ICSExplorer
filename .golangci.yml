@@ -19,6 +19,7 @@ linters:
       excludes:
         - G304
         - G306
+        - G703
     govet:
       enable-all: false
     misspell:

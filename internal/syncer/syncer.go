@@ -14,6 +14,7 @@ import (
 
 	"github.com/Rem7474/ICSExplorer/internal/ade"
 	"github.com/Rem7474/ICSExplorer/internal/config"
+	"github.com/Rem7474/ICSExplorer/internal/crous"
 	"github.com/Rem7474/ICSExplorer/internal/ics"
 )
 
@@ -109,6 +110,20 @@ func (s *Syncer) Sync(ctx context.Context) error {
 			// Save raw cercle.ics in output directory for frontend use
 			_ = os.WriteFile(filepath.Join(s.cfg.OutputDir, "cercle.ics"), cData, 0o644)
 			s.logger.Info("Cercle calendar downloaded successfully")
+		}
+	}
+
+	// Step 2b: Optionally fetch RU Briff'O menus and save as standalone ru.ics
+	if s.cfg.SyncRU {
+		s.logger.Info("downloading RU Briff'O menus from CROUStillant Open Data...", "restaurant_id", s.cfg.RURestaurantID)
+		ruClient := crous.NewClient(s.cfg.RURestaurantID)
+		menus, err := ruClient.FetchMenu(ctx)
+		if err != nil {
+			s.logger.Warn("failed to fetch RU menu", "error", err)
+		} else if len(menus) > 0 {
+			icsData := crous.GenerateICS(menus, s.cfg.RUSlotStartHour, s.cfg.RUSlotStartMin, s.cfg.RUSlotEndHour, s.cfg.RUSlotEndMin)
+			_ = os.WriteFile(filepath.Join(s.cfg.OutputDir, "ru.ics"), icsData, 0o644)
+			s.logger.Info("RU Briff'O menu downloaded and generated successfully", "days", len(menus))
 		}
 	}
 

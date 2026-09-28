@@ -82,13 +82,21 @@ export const parseIcs = (icsText) => {
           currentEvent.uid = value;
         } else if (key === "CATEGORIES") {
           currentEvent.categories = value;
-          if (value.toUpperCase().includes("CERCLE")) {
+          const upperVal = value.toUpperCase();
+          if (upperVal.includes("CERCLE")) {
             currentEvent.isCercle = true;
+          }
+          if (upperVal.includes("RU") || upperVal.includes("CROUS")) {
+            currentEvent.isRu = true;
           }
         } else if (key === "X-SOURCE") {
           currentEvent.source = value;
-          if (value.toUpperCase().includes("CERCLE")) {
+          const upperVal = value.toUpperCase();
+          if (upperVal.includes("CERCLE")) {
             currentEvent.isCercle = true;
+          }
+          if (upperVal.includes("RU") || upperVal.includes("BRIFF")) {
+            currentEvent.isRu = true;
           }
         }
       }

@@ -2,7 +2,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, unref } from "vue";
 import Button from "primevue/button";
 import { formatDateOnly, formatTimeOnly, isAllDayEvent, getWeekStart } from "../utils/dates.js";
-import { getSubjectColors, isCercleEvent } from "../utils/colors.js";
+import { getSubjectColors, isCercleEvent, isRuEvent } from "../utils/colors.js";
 import { useTheme } from "../composables/useTheme.js";
 
 function getDayWeekday(date) {
@@ -754,7 +754,10 @@ defineExpose({
             v-for="ev in day.allDayEvents"
             :key="ev.uid || ev.summary"
             class="allday-badge"
-            :class="{ 'event-cercle': isCercleEvent(ev) }"
+            :class="{
+              'event-ru': isRuEvent(ev),
+              'event-cercle': isCercleEvent(ev),
+            }"
             tabindex="0"
             role="button"
             :title="ev.summary + (ev.location ? ' — ' + ev.location : '')"
@@ -767,7 +770,10 @@ defineExpose({
             @keydown.enter="emit('eventClick', ev)"
             @keydown.space.prevent="emit('eventClick', ev)"
           >
-            <span v-if="isCercleEvent(ev)" class="cercle-event-badge mr-1">
+            <span v-if="isRuEvent(ev)" class="ru-event-badge mr-1">
+              <i class="pi pi-utensils" aria-hidden="true"></i> RU Briff'O
+            </span>
+            <span v-else-if="isCercleEvent(ev)" class="cercle-event-badge mr-1">
               <i class="pi pi-sparkles" aria-hidden="true"></i> Cercle Esisar
             </span>
             <span class="allday-title">{{ ev.summary }}</span>
@@ -792,6 +798,7 @@ defineExpose({
             :key="ev.uid || ev.summary"
             class="event"
             :class="{
+              'event-ru': isRuEvent(ev),
               'event-cercle': isCercleEvent(ev),
               'event-compact': ev.height < 48
             }"
@@ -810,7 +817,10 @@ defineExpose({
             @keydown.enter="emit('eventClick', ev)"
             @keydown.space.prevent="emit('eventClick', ev)"
           >
-            <span v-if="isCercleEvent(ev)" class="cercle-event-badge">
+            <span v-if="isRuEvent(ev)" class="ru-event-badge">
+              <i class="pi pi-utensils" aria-hidden="true"></i> RU Briff'O
+            </span>
+            <span v-else-if="isCercleEvent(ev)" class="cercle-event-badge">
               <i class="pi pi-sparkles" aria-hidden="true"></i> Cercle Esisar
             </span>
             <h4 class="event-title">{{ ev.summary }}</h4>
@@ -1424,6 +1434,29 @@ defineExpose({
 .event.event-cercle {
   border-left-width: 5px;
   box-shadow: 0 1px 3px rgba(147, 51, 234, 0.15);
+}
+
+.ru-event-badge {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  background: rgba(234, 88, 12, 0.2);
+  color: #9a3412;
+  margin-bottom: 0.1rem;
+}
+
+:global(.dark-mode) .ru-event-badge {
+  background: rgba(251, 146, 60, 0.25);
+  color: #ffedd5;
+}
+
+.event.event-ru {
+  border-left-width: 5px;
+  box-shadow: 0 1px 3px rgba(234, 88, 12, 0.15);
 }
 
 .event-time {

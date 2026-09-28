@@ -68,6 +68,21 @@ export const fetchCercleEvents = async () => {
   }
 };
 
+export const fetchRuEvents = async () => {
+  try {
+    const text = await fetchIcsText("ru.ics");
+    const parsed = parseIcs(text);
+    return parsed.map((e) => ({
+      ...e,
+      isRu: true,
+      categories: e.categories ? `${e.categories},RU` : "RU",
+      source: "RU Briff'O",
+    }));
+  } catch {
+    return [];
+  }
+};
+
 export const fetchUniversities = async () => {
   const resp = await fetch("/api/universities", { cache: "no-store" });
   if (!resp.ok) {

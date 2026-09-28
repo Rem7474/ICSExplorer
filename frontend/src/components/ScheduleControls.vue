@@ -628,6 +628,18 @@ const copyShareLink = async () => {
         <span class="btn-text">Salles vides</span>
       </button>
 
+      <button
+        type="button"
+        class="btn btn-outline btn-ru-menu"
+        :class="{ 'btn-ru-active': schedule.showRuMenu }"
+        :title="schedule.showRuMenu ? 'Masquer le menu du restaurant universitaire (RU Briff\'O)' : 'Afficher le menu du restaurant universitaire (RU Briff\'O)'"
+        :aria-label="schedule.showRuMenu ? 'Masquer le menu du RU' : 'Afficher le menu du RU'"
+        @click="schedule.toggleRuMenu?.()"
+      >
+        <span class="ru-icon" style="margin-right: 0.35rem; font-size: 0.9rem;" aria-hidden="true">🍽️</span>
+        <span class="btn-text">Menu RU</span>
+      </button>
+
       <a
         v-if="canCopyIcsLink"
         :href="currentIcsUrl"
@@ -1000,6 +1012,22 @@ const copyShareLink = async () => {
   border-color: #ef4444;
 }
 
+.btn-ru-menu {
+  transition: all 0.2s ease;
+}
+
+.btn-ru-menu.btn-ru-active {
+  border-color: #ea580c;
+  color: #ea580c;
+  background-color: rgba(234, 88, 12, 0.08);
+}
+
+:root[class~="dark"] .btn-ru-menu.btn-ru-active {
+  border-color: #fb923c;
+  color: #fdba74;
+  background-color: rgba(251, 146, 60, 0.14);
+}
+
 @media (max-width: 640px) {
   .control-group.span-3 {
     grid-column: span 1;
@@ -1114,6 +1142,7 @@ const copyShareLink = async () => {
   }
 
   .btn-pin,
+  .btn-ru-menu,
   .btn-copy-link,
   .btn-share {
     flex-shrink: 0 !important;
