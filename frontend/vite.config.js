@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
+import vuetify from "vite-plugin-vuetify";
 import { fileURLToPath, URL } from "node:url";
 import fs from "node:fs";
 
@@ -31,7 +32,7 @@ function serviceWorkerVersionPlugin(version) {
 export default defineConfig({
   envDir: "../",
   envPrefix: ["VITE_", "PRIMEUI_"],
-  plugins: [vue(), serviceWorkerVersionPlugin(appVersion)],
+  plugins: [vue(), vuetify({ autoImport: true }), serviceWorkerVersionPlugin(appVersion)],
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
@@ -49,6 +50,7 @@ export default defineConfig({
     // e2e/ holds Playwright specs, run separately with `npm run test:e2e`.
     include: ["src/**/*.{test,spec}.js"],
     environment: "jsdom",
+    server: { deps: { inline: ["vuetify"] } },
     globals: true,
     setupFiles: ["./src/__tests__/setup.js"],
   },

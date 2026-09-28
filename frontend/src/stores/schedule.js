@@ -7,7 +7,7 @@ import { getTeacherIndex, getRoomIndex, clearAggregatedCache } from "../ics/aggr
 import { getSubjectType, getDiscipline, isRuEvent } from "../utils/colors.js";
 import { scrubStoredCredentials } from "../utils/credentials.js";
 import { useToast } from "../composables/useToast.js";
-import { router, SCHEDULE_QUERY_KEYS } from "../router/index.js";
+import { router, SCHEDULE_QUERY_KEYS, PLANNING_PATH } from "../router/index.js";
 import { readJSON, write, SELECTION_KEY, BASE_SCHEDULE_KEY, DISABLED_SUBJECTS_KEY } from "./storage.js";
 import { useCatalogStore } from "./catalog.js";
 import { useOverlaysStore } from "./overlays.js";
@@ -105,6 +105,24 @@ export const useScheduleStore = defineStore("schedule", () => {
 
   const currentWeekEnd = computed(() => getWeekEnd(currentWeekStart.value));
 
+  /** Query string describing the displayed schedule (used by the Planning tab link). */
+  const scheduleQuery = computed(() => {
+    if (selectedMode.value === "personal") return { mode: "personal" };
+    if (selectedMode.value === "teacher" && selectedTeacher.value) return { teacher: selectedTeacher.value };
+    if (selectedMode.value === "room" && selectedRoom.value) return { room: selectedRoom.value };
+    if (selectedFile.value) return { file: selectedFile.value };
+    return {};
+  });
+
+  /** Human-readable name of the displayed schedule. */
+  const scheduleLabel = computed(() => {
+    if (selectedMode.value === "personal") return personal.personalScheduleInfo?.name || "Mon planning ADE";
+    if (selectedMode.value === "teacher" && selectedTeacher.value) return selectedTeacher.value;
+    if (selectedMode.value === "room" && selectedRoom.value) return `Salle ${selectedRoom.value}`;
+    if (selectedFile.value) return selectedFile.value.replace(/\.ics$/i, "");
+    return "";
+  });
+
   const weekEvents = computed(() =>
     events.value.filter((ev) => new Date(ev.start) <= currentWeekEnd.value && new Date(ev.end) >= currentWeekStart.value)
   );
@@ -183,6 +201,9 @@ export const useScheduleStore = defineStore("schedule", () => {
       if (params[key]) target.searchParams.set(key, params[key]);
       else target.searchParams.delete(key);
     }
+    // Choosing a schedule (user action) shows it on the Planning screen;
+    // restoring state keeps the current screen (e.g. a deep link to /plus).
+    if (!restoringHistory) target.pathname = PLANNING_PATH;
     // Dedupe against the real address bar (not the router's own record, which
     // can lag if something else touched the history), then force the navigation.
     if (target.href === window.location.href) return;
@@ -200,7 +221,13 @@ export const useScheduleStore = defineStore("schedule", () => {
   };
 
   const applyUrlState = async () => {
+    // Only the Planning screen encodes a schedule; going Back to another tab
+    // keeps the schedule currently displayed.
+    if (window.location.pathname !== PLANNING_PATH) return;
     const params = new URLSearchParams(window.location.search);
+    // Returning to the schedule already displayed: nothing to reload.
+    const current = new URLSearchParams(scheduleQuery.value);
+    if (events.value.length > 0 && current.toString() && current.toString() === params.toString()) return;
     const teacher = params.get("teacher");
     const room = params.get("room");
     const file = params.get("file");
@@ -671,6 +698,8 @@ export const useScheduleStore = defineStore("schedule", () => {
     availableTypes,
     availableRestFiles,
     currentWeekEnd,
+    scheduleQuery,
+    scheduleLabel,
     weekEvents,
     displayedWeekEvents,
     nextCourse,
