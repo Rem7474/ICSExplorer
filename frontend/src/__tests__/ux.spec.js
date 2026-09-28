@@ -202,3 +202,21 @@ describe("ScheduleWeek accessibility", () => {
     expect(label).toContain("salle A042");
   });
 });
+
+describe("mobile toolbar", () => {
+  it("keeps an accessible name on every button that becomes icon-only on phones", () => {
+    const schedule = useSchedule();
+    schedule.availableFiles.value = ["1A-Prépa-TP1.ics"];
+    schedule.selectedMode.value = "student";
+    schedule.selectedFile.value = "1A-Prépa-TP1.ics";
+    schedule.selectedType.value = "TP1";
+    const wrapper = mount(ScheduleControls, { props: { schedule } });
+
+    for (const sel of [".btn-pin", ".btn-copy-link", ".btn-subscribe", ".btn-share", ".btn-load-action"]) {
+      const el = wrapper.find(sel);
+      expect(el.exists(), sel).toBe(true);
+      expect(el.attributes("aria-label"), sel).toBeTruthy();
+    }
+    expect(wrapper.findAll(".mode-tab-btn").map((t) => t.find(".tab-label-mobile, span:not(.tab-label-desktop)").exists())).toEqual([true, true, true, true]);
+  });
+});
