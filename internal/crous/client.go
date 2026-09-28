@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -102,7 +103,7 @@ func (c *Client) FetchMenu(ctx context.Context) ([]FilteredDayMenu, error) {
 	}
 
 	var apiResp APIResponse
-	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(&apiResp); err != nil {
 		return nil, fmt.Errorf("failed to decode CROUStillant JSON: %w", err)
 	}
 

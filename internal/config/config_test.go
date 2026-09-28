@@ -76,3 +76,30 @@ func TestLoadCustomEnv(t *testing.T) {
 		t.Errorf("expected login/pass testuser/testpass, got %q/%q", cfg.AgalanLogin, cfg.AgalanPassword)
 	}
 }
+
+func TestParseTrustedProxies(t *testing.T) {
+	got, err := parseTrustedProxies(" 127.0.0.1 , 172.16.0.0/12,::1,")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := []string{"127.0.0.1/32", "172.16.0.0/12", "::1/128"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %d prefixes, got %v", len(want), got)
+	}
+	for i, w := range want {
+		if got[i].String() != w {
+			t.Errorf("prefix %d = %s, want %s", i, got[i], w)
+		}
+	}
+
+	if _, err := parseTrustedProxies("not-an-ip"); err == nil {
+		t.Error("expected an error for an invalid entry")
+	}
+}
+
+func TestLoadRejectsInvalidTrustedProxies(t *testing.T) {
+	t.Setenv("TRUSTED_PROXIES", "10.0.0.0/99")
+	if _, err := Load(); err == nil {
+		t.Error("expected Load() to fail on an invalid TRUSTED_PROXIES value")
+	}
+}

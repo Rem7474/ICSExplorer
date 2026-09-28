@@ -3,8 +3,6 @@ package ade
 import (
 	"context"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
@@ -69,33 +67,13 @@ func (c *Client) FetchTreeNodes(ctx context.Context, category string, branchPath
 
 func (c *Client) fetchDirectTokenTreeNodes(ctx context.Context, dataToken, category string, branchPath []string) ([]TreeNode, error) {
 	// 1. Ensure session
-	directPlanningURL := fmt.Sprintf("%s/jsp/custom/modules/plannings/direct_planning.jsp?data=%s", c.baseURL, dataToken)
-	req1, err := http.NewRequestWithContext(ctx, http.MethodGet, directPlanningURL, http.NoBody)
-	if err != nil {
-		return nil, err
-	}
-	req1.Header.Set("User-Agent", userAgent)
-	resp1, err := c.httpClient.Do(req1)
-	if err != nil {
+	entry := c.directPlanningURL(dataToken)
+	if _, _, err := c.directGet(ctx, entry, "", maxPageBytes); err != nil {
 		return nil, fmt.Errorf("failed to connect to direct portal: %w", err)
 	}
-	resp1.Body.Close()
 
 	// 2. Open category in session
-	catURL := fmt.Sprintf("%s/jsp/standard/gui/tree.jsp?category=%s&expand=false&forceLoad=false&reload=false&scroll=0",
-		c.baseURL, url.QueryEscape(category))
-	reqCat, err := http.NewRequestWithContext(ctx, http.MethodGet, catURL, http.NoBody)
-	if err != nil {
-		return nil, err
-	}
-	reqCat.Header.Set("User-Agent", userAgent)
-	reqCat.Header.Set("Referer", directPlanningURL)
-	respCat, err := c.httpClient.Do(reqCat)
-	if err != nil {
-		return nil, err
-	}
-	body, err := io.ReadAll(respCat.Body)
-	respCat.Body.Close()
+	body, _, err := c.directGet(ctx, c.directCategoryURL(category), entry, maxPageBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -106,21 +84,7 @@ func (c *Client) fetchDirectTokenTreeNodes(ctx context.Context, dataToken, categ
 		if bID == "" {
 			continue
 		}
-		treeURL := fmt.Sprintf("%s/jsp/standard/gui/tree.jsp?branchId=%s&expand=false&forceLoad=false&reload=false&scroll=0",
-			c.baseURL, url.QueryEscape(bID))
-		reqB, err := http.NewRequestWithContext(ctx, http.MethodGet, treeURL, http.NoBody)
-		if err != nil {
-			return nil, err
-		}
-		reqB.Header.Set("User-Agent", userAgent)
-		reqB.Header.Set("Referer", directPlanningURL)
-
-		respB, err := c.httpClient.Do(reqB)
-		if err != nil {
-			return nil, err
-		}
-		body, err = io.ReadAll(respB.Body)
-		respB.Body.Close()
+		body, _, err = c.directGet(ctx, c.directTreeURL(bID), entry, maxPageBytes)
 		if err != nil {
 			return nil, err
 		}

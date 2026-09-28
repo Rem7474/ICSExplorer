@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -36,6 +37,9 @@ type Config struct {
 	LogFormat        string
 	AdminToken       string
 	PrimeUILicense   string
+	// TrustedProxies lists the reverse proxies whose X-Forwarded-For and
+	// X-Forwarded-Proto headers are honored (e.g. "127.0.0.1,172.16.0.0/12").
+	TrustedProxies []netip.Prefix
 }
 
 // DefaultCercleURL is the official public Google Calendar of Cercle Esisar.
@@ -88,6 +92,11 @@ func Load() (*Config, error) {
 		minFileSize = 50000
 	}
 
+	trustedProxies, err := parseTrustedProxies(getEnv("TRUSTED_PROXIES", ""))
+	if err != nil {
+		return nil, err
+	}
+
 	startH, startM := parseTimeSlot(getEnv("RU_SLOT_START", "12:00"), 12, 0)
 	endH, endM := parseTimeSlot(getEnv("RU_SLOT_END", "13:00"), 13, 0)
 
@@ -117,6 +126,7 @@ func Load() (*Config, error) {
 		LogFormat:        strings.ToLower(getEnv("LOG_FORMAT", "text")),
 		AdminToken:       getEnv("ADMIN_TOKEN", ""),
 		PrimeUILicense:   getEnv("PRIMEUI_LICENSE", getEnv("VITE_PRIMEUI_LICENSE", "")),
+		TrustedProxies:   trustedProxies,
 	}
 
 	return cfg, nil
@@ -147,4 +157,32 @@ func parseTimeSlot(slotStr string, fallbackHour, fallbackMin int) (hour, minute 
 		}
 	}
 	return fallbackHour, fallbackMin
+}
+
+// parseTrustedProxies parses a comma-separated list of IP addresses and/or
+// CIDR prefixes. An invalid entry is a configuration error rather than being
+// silently ignored, since it would change which client IP gets rate-limited.
+func parseTrustedProxies(raw string) ([]netip.Prefix, error) {
+	var prefixes []netip.Prefix
+	for _, entry := range strings.Split(raw, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		if strings.Contains(entry, "/") {
+			p, err := netip.ParsePrefix(entry)
+			if err != nil {
+				return nil, fmt.Errorf("invalid TRUSTED_PROXIES entry %q: %w", entry, err)
+			}
+			prefixes = append(prefixes, p.Masked())
+			continue
+		}
+		addr, err := netip.ParseAddr(entry)
+		if err != nil {
+			return nil, fmt.Errorf("invalid TRUSTED_PROXIES entry %q: %w", entry, err)
+		}
+		addr = addr.Unmap()
+		prefixes = append(prefixes, netip.PrefixFrom(addr, addr.BitLen()))
+	}
+	return prefixes, nil
 }

@@ -9,13 +9,61 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/Rem7474/ICSExplorer/internal/ics"
+	"github.com/Rem7474/ICSExplorer/internal/netsafe"
 )
+
+// EsisarBaseURL and EsisarInstitutionPath identify the Grenoble INP / Esisar
+// ADE instance used by the background sync.
+const (
+	EsisarBaseURL         = "https://edt.grenoble-inp.fr"
+	EsisarInstitutionPath = "etudiant/esisar"
+)
+
+// Upstream response size caps: ADE is a third-party server, so a misbehaving
+// (or malicious, for user-supplied URLs) upstream must not be able to exhaust
+// the server's memory.
+const (
+	maxCalendarBytes = 32 << 20 // 32 MiB
+	maxPageBytes     = 4 << 20  // 4 MiB
+)
+
+// maxTreeRequests caps the number of tree.jsp requests a single
+// CollectLeavesUnderPath call may issue, so one API call cannot fan out into
+// thousands of upstream requests.
+const maxTreeRequests = 150
+
+var resourceIDsRegex = regexp.MustCompile(`^[A-Za-z0-9_-]{1,32}(,[A-Za-z0-9_-]{1,32})*$`)
+
+// maxResourceIDsLen bounds the resources query parameter (a few hundred IDs).
+const maxResourceIDsLen = 6500
+
+// ErrInvalidResourceIDs is returned when resource IDs are not a comma-separated list of plain IDs.
+var ErrInvalidResourceIDs = errors.New("invalid resource IDs")
+
+// ValidResourceIDs reports whether ids is empty or a comma-separated list of ADE IDs
+// (alphanumeric tokens only, so they cannot inject extra query parameters).
+func ValidResourceIDs(ids string) bool {
+	return ids == "" || (len(ids) <= maxResourceIDsLen && resourceIDsRegex.MatchString(ids))
+}
+
+// readLimited reads at most limit bytes from r and fails if the body is larger.
+func readLimited(r io.Reader, limit int64) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(r, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return nil, fmt.Errorf("upstream response exceeds %d bytes", limit)
+	}
+	return data, nil
+}
 
 const userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
@@ -82,9 +130,16 @@ func NewClient(login, password, academicYear string) *Client {
 		login:           login,
 		password:        password,
 		academicYear:    academicYear,
-		baseURL:         "https://edt.grenoble-inp.fr",
-		institutionPath: "etudiant/esisar",
+		baseURL:         EsisarBaseURL,
+		institutionPath: EsisarInstitutionPath,
 	}
+}
+
+// UseNetworkPolicy replaces the client's transport with one enforcing p (see
+// package netsafe). It must be called for every client whose target was
+// supplied by an end user.
+func (c *Client) UseNetworkPolicy(p netsafe.Policy) {
+	c.httpClient = p.Client(c.httpClient.Timeout, c.cookieJar)
 }
 
 // NewClientForInstitution creates an ADE client targeting an arbitrary ADE Campus
@@ -243,6 +298,9 @@ func (c *Client) FetchCalendarRaw(ctx context.Context, resourceIDs string) ([]by
 }
 
 func (c *Client) fetchCalendarRawOnce(ctx context.Context, resourceIDs string) ([]byte, error) {
+	if !ValidResourceIDs(resourceIDs) {
+		return nil, ErrInvalidResourceIDs
+	}
 	if err := c.ensureSession(ctx); err != nil {
 		return nil, err
 	}
@@ -283,7 +341,7 @@ func (c *Client) fetchCalendarRawOnce(ctx context.Context, resourceIDs string) (
 		}
 	}
 
-	data, err := io.ReadAll(resp.Body)
+	data, err := readLimited(resp.Body, maxCalendarBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
@@ -320,7 +378,7 @@ func (c *Client) fetchTreePageOnce(ctx context.Context, path string) ([]byte, er
 		}
 	}
 
-	data, err := io.ReadAll(resp.Body)
+	data, err := readLimited(resp.Body, maxPageBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read tree page: %w", err)
 	}
@@ -332,61 +390,84 @@ func (c *Client) fetchTreePageOnce(ctx context.Context, path string) ([]byte, er
 // avoid runaway recursion on unexpectedly deep or cyclic ADE tree structures.
 const maxTreeDepth = 8
 
+// directPlanningURL returns the entry page that opens an ADE "direct access"
+// session for the given (encrypted) data token.
+func (c *Client) directPlanningURL(dataToken string) string {
+	return fmt.Sprintf("%s/jsp/custom/modules/plannings/direct_planning.jsp?data=%s", c.baseURL, url.QueryEscape(dataToken))
+}
+
+// directTreeURL returns the tree.jsp URL opening the given branch.
+func (c *Client) directTreeURL(branchID string) string {
+	return fmt.Sprintf("%s/jsp/standard/gui/tree.jsp?branchId=%s&expand=false&forceLoad=false&reload=false&scroll=0",
+		c.baseURL, url.QueryEscape(branchID))
+}
+
+// directCategoryURL returns the tree.jsp URL opening the given category.
+func (c *Client) directCategoryURL(category string) string {
+	return fmt.Sprintf("%s/jsp/standard/gui/tree.jsp?category=%s&expand=false&forceLoad=false&reload=false&scroll=0",
+		c.baseURL, url.QueryEscape(category))
+}
+
+// directGet performs a GET within a direct-access session and returns the
+// (size-capped) body along with the HTTP status code.
+func (c *Client) directGet(ctx context.Context, target, referer string, limit int64) (body []byte, status int, err error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, http.NoBody)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("User-Agent", userAgent)
+	if referer != "" {
+		req.Header.Set("Referer", referer)
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+	body, err = readLimited(resp.Body, limit)
+	if err != nil {
+		return nil, resp.StatusCode, err
+	}
+	return body, resp.StatusCode, nil
+}
+
 // CollectLeavesUnderPath opens the branchPath in a single session and recursively collects all leaf IDs.
+// The walk is bounded both in depth (maxTreeDepth) and in total upstream requests (maxTreeRequests).
 func (c *Client) CollectLeavesUnderPath(ctx context.Context, dataToken, category string, branchPath []string) ([]string, error) {
 	if category == "" {
 		category = "trainee"
 	}
 
-	// 1. Establish session ONCE
-	directPlanningURL := fmt.Sprintf("%s/jsp/custom/modules/plannings/direct_planning.jsp?data=%s", c.baseURL, dataToken)
-	req1, err := http.NewRequestWithContext(ctx, http.MethodGet, directPlanningURL, http.NoBody)
-	if err != nil {
-		return nil, err
+	budget := maxTreeRequests
+	get := func(target, referer string) ([]byte, error) {
+		if budget <= 0 {
+			return nil, fmt.Errorf("ADE tree walk exceeded %d requests", maxTreeRequests)
+		}
+		budget--
+		body, _, err := c.directGet(ctx, target, referer, maxPageBytes)
+		return body, err
 	}
-	req1.Header.Set("User-Agent", userAgent)
-	resp1, err := c.httpClient.Do(req1)
-	if err != nil {
-		return nil, err
-	}
-	resp1.Body.Close()
 
-	// 2. Open category
-	catURL := fmt.Sprintf("%s/jsp/standard/gui/tree.jsp?category=%s&expand=false&forceLoad=false&reload=false&scroll=0",
-		c.baseURL, url.QueryEscape(category))
-	reqCat, err := http.NewRequestWithContext(ctx, http.MethodGet, catURL, http.NoBody)
-	if err != nil {
+	// 1. Establish session ONCE, then open the category
+	entry := c.directPlanningURL(dataToken)
+	if _, err := get(entry, ""); err != nil {
 		return nil, err
 	}
-	reqCat.Header.Set("User-Agent", userAgent)
-	reqCat.Header.Set("Referer", directPlanningURL)
-	respCat, err := c.httpClient.Do(reqCat)
-	if err != nil {
+	if _, err := get(c.directCategoryURL(category), entry); err != nil {
 		return nil, err
 	}
-	respCat.Body.Close()
 
-	// 3. Open each step along branchPath
+	// 2. Open each step along branchPath
 	var lastHTML string
 	for _, bID := range branchPath {
 		bID = strings.TrimSpace(bID)
 		if bID == "" {
 			continue
 		}
-		treeURL := fmt.Sprintf("%s/jsp/standard/gui/tree.jsp?branchId=%s&expand=false&forceLoad=false&reload=false&scroll=0",
-			c.baseURL, url.QueryEscape(bID))
-		reqB, err := http.NewRequestWithContext(ctx, http.MethodGet, treeURL, http.NoBody)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create branch request for %s: %w", bID, err)
-		}
-		reqB.Header.Set("User-Agent", userAgent)
-		reqB.Header.Set("Referer", directPlanningURL)
-		respB, err := c.httpClient.Do(reqB)
+		body, err := get(c.directTreeURL(bID), entry)
 		if err != nil {
 			return nil, err
 		}
-		body, _ := io.ReadAll(respB.Body)
-		respB.Body.Close()
 		lastHTML = string(ics.EnsureUTF8(body))
 	}
 
@@ -395,31 +476,18 @@ func (c *Client) CollectLeavesUnderPath(ctx context.Context, dataToken, category
 		targetID = branchPath[len(branchPath)-1]
 	}
 
-	children := ParseChildrenOf(lastHTML, targetID)
 	var leaves []string
-	var walk func(currentPath []string, currentID string) error
-	walk = func(currentPath []string, currentID string) error {
-		treeURL := fmt.Sprintf("%s/jsp/standard/gui/tree.jsp?branchId=%s&expand=false&forceLoad=false&reload=false&scroll=0",
-			c.baseURL, url.QueryEscape(currentID))
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, treeURL, http.NoBody)
-		if err != nil {
-			return fmt.Errorf("failed to create walk request for %s: %w", currentID, err)
-		}
-		req.Header.Set("User-Agent", userAgent)
-		req.Header.Set("Referer", directPlanningURL)
-		resp, err := c.httpClient.Do(req)
+	var walk func(depth int, currentID string) error
+	walk = func(depth int, currentID string) error {
+		body, err := get(c.directTreeURL(currentID), entry)
 		if err != nil {
 			return err
 		}
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		html := string(ics.EnsureUTF8(body))
-		subChildren := ParseChildrenOf(html, currentID)
-		for _, sc := range subChildren {
+		for _, sc := range ParseChildrenOf(string(ics.EnsureUTF8(body)), currentID) {
 			if sc.IsLeaf {
 				leaves = append(leaves, sc.ID)
-			} else if len(currentPath) < maxTreeDepth {
-				if err := walk(append(currentPath, sc.ID), sc.ID); err != nil {
+			} else if depth < maxTreeDepth {
+				if err := walk(depth+1, sc.ID); err != nil {
 					return err
 				}
 			}
@@ -427,13 +495,11 @@ func (c *Client) CollectLeavesUnderPath(ctx context.Context, dataToken, category
 		return nil
 	}
 
-	for _, cNode := range children {
+	for _, cNode := range ParseChildrenOf(lastHTML, targetID) {
 		if cNode.IsLeaf {
 			leaves = append(leaves, cNode.ID)
-		} else {
-			if err := walk(append(branchPath, cNode.ID), cNode.ID); err != nil {
-				return nil, err
-			}
+		} else if err := walk(len(branchPath)+1, cNode.ID); err != nil {
+			return nil, err
 		}
 	}
 
@@ -451,18 +517,14 @@ func (c *Client) FetchDirectTokenCalendar(ctx context.Context, dataToken, resour
 			effectiveResources = strings.Join(leaves, ",")
 		}
 	}
-
-	directPlanningURL := fmt.Sprintf("%s/jsp/custom/modules/plannings/direct_planning.jsp?data=%s", c.baseURL, dataToken)
-	req1, err := http.NewRequestWithContext(ctx, http.MethodGet, directPlanningURL, http.NoBody)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create direct planning request: %w", err)
+	if !ValidResourceIDs(effectiveResources) {
+		return nil, ErrInvalidResourceIDs
 	}
-	req1.Header.Set("User-Agent", userAgent)
-	resp1, err := c.httpClient.Do(req1)
-	if err != nil {
+
+	entry := c.directPlanningURL(dataToken)
+	if _, _, err := c.directGet(ctx, entry, "", maxPageBytes); err != nil {
 		return nil, fmt.Errorf("failed to connect to ADE direct portal: %w", err)
 	}
-	resp1.Body.Close()
 
 	// Query anonymous_cal.jsp trying project IDs
 	now := time.Now()
@@ -477,20 +539,8 @@ func (c *Client) FetchDirectTokenCalendar(ctx context.Context, dataToken, resour
 	for _, projID := range projectCandidates {
 		calURL := fmt.Sprintf("%s/jsp/custom/modules/plannings/anonymous_cal.jsp?resources=%s&projectId=%d&firstDate=%04d-09-01&lastDate=%04d-08-31&startDay=01&startMonth=09&startYear=%d&endDay=31&endMonth=08&endYear=%d&calType=ical",
 			c.baseURL, effectiveResources, projID, startYear, endYear, startYear, endYear)
-		req2, err := http.NewRequestWithContext(ctx, http.MethodGet, calURL, http.NoBody)
-		if err != nil {
-			continue
-		}
-		req2.Header.Set("User-Agent", userAgent)
-		req2.Header.Set("Referer", directPlanningURL)
-
-		resp2, err := c.httpClient.Do(req2)
-		if err != nil {
-			continue
-		}
-		body, err := io.ReadAll(resp2.Body)
-		resp2.Body.Close()
-		if err != nil || resp2.StatusCode != http.StatusOK {
+		body, status, err := c.directGet(ctx, calURL, entry, maxCalendarBytes)
+		if err != nil || status != http.StatusOK {
 			continue
 		}
 

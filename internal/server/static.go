@@ -1,6 +1,8 @@
 package server
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -16,8 +18,6 @@ func (s *Server) createOutputHandler() http.Handler {
 	fileServer := http.FileServer(http.Dir(s.cfg.OutputDir))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-
 		path := filepath.Join(s.cfg.OutputDir, filepath.Clean("/"+r.URL.Path))
 
 		if strings.HasSuffix(path, ".ics") {
@@ -48,7 +48,6 @@ func (s *Server) createRoomsHandler() http.Handler {
 	fileServer := http.FileServer(http.Dir(s.cfg.RoomsOutputDir))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
 		if strings.HasSuffix(r.URL.Path, ".ics") {
 			w.Header().Set("Content-Type", "text/calendar; charset=utf-8")
 		}
@@ -140,7 +139,18 @@ func (s *Server) serveIndexHTML(w http.ResponseWriter, r *http.Request, filePath
 		return
 	}
 
-	injection := fmt.Sprintf("<script>window.PRIMEUI_LICENSE=%s;</script>", jsonLicense)
+	// The inline script is allowed by a per-response CSP nonce rather than
+	// 'unsafe-inline', so an injected script elsewhere still cannot run.
+	nonceBytes := make([]byte, 16)
+	if _, err := rand.Read(nonceBytes); err != nil {
+		http.ServeFile(w, r, filePath)
+		return
+	}
+	nonce := base64.StdEncoding.EncodeToString(nonceBytes)
+	w.Header().Set("Content-Security-Policy",
+		strings.Replace(contentSecurityPolicy, "script-src 'self'", fmt.Sprintf("script-src 'self' 'nonce-%s'", nonce), 1))
+
+	injection := fmt.Sprintf(`<script nonce=%q>window.PRIMEUI_LICENSE=%s;</script>`, nonce, jsonLicense)
 
 	htmlStr := string(content)
 	if idx := strings.Index(htmlStr, "</head>"); idx != -1 {

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -51,7 +50,7 @@ func DiscoverInstitutions(ctx context.Context, rootURL string) ([]Institution, e
 		return nil, fmt.Errorf("discovery portal %s returned status %d", rootURL, resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readLimited(resp.Body, maxPageBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read discovery portal body: %w", err)
 	}

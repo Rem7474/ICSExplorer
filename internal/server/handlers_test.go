@@ -13,6 +13,7 @@ import (
 	"github.com/Rem7474/ICSExplorer/internal/ade"
 	"github.com/Rem7474/ICSExplorer/internal/config"
 	"github.com/Rem7474/ICSExplorer/internal/guard"
+	"github.com/Rem7474/ICSExplorer/internal/netsafe"
 	"github.com/Rem7474/ICSExplorer/internal/syncer"
 )
 
@@ -50,6 +51,10 @@ func setupTestServer(t *testing.T) (*Server, *config.Config, string) {
 	syncService := syncer.New(cfg, adeClient, nil)
 
 	srv := New(cfg, syncService, nil)
+	// Tests talk to httptest servers on loopback over plain HTTP; the strict
+	// production policy is exercised explicitly in security_test.go.
+	srv.upstreamPolicy = netsafe.Policy{AllowPrivate: true, AllowHTTP: true}
+	t.Cleanup(func() { srv.bgCancel() })
 	return srv, cfg, tmpDir
 }
 
@@ -268,12 +273,22 @@ func TestServeIndexHTML_PrimeUILicenseInjection(t *testing.T) {
 	if wRoot.Code != http.StatusOK {
 		t.Fatalf("expected 200 OK, got %d", wRoot.Code)
 	}
-	expectedScript := `<script>window.PRIMEUI_LICENSE="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.dummyKey";</script>`
+	expectedScript := `window.PRIMEUI_LICENSE="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.dummyKey";</script>`
 	if !strings.Contains(wRoot.Body.String(), expectedScript) {
 		t.Errorf("expected HTML to contain license script injection, got: %s", wRoot.Body.String())
 	}
 	if !strings.Contains(wRoot.Body.String(), expectedScript+"</head>") {
 		t.Errorf("expected license script before </head>, got: %s", wRoot.Body.String())
+	}
+	// The inline script must be authorized by a CSP nonce matching the tag.
+	csp := wRoot.Header().Get("Content-Security-Policy")
+	nonceStart := strings.Index(csp, "'nonce-")
+	if nonceStart == -1 {
+		t.Fatalf("expected a script nonce in CSP, got: %s", csp)
+	}
+	nonce, _, _ := strings.Cut(csp[nonceStart+len("'nonce-"):], "'")
+	if !strings.Contains(wRoot.Body.String(), `<script nonce="`+nonce+`">`) {
+		t.Errorf("expected script tag to carry nonce %q, got: %s", nonce, wRoot.Body.String())
 	}
 
 	// 2. Direct /index.html
