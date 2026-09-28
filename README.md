@@ -108,8 +108,12 @@ Pour aller encore plus vite sur ordinateur :
 La confidentialité de vos données universitaires est une priorité absolue :
 
 - 🛡️ **Aucun stockage serveur de vos identifiants personnels** : Lorsque vous utilisez l'explorateur ADE pour votre planning personnel, vos identifiants sont transmis en mémoire uniquement pour dialoguer avec votre université. Ils ne sont **jamais écrits sur le disque du serveur** et ne figurent dans **aucun fichier de log**.
-- 🔒 **Mémorisation locale facultative** : L'option *"Se souvenir de moi"* enregistre vos identifiants uniquement dans le stockage local de votre propre navigateur (`localStorage`), sous votre contrôle total.
-- 👤 **Exécution sécurisée** : Le serveur backend s'exécute dans un conteneur non-root (`appuser`, UID 10001) avec headers de sécurité renforcés (`nosniff`, `SAMEORIGIN`, `strict-origin`).
+- 🔒 **Mémorisation locale facultative** : Vos identifiants ne sont conservés **que** si vous cochez *"Se souvenir de moi"*, et uniquement dans le stockage local de votre propre navigateur (`localStorage`, en clair : à éviter sur un appareil partagé). Sans cette option, rien n'est conservé après le chargement du planning.
+- 🧱 **Protection anti-SSRF** : Une URL ADE collée ne peut cibler qu'une adresse publique en `https://` ; les adresses internes (loopback, réseaux privés, métadonnées cloud) sont refusées, y compris après résolution DNS et redirections. Les réponses ADE sont plafonnées en taille et le parcours d'arborescence est borné.
+- 🚦 **Anti-abus** : Limitation de débit par IP sur les endpoints ADE (compatible reverse proxy via `TRUSTED_PROXIES`), synchronisation manuelle désactivée sans `ADMIN_TOKEN`.
+- 👤 **Exécution sécurisée** : Le serveur backend s'exécute dans un conteneur non-root (`appuser`, UID 10001) avec en-têtes de sécurité renforcés (CSP stricte, `nosniff`, `SAMEORIGIN`, HSTS derrière HTTPS). Le CORS n'est ouvert que sur les flux ICS publics.
+
+Pour signaler une vulnérabilité, consultez [SECURITY.md](SECURITY.md).
 
 ---
 
@@ -136,6 +140,8 @@ docker compose up -d
 
 ---
 
+> 🔐 **Derrière un reverse proxy** (Traefik, Caddy, Nginx…), renseignez `TRUSTED_PROXIES` avec l'adresse du proxy : sans cela, tous les visiteurs partagent la même IP pour la limitation de débit.
+
 ### 2. Déploiement direct avec Docker CLI (Sans cloner le dépôt)
 
 ```bash
@@ -156,7 +162,7 @@ L'application est immédiatement accessible sur **`http://localhost:8080`**.
 
 Si vous souhaitez contribuer ou compiler l'application localement :
 
-**Prérequis :** Go 1.25+ · Node.js 20+ / 22+
+**Prérequis :** Go 1.25+ (1.27 recommandé, utilisé par la CI et les images) · Node.js 22+
 
 ```bash
 # 1. Lancer le frontend Vue 3 en mode dev (avec rechargement à chaud)
@@ -180,10 +186,13 @@ go run ./cmd/server
 | `SYNC_INTERVAL` | Périodicité de synchronisation automatique en tâche de fond | `30m` |
 | `SYNC_ON_STARTUP` | Lancer une synchronisation dès le démarrage du conteneur | `true` |
 | `SYNC_CERCLE` | Intégrer les événements associatifs du Cercle des élèves | `true` |
+| `SYNC_RU` | Générer le menu du RU (CROUStillant Open Data) | `true` |
+| `RU_RESTAURANT_ID` / `RU_SLOT_START` / `RU_SLOT_END` | Restaurant et créneau affiché du menu RU | `1459` / `12:00` / `13:00` |
 | `CONCURRENCY` | Nombre de téléchargements parallèles simultanés | `5` |
 | `MAX_DATA_AGE` | Seuil d'alerte pour les données obsolètes (`/api/health`) | `24h` |
 | `LOG_LEVEL` | Niveau de verbosité (`debug`, `info`, `warn`, `error`) | `info` |
-| `ADMIN_TOKEN` | Jeton d'autorisation optionnel pour déclencher `/api/sync` | *vide* |
+| `ADMIN_TOKEN` | Jeton requis pour déclencher `POST /api/sync` (vide = synchro manuelle désactivée) | *vide* |
+| `TRUSTED_PROXIES` | IP/CIDR des reverse proxies autorisés à fournir `X-Forwarded-For` / `X-Forwarded-Proto` | *vide* |
 
 ---
 
@@ -200,7 +209,7 @@ Principaux points d'entrée :
 - `GET /api/universities` : Liste des universités configurées pour le planning personnel
 - `POST /api/tree` : Exploration dynamique de l'arborescence ADE
 - `POST /api/personal-calendar` : Récupération à la volée d'un emploi du temps personnel
-- `POST /api/sync` : Déclenchement manuel d'une synchronisation globale
+- `POST /api/sync` : Déclenchement manuel d'une synchronisation globale (nécessite `ADMIN_TOKEN`)
 - `GET /output/{fichier}.ics` & `GET /rooms/{fichier}.ics` : Téléchargement direct des calendriers ICS
 
 ---

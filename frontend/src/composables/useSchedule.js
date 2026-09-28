@@ -5,10 +5,10 @@ import { getRelevantWeekStart, getWeekStart, getWeekEnd } from "../utils/dates.j
 import { getTeacherIndex, getRoomIndex, clearAggregatedCache } from "../ics/aggregator.js";
 import { getSubjectType, getDiscipline, isRuEvent } from "../utils/colors.js";
 import { useToast } from "./useToast.js";
+import { PERSONAL_CREDENTIALS_KEY, scrubStoredCredentials } from "../utils/credentials.js";
 
 const STORAGE_KEY = "edtSelection";
 const BASE_SCHEDULE_KEY = "edtBaseSchedule";
-const PERSONAL_CREDENTIALS_KEY = "edtPersonalCreds";
 const PERSONAL_CACHE_KEY = "edt_cached_personal_ics";
 const PERSONAL_META_KEY = "edt_personal_meta";
 export const DISABLED_SUBJECTS_KEY = "edtDisabledSubjects";
@@ -418,6 +418,7 @@ export function useSchedule() {
 
   // Actions
   const init = async () => {
+    scrubStoredCredentials();
     isLoading.value = true;
     statusMessage.value = "Chargement des calendriers...";
 
@@ -573,8 +574,7 @@ export function useSchedule() {
         inputMode: meta.inputMode || personalScheduleInfo.value?.inputMode || "list",
         adeUrl: meta.adeUrl || personalScheduleInfo.value?.adeUrl || "",
         branchPath: meta.branchPath || personalScheduleInfo.value?.branchPath || [],
-        login: meta.login || personalScheduleInfo.value?.login || "",
-        password: meta.password || personalScheduleInfo.value?.password || "",
+        // No login/password here: this object is persisted unconditionally.
         lastUpdated,
       };
 
@@ -967,23 +967,6 @@ export function useSchedule() {
     activeModalEvent.value = null;
   };
 
-  const triggerSync = async () => {
-    try {
-      statusMessage.value = "Déclenchement de la synchronisation...";
-      const resp = await fetch("/api/sync", { method: "POST" });
-      if (resp.ok) {
-        clearAggregatedCache();
-        statusMessage.value = "Synchronisation démarrée en arrière-plan. Actualisation dans quelques instants...";
-        setTimeout(init, 4000);
-      } else {
-        const data = await resp.json();
-        statusMessage.value = data.message || "Erreur de synchronisation";
-      }
-    } catch {
-      statusMessage.value = "Impossible de contacter l'API";
-    }
-  };
-
   return {
     availableFiles,
     availableTeachers,
@@ -1046,7 +1029,6 @@ export function useSchedule() {
     ruEvents,
     toggleRuMenu,
     loadRuEvents,
-    triggerSync,
     checkHealth,
     reloadCurrentScheduleSilently,
     startHealthPolling,

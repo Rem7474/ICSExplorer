@@ -132,6 +132,7 @@ func TestHandlePersonalCalendar(t *testing.T) {
 		handler := newPersonalCalendarHandler(t)
 		body, _ := json.Marshal(map[string]string{"universityId": "test-test"})
 		req := httptest.NewRequest(http.MethodPost, "/api/personal-calendar", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusBadRequest {
@@ -143,6 +144,7 @@ func TestHandlePersonalCalendar(t *testing.T) {
 		handler := newPersonalCalendarHandler(t)
 		body, _ := json.Marshal(map[string]string{"universityId": "nope", "login": "a", "password": "b"})
 		req := httptest.NewRequest(http.MethodPost, "/api/personal-calendar", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusBadRequest {
@@ -154,6 +156,7 @@ func TestHandlePersonalCalendar(t *testing.T) {
 		handler := newPersonalCalendarHandler(t)
 		body, _ := json.Marshal(map[string]string{"universityId": "test-test", "login": "student", "password": "wrong"})
 		req := httptest.NewRequest(http.MethodPost, "/api/personal-calendar", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusUnauthorized {
@@ -168,6 +171,7 @@ func TestHandlePersonalCalendar(t *testing.T) {
 		handler := newPersonalCalendarHandler(t)
 		body, _ := json.Marshal(map[string]string{"universityId": "test-test", "login": "student", "password": "secret", "resourceId": "42"})
 		req := httptest.NewRequest(http.MethodPost, "/api/personal-calendar", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusOK {
@@ -185,6 +189,7 @@ func TestHandlePersonalCalendar(t *testing.T) {
 		handler := newPersonalCalendarHandler(t)
 		body, _ := json.Marshal(map[string]string{"universityId": "test-test", "login": "student", "password": "secret"})
 		req := httptest.NewRequest(http.MethodPost, "/api/personal-calendar", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusOK {
@@ -206,6 +211,7 @@ func TestHandlePersonalCalendar(t *testing.T) {
 			"password": "secret",
 		})
 		req := httptest.NewRequest(http.MethodPost, "/api/personal-calendar", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusOK {
@@ -236,6 +242,7 @@ func TestHandlePersonalCalendar(t *testing.T) {
 			"adeUrl": mockDirectServer.URL + "/direct/index.jsp?data=secretToken123,1",
 		})
 		req := httptest.NewRequest(http.MethodPost, "/api/personal-calendar", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusOK {
@@ -255,6 +262,7 @@ func TestHandlePersonalCalendar(t *testing.T) {
 			"adeUrl": mockADE.URL + "/2026-2027/etudiant/test",
 		})
 		req := httptest.NewRequest(http.MethodPost, "/api/personal-calendar", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusOK {
@@ -273,6 +281,7 @@ func TestHandlePersonalCalendar(t *testing.T) {
 			"password": "secret",
 		})
 		req := httptest.NewRequest(http.MethodPost, "/api/personal-calendar", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusBadRequest {
@@ -283,7 +292,7 @@ func TestHandlePersonalCalendar(t *testing.T) {
 	t.Run("rate limit kicks in after repeated requests", func(t *testing.T) {
 		srv2, _, _ := setupTestServer(t)
 		withMockUniversityDirectory(t, srv2)
-		srv2.personalCalendarLimiter = newIPRateLimiter(5, 10*time.Minute)
+		srv2.calendarLimiter = newIPRateLimiter(5, 10*time.Minute)
 		mux2 := http.NewServeMux()
 		srv2.registerRoutes(mux2)
 		handler2 := srv2.applyMiddlewares(mux2)
@@ -292,6 +301,7 @@ func TestHandlePersonalCalendar(t *testing.T) {
 		var lastCode int
 		for i := 0; i < 10; i++ {
 			req := httptest.NewRequest(http.MethodPost, "/api/personal-calendar", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
 			req.RemoteAddr = "203.0.113.5:12345"
 			w := httptest.NewRecorder()
 			handler2.ServeHTTP(w, req)
@@ -351,6 +361,7 @@ func TestHandleTree(t *testing.T) {
 			"password":     "secret",
 		})
 		req := httptest.NewRequest(http.MethodPost, "/api/tree", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
@@ -382,6 +393,7 @@ func TestHandleTree(t *testing.T) {
 			"password":     "wrong",
 		})
 		req := httptest.NewRequest(http.MethodPost, "/api/tree", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
@@ -417,6 +429,7 @@ func TestHandleTree(t *testing.T) {
 			"adeUrl": directMock.URL + "/direct/index.jsp?data=directtok123,1",
 		})
 		req := httptest.NewRequest(http.MethodPost, "/api/tree", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 
@@ -455,6 +468,7 @@ func TestHandleTree(t *testing.T) {
 			"resourceId": "201",
 		})
 		req := httptest.NewRequest(http.MethodPost, "/api/personal-calendar", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 

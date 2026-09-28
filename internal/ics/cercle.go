@@ -9,6 +9,19 @@ import (
 	"time"
 )
 
+// Auxiliary calendars are written next to the student calendars in the output
+// directory but are overlays (merged by the frontend), not selectable schedules.
+const (
+	CercleFileName = "cercle.ics"
+	RUFileName     = "ru.ics"
+)
+
+// IsAuxiliaryCalendar reports whether name is an overlay calendar that must be
+// excluded from schedule listings, health checks and stale-file pruning.
+func IsAuxiliaryCalendar(name string) bool {
+	return name == CercleFileName || name == RUFileName
+}
+
 // FetchCercleCalendar downloads the public Google Calendar ICS for Cercle Esisar.
 func FetchCercleCalendar(ctx context.Context, url string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
@@ -29,7 +42,16 @@ func FetchCercleCalendar(ctx context.Context, url string) ([]byte, error) {
 		return nil, fmt.Errorf("cercle calendar returned HTTP %d", resp.StatusCode)
 	}
 
-	return io.ReadAll(resp.Body)
+	// Bound the download: a public calendar is a few hundred KiB at most.
+	const maxCercleBytes = 16 << 20
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxCercleBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxCercleBytes {
+		return nil, fmt.Errorf("cercle calendar exceeds %d bytes", maxCercleBytes)
+	}
+	return data, nil
 }
 
 // MergeCercleEvents merges Cercle VEVENT blocks into student calendar data without duplicate UIDs.

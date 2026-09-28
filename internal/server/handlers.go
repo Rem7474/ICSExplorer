@@ -1,14 +1,17 @@
 package server
 
 import (
-	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"net/http"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Rem7474/ICSExplorer/internal/guard"
+	"github.com/Rem7474/ICSExplorer/internal/ics"
 )
 
 func (s *Server) registerRoutes(mux *http.ServeMux) {
@@ -70,39 +73,61 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
-// handleSync triggers an on-demand synchronization cycle.
+// handleSync triggers an on-demand synchronization cycle. It is disabled
+// unless ADMIN_TOKEN is configured: a full sync hammers the upstream ADE
+// server, so it must never be callable anonymously.
 func (s *Server) handleSync(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		writeJSONError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 
-	// If ADMIN_TOKEN is set, verify authorization
-	if s.cfg.AdminToken != "" {
-		authHeader := r.Header.Get("Authorization")
-		expected := "Bearer " + s.cfg.AdminToken
-		if authHeader != expected {
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-			return
-		}
-	}
-
-	stats := s.syncer.GetStats()
-	if stats.IsSyncing {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusConflict)
-		_ = json.NewEncoder(w).Encode(map[string]string{"message": "synchronization already in progress"})
+	if s.cfg.AdminToken == "" {
+		writeJSONError(w, http.StatusForbidden, "manual synchronization is disabled (ADMIN_TOKEN is not set)")
 		return
 	}
 
-	// Trigger sync in background goroutine
+	token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if !ok || subtle.ConstantTimeCompare([]byte(token), []byte(s.cfg.AdminToken)) != 1 {
+		writeJSONError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if s.syncer.GetStats().IsSyncing {
+		writeJSONError(w, http.StatusConflict, "synchronization already in progress")
+		return
+	}
+
+	s.manualSyncMu.Lock()
+	if wait := manualSyncCooldown - time.Since(s.lastManualSync); wait > 0 {
+		s.manualSyncMu.Unlock()
+		w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
+		writeJSONError(w, http.StatusTooManyRequests, "a synchronization was triggered recently, please retry later")
+		return
+	}
+	s.lastManualSync = time.Now()
+	s.manualSyncMu.Unlock()
+
+	// Run in the background, bound to the server lifetime (canceled on shutdown).
 	go func() {
-		_ = s.syncer.Sync(context.Background())
+		if err := s.syncer.Sync(s.bgCtx); err != nil {
+			s.logger.Warn("manual sync completed with errors", "error", err)
+		}
 	}()
 
+	writeJSON(w, http.StatusAccepted, map[string]string{"message": "synchronization started in background"})
+}
+
+// writeJSON encodes v as the JSON response body with the given status.
+func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
-	_ = json.NewEncoder(w).Encode(map[string]string{"message": "synchronization started in background"})
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+// writeJSONError writes a {"error": msg} JSON body with the given status.
+func writeJSONError(w http.ResponseWriter, status int, msg string) {
+	writeJSON(w, status, map[string]string{"error": msg})
 }
 
 // handleFilesList returns the list of available student calendar files.
@@ -131,7 +156,7 @@ func (s *Server) listIcsFiles(dir string) []string {
 
 	var files []string
 	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".ics") && e.Name() != "cercle.ics" {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".ics") && !ics.IsAuxiliaryCalendar(e.Name()) {
 			files = append(files, e.Name())
 		}
 	}

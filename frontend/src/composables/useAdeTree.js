@@ -1,7 +1,6 @@
 import { ref, computed } from "vue";
 import { fetchUniversities, fetchPersonalCalendar, fetchTreeNodes } from "../ics/api.js";
-
-const STORAGE_KEY = "edtPersonalCreds";
+import { PERSONAL_CREDENTIALS_KEY as STORAGE_KEY, stripCredentials } from "../utils/credentials.js";
 
 /**
  * useAdeTree encapsulates ADE tree exploration state and actions.
@@ -157,8 +156,10 @@ export function useAdeTree({ onCalendarLoaded } = {}) {
         // Quota exceeded or private browsing restricted localStorage
       }
 
+      // Metadata is persisted by the caller whatever "remember" says, so it
+      // must never carry the login/password.
       onCalendarLoaded?.(icsText, {
-        ...payloadToSave,
+        ...stripCredentials(payloadToSave),
         name: finalName,
         universityId: selectedUniversityId.value,
         universityName,
@@ -245,7 +246,8 @@ export function useAdeTree({ onCalendarLoaded } = {}) {
       resourceId.value = config.resourceId || "";
       login.value = config.login || "";
       password.value = config.password || "";
-      remember.value = Boolean(saved);
+      // Only credentials explicitly remembered count: metadata fallbacks never hold them.
+      remember.value = Boolean(saved?.password);
       await exploreTree("", "Arborescence globale");
     } else if (universities.value.length > 0) {
       selectedUniversityId.value = universities.value[0].id;

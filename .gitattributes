@@ -1,2 +1,4 @@
 *.sh text eol=lf
 *.ics text eol=crlf
+# Keep Go sources LF everywhere so gofmt/golangci-lint agree on Windows checkouts
+*.go text eol=lf

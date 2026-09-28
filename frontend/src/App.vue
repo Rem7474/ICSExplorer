@@ -149,14 +149,15 @@ const onJumpToWeek = (date) => {
 
       <!-- Welcome card if 0 files -->
       <div v-if="!schedule.isLoading && schedule.availableFiles.length === 0" class="welcome-card card">
-        <h2>👋 Bienvenue sur EDT Esisar</h2>
-        <p>Aucun emploi du temps n'est actuellement présent sur le serveur.</p>
+        <h2>👋 Bienvenue sur ICSExplorer</h2>
+        <p>Les emplois du temps de l'école ne sont pas encore disponibles sur ce serveur.</p>
         <p class="welcome-help">
-          Pour récupérer automatiquement l'ensemble des plannings de l'école, renseignez vos identifiants <strong>Agalan (Grenoble INP)</strong> dans votre fichier <code>.env</code> (ou variables d'environnement) puis lancez la synchronisation.
+          En attendant, vous pouvez afficher votre propre planning ADE.
+          <em>Administrateur :</em> renseignez <code>AGALAN_LOGIN</code> / <code>AGALAN_PASSWORD</code> pour activer la synchronisation automatique.
         </p>
         <div class="welcome-actions">
-          <button class="btn btn-primary" type="button" @click="schedule.triggerSync">
-            🔄 Lancer la synchronisation ADE
+          <button class="btn btn-primary" type="button" @click="isPersonalScheduleModalOpen = true">
+            ✨ Configurer mon planning ADE
           </button>
         </div>
       </div>

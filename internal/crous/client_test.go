@@ -130,8 +130,9 @@ func TestGenerateICS(t *testing.T) {
 }
 
 func TestLiveFetchAndGenerate(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping live test in short mode")
+	// Hits the real CROUStillant API: opt-in only, so CI never depends on a third party.
+	if os.Getenv("ICSEXPLORER_LIVE_TESTS") == "" {
+		t.Skip("set ICSEXPLORER_LIVE_TESTS=1 to run live API tests")
 	}
 	client := NewClient("1459")
 	menus, err := client.FetchMenu(context.Background())
@@ -147,6 +148,5 @@ func TestLiveFetchAndGenerate(t *testing.T) {
 	if len(icsData) == 0 {
 		t.Fatal("generated ICS is empty")
 	}
-	_ = os.WriteFile("../../data/output/ru.ics", icsData, 0o644)
-	t.Logf("successfully fetched %d days of menu and wrote ru.ics", len(menus))
+	t.Logf("successfully fetched %d days of menu (%d bytes of ICS)", len(menus), len(icsData))
 }

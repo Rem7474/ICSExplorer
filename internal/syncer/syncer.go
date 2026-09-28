@@ -108,7 +108,7 @@ func (s *Syncer) Sync(ctx context.Context) error {
 			s.logger.Warn("failed to fetch Cercle calendar", "error", err)
 		} else {
 			// Save raw cercle.ics in output directory for frontend use
-			_ = os.WriteFile(filepath.Join(s.cfg.OutputDir, "cercle.ics"), cData, 0o644)
+			_ = os.WriteFile(filepath.Join(s.cfg.OutputDir, ics.CercleFileName), cData, 0o644)
 			s.logger.Info("Cercle calendar downloaded successfully")
 		}
 	}
@@ -122,7 +122,7 @@ func (s *Syncer) Sync(ctx context.Context) error {
 			s.logger.Warn("failed to fetch RU menu", "error", err)
 		} else if len(menus) > 0 {
 			icsData := crous.GenerateICS(menus, s.cfg.RUSlotStartHour, s.cfg.RUSlotStartMin, s.cfg.RUSlotEndHour, s.cfg.RUSlotEndMin)
-			_ = os.WriteFile(filepath.Join(s.cfg.OutputDir, "ru.ics"), icsData, 0o644)
+			_ = os.WriteFile(filepath.Join(s.cfg.OutputDir, ics.RUFileName), icsData, 0o644)
 			s.logger.Info("RU Briff'O menu downloaded and generated successfully", "days", len(menus))
 		}
 	}
@@ -172,6 +172,12 @@ func (s *Syncer) Sync(ctx context.Context) error {
 	}
 
 	wg.Wait()
+
+	// Step 3b: Remove calendars that no longer exist upstream (renamed or
+	// deleted groups), only after a fully successful, uninterrupted run.
+	if len(syncErrors) == 0 && ctx.Err() == nil {
+		s.pruneStaleFiles(resources)
+	}
 
 	// Step 4: Generate files.json index
 	if err := s.generateFilesIndex(); err != nil {
@@ -251,11 +257,7 @@ func (s *Syncer) processResource(ctx context.Context, res ade.Resource) error {
 		targetDir = s.cfg.RoomsOutputDir
 	}
 
-	// Clean filename (replace slashes or invalid characters)
-	safeName := strings.ReplaceAll(res.Name, "/", "-")
-	safeName = strings.ReplaceAll(safeName, "\\", "-")
-	fileName := fmt.Sprintf("%s.ics", safeName)
-	targetPath := filepath.Join(targetDir, fileName)
+	targetPath := filepath.Join(targetDir, resourceFileName(res))
 
 	// Atomic file write using temporary file
 	tmpPath := targetPath + ".tmp"
@@ -271,6 +273,77 @@ func (s *Syncer) processResource(ctx context.Context, res ade.Resource) error {
 	return nil
 }
 
+// resourceFileName returns the .ics file name a resource is written to.
+func resourceFileName(res ade.Resource) string {
+	safeName := strings.ReplaceAll(res.Name, "/", "-")
+	safeName = strings.ReplaceAll(safeName, "\\", "-")
+	return safeName + ".ics"
+}
+
+// maxPruneRatio caps the share of existing calendars a single run may delete:
+// a sudden mass disappearance is more likely a partial ADE tree crawl than a
+// real reorganization, so it is logged and left for a human to check.
+const maxPruneRatio = 0.5
+
+// pruneStaleFiles deletes .ics files (and leftover .tmp files) that do not
+// correspond to any resource of the current run.
+func (s *Syncer) pruneStaleFiles(resources []ade.Resource) {
+	expected := map[string]map[string]bool{
+		s.cfg.OutputDir:      {},
+		s.cfg.RoomsOutputDir: {},
+	}
+	for _, res := range resources {
+		dir := s.cfg.OutputDir
+		if res.IsRoom {
+			dir = s.cfg.RoomsOutputDir
+		}
+		expected[dir][resourceFileName(res)] = true
+	}
+
+	for dir, keep := range expected {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+
+		var stale []string
+		total := 0
+		for _, e := range entries {
+			name := e.Name()
+			if e.IsDir() {
+				continue
+			}
+			if strings.HasSuffix(name, ".tmp") {
+				_ = os.Remove(filepath.Join(dir, name))
+				continue
+			}
+			if !strings.HasSuffix(name, ".ics") || ics.IsAuxiliaryCalendar(name) {
+				continue
+			}
+			total++
+			if !keep[name] {
+				stale = append(stale, name)
+			}
+		}
+
+		if len(stale) == 0 {
+			continue
+		}
+		if float64(len(stale)) > float64(total)*maxPruneRatio {
+			s.logger.Warn("skipping stale calendar cleanup: too many files would be removed",
+				"dir", dir, "stale", len(stale), "total", total)
+			continue
+		}
+		for _, name := range stale {
+			if err := os.Remove(filepath.Join(dir, name)); err != nil {
+				s.logger.Warn("failed to remove stale calendar", "file", name, "error", err)
+				continue
+			}
+			s.logger.Info("removed stale calendar no longer present in ADE", "file", name)
+		}
+	}
+}
+
 // generateFilesIndex scans the OutputDir and writes files.json with the list of student .ics files.
 func (s *Syncer) generateFilesIndex() error {
 	entries, err := os.ReadDir(s.cfg.OutputDir)
@@ -280,7 +353,7 @@ func (s *Syncer) generateFilesIndex() error {
 
 	var files []string
 	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".ics") && e.Name() != "cercle.ics" {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".ics") && !ics.IsAuxiliaryCalendar(e.Name()) {
 			files = append(files, e.Name())
 		}
 	}

@@ -141,3 +141,37 @@ func TestFormatCalendarLinesSanitizesAberrantDates(t *testing.T) {
 		t.Errorf("expected DTSTART to be corrected to 20270204T091500Z, got output:\n%s", output)
 	}
 }
+
+func TestSanitizeCalendarLinesKeepsTextButFixesDates(t *testing.T) {
+	lines := []string{
+		"BEGIN:VCALENDAR",
+		"BEGIN:VEVENT",
+		"SUMMARY:Cours_Magistral_Physique",
+		"LOCATION:Amphi_CM (V)",
+		"DTSTART:20260910T080000Z",
+		"DTEND:20260910T100000Z",
+		"END:VEVENT",
+		"BEGIN:VEVENT",
+		"SUMMARY:Evenement corrompu",
+		"DTSTART:19700101T000000Z",
+		"DTEND:19700101T010000Z",
+		"END:VEVENT",
+		"END:VCALENDAR",
+	}
+
+	out := strings.Join(SanitizeCalendarLines(lines), "\n")
+	if !strings.Contains(out, "SUMMARY:Cours_Magistral_Physique") {
+		t.Errorf("expected SUMMARY to be left untouched, got:\n%s", out)
+	}
+	if !strings.Contains(out, "LOCATION:Amphi_CM (V)") {
+		t.Errorf("expected LOCATION to be left untouched, got:\n%s", out)
+	}
+	if strings.Contains(out, "Evenement corrompu") {
+		t.Errorf("expected the 1970 event to be dropped, got:\n%s", out)
+	}
+
+	pretty := strings.Join(FormatCalendarLines(lines), "\n")
+	if !strings.Contains(pretty, "SUMMARY:Cours Magistral Physique") {
+		t.Errorf("expected FormatCalendarLines to still prettify SUMMARY, got:\n%s", pretty)
+	}
+}

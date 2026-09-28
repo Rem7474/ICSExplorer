@@ -73,6 +73,14 @@ describe("PersonalScheduleModal component", () => {
     expect(schedule.selectedMode.value).toBe("personal");
     expect(wrapper.emitted("close")).toBeTruthy();
     expect(localStorage.getItem("edtPersonalCreds")).toBeNull();
+
+    // Regression: the password must not leak into any other stored key
+    // (schedule metadata used to persist it regardless of "remember").
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      expect(localStorage.getItem(key), `localStorage["${key}"]`).not.toContain("hunter2");
+    }
+    expect(schedule.personalScheduleInfo.value).not.toHaveProperty("password");
   });
 
   it("persists credentials to localStorage only when 'remember' is checked", async () => {

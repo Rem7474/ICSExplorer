@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/Rem7474/ICSExplorer/internal/ics"
 )
 
 // HealthReport contains detailed diagnostic info about data freshness and file integrity.
@@ -65,7 +67,7 @@ func CheckHealth(outputDir string, maxAge time.Duration, minFileSize int64, last
 	var newestModTime time.Time
 
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".ics") || entry.Name() == "cercle.ics" {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".ics") || ics.IsAuxiliaryCalendar(entry.Name()) {
 			continue
 		}
 		icsCount++

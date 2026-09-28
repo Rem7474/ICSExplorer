@@ -1,11 +1,11 @@
-.PHONY: all build build-frontend build-backend test test-backend test-frontend docker-build docker-up docker-down lint clean
+.PHONY: all build build-frontend build-backend test test-backend test-frontend docker-build docker-up docker-down docker-logs lint vuln clean
 
 all: test build
 
 build: build-frontend build-backend
 
 build-frontend:
-	cd frontend && npm install && npm run build
+	cd frontend && npm ci && npm run build
 
 build-backend:
 	go build -ldflags="-s -w" -o bin/icsexplorer ./cmd/server
@@ -32,6 +32,11 @@ docker-logs:
 
 lint:
 	golangci-lint run ./...
+	cd frontend && npm run lint
+
+vuln:
+	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+	cd frontend && npm audit --omit=dev --audit-level=high
 
 clean:
 	rm -rf bin/ frontend/dist data/output/*.tmp

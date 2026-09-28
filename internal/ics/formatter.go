@@ -37,7 +37,19 @@ func parseIcsDateTime(val string) (time.Time, bool) {
 
 // FormatCalendarLines cleans up and beautifies SUMMARY, LOCATION and DESCRIPTION in an unfolded iCalendar line slice,
 // while sanitizing aberrant dates (e.g. 1-year ADE typos) and discarding corrupted events (end <= start or 1970 epoch).
+// The text rewriting follows Grenoble INP / Esisar naming conventions.
 func FormatCalendarLines(lines []string) []string {
+	return processCalendarLines(lines, true)
+}
+
+// SanitizeCalendarLines applies only the institution-agnostic part of
+// FormatCalendarLines: aberrant dates are fixed or dropped, but event text is
+// left untouched. Use it for calendars of institutions other than Esisar.
+func SanitizeCalendarLines(lines []string) []string {
+	return processCalendarLines(lines, false)
+}
+
+func processCalendarLines(lines []string, prettify bool) []string {
 	result := make([]string, 0, len(lines))
 	var lastSummary string
 
@@ -105,6 +117,7 @@ func FormatCalendarLines(lines []string) []string {
 
 		// Line formatting for SUMMARY, LOCATION, DESCRIPTION
 		switch {
+		case !prettify:
 		case strings.HasPrefix(line, "SUMMARY:"):
 			val := strings.TrimPrefix(line, "SUMMARY:")
 			val = strings.ReplaceAll(val, "_", " ")

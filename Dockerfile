@@ -1,28 +1,32 @@
+# syntax=docker/dockerfile:1
+
 # ==========================================
 # Stage 1: Build Frontend (Vue 3 + Vite)
 # ==========================================
-FROM node:22-alpine AS frontend-builder
+# Built once on the native build platform: the output is platform-independent,
+# so there is no need to run npm under QEMU for every target architecture.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend-builder
 WORKDIR /app/frontend
 
 ARG VERSION=dev
 ENV VITE_APP_VERSION=${VERSION}
 
-COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm install
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
 
 COPY frontend/ ./
 RUN npm run build
 
 # ==========================================
-# Stage 2: Build Backend (Go 1.24 static)
+# Stage 2: Build Backend (Go, static, cross-compiled)
 # ==========================================
-FROM golang:alpine AS backend-builder
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS backend-builder
 WORKDIR /app
 
 ARG VERSION=dev
 ARG BUILD_TIME=dev
-
-RUN apk add --no-cache git
+ARG TARGETOS
+ARG TARGETARCH
 
 COPY go.mod go.sum ./
 RUN go mod download
@@ -30,14 +34,14 @@ RUN go mod download
 COPY cmd/ ./cmd/
 COPY internal/ ./internal/
 
-RUN CGO_ENABLED=0 GOOS=linux go build \
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath \
     -ldflags="-s -w -X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}" \
     -o /app/icsexplorer ./cmd/server
 
 # ==========================================
-# Stage 3: Minimal Production Image (~20MB)
+# Stage 3: Minimal Production Image
 # ==========================================
-FROM alpine:3.21
+FROM alpine:3.24
 
 RUN apk add --no-cache ca-certificates tzdata su-exec \
     && addgroup -g 10001 -S appgroup \
