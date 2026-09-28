@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
+import vuetify from "vite-plugin-vuetify";
 import { fileURLToPath, URL } from "node:url";
 import fs from "node:fs";
 
@@ -31,7 +32,16 @@ function serviceWorkerVersionPlugin(version) {
 export default defineConfig({
   envDir: "../",
   envPrefix: ["VITE_", "PRIMEUI_"],
-  plugins: [vue(), serviceWorkerVersionPlugin(appVersion)],
+  plugins: [vue(), vuetify({ autoImport: true }), serviceWorkerVersionPlugin(appVersion)],
+  build: {
+    rollupOptions: {
+      // Spike only: the prototype is a separate page next to the real app.
+      input: {
+        main: fileURLToPath(new URL("./index.html", import.meta.url)),
+        spike: fileURLToPath(new URL("./spike.html", import.meta.url)),
+      },
+    },
+  },
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
