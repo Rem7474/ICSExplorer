@@ -171,7 +171,7 @@ describe("useSchedule composable", () => {
     expect(schedule.displayedWeekEvents.value[0].summary).toBe("IN101 Algo");
   });
 
-  it("loads personal events from raw ICS text, sets meta, and switches to personal mode", () => {
+  it("loads personal events from raw ICS text, sets meta, and switches to personal mode", async () => {
     const schedule = useSchedule();
     const icsText = [
       "BEGIN:VCALENDAR",
@@ -183,7 +183,7 @@ describe("useSchedule composable", () => {
       "END:VCALENDAR",
     ].join("\r\n");
 
-    schedule.loadPersonalEvents(icsText, {
+    await schedule.loadPersonalEvents(icsText, {
       name: "3A - Ingénieur - Apprenti",
       universityId: "grenoble-inp-esisar",
       universityName: "Grenoble INP - Esisar",

@@ -4,6 +4,7 @@ import ScheduleControls from "../components/ScheduleControls.vue";
 import ScheduleWeek from "../components/ScheduleWeek.vue";
 import { useSchedule } from "../composables/useSchedule.js";
 import { formatRelativeTime, getWeekStart } from "../utils/dates.js";
+import { router } from "../router/index.js";
 
 describe("formatRelativeTime", () => {
   const now = new Date("2026-09-28T12:00:00Z").getTime();
@@ -142,6 +143,9 @@ describe("useSchedule UX state", () => {
   });
 
   it("pushes a history entry when the user switches schedule, so Back returns to the previous one", async () => {
+    // In the app, app.use(router) performs the initial navigation; do it here
+    // too, since vue-router turns the very first navigation into a replace.
+    await router.replace("/");
     const schedule = useSchedule();
     const pushSpy = vi.spyOn(window.history, "pushState");
     const events = "BEGIN:VCALENDAR\r\nEND:VCALENDAR";
