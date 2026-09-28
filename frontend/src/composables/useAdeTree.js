@@ -5,7 +5,7 @@ import { PERSONAL_CREDENTIALS_KEY as STORAGE_KEY, stripCredentials } from "../ut
 /**
  * useAdeTree encapsulates ADE tree exploration state and actions.
  * Manages credentials form, tree navigation (breadcrumbs, nodes, search)
- * and calendar submission for PersonalScheduleModal.vue.
+ * and calendar submission for the personal schedule set-up flow.
  *
  * @param {Object} options
  * @param {Function} options.onCalendarLoaded - called with (icsText, meta) when a calendar is fetched
