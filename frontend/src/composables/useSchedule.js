@@ -1,1093 +1,124 @@
-import { ref, computed, watch } from "vue";
-import { fetchFileList, fetchRoomList, fetchIcsText, fetchCercleEvents, fetchRuEvents, fetchPersonalCalendar, decodeTextWithFallback } from "../ics/api.js";
-import { parseIcs } from "../ics/parser.js";
-import { getRelevantWeekStart, getWeekStart, getWeekEnd } from "../utils/dates.js";
-import { getTeacherIndex, getRoomIndex, clearAggregatedCache } from "../ics/aggregator.js";
-import { getSubjectType, getDiscipline, isRuEvent } from "../utils/colors.js";
-import { useToast } from "./useToast.js";
-import { PERSONAL_CREDENTIALS_KEY, scrubStoredCredentials } from "../utils/credentials.js";
+import { storeToRefs } from "pinia";
+import { useCatalogStore } from "../stores/catalog.js";
+import { useOverlaysStore } from "../stores/overlays.js";
+import { usePersonalStore } from "../stores/personal.js";
+import { useServerStore } from "../stores/server.js";
+import { useStatusStore } from "../stores/status.js";
+import { useScheduleStore } from "../stores/schedule.js";
 
-const STORAGE_KEY = "edtSelection";
-const BASE_SCHEDULE_KEY = "edtBaseSchedule";
-const PERSONAL_CACHE_KEY = "edt_cached_personal_ics";
-const PERSONAL_META_KEY = "edt_personal_meta";
-export const DISABLED_SUBJECTS_KEY = "edtDisabledSubjects";
-export const SHOW_RU_MENU_KEY = "edtShowRuMenu";
-const HEALTH_CHECK_INTERVAL_MS = 3 * 60 * 1000; // 3 minutes
+export { DISABLED_SUBJECTS_KEY, SHOW_RU_MENU_KEY } from "../stores/storage.js";
 
+/**
+ * Facade over the Pinia stores, exposing the same shape as before the split
+ * (refs + actions) so components can keep receiving a single `schedule`
+ * object. New code should use the individual stores directly.
+ */
 export function useSchedule() {
-  const { showToast } = useToast();
-  const availableFiles = ref([]);
-  const availableTeachers = ref([]);
-  const availableRooms = ref([]);
-  
-  const selectedMode = ref("student"); // "student" | "personal" | "teacher" | "room"
-  const baseSchedule = ref(null); // { mode: "student" | "personal", file?: string, name?: string }
-  const selectedYear = ref("");
-  const selectedTrack = ref("");
-  const selectedType = ref("");
-  const selectedFile = ref("");
-  
-  const selectedTeacher = ref("");
-  const selectedRoom = ref("");
+  const catalog = useCatalogStore();
+  const overlays = useOverlaysStore();
+  const personal = usePersonalStore();
+  const server = useServerStore();
+  const status = useStatusStore();
+  const schedule = useScheduleStore();
 
-  const personalScheduleInfo = ref(null);
-  const rawPersonalIcs = ref("");
-  
-  const events = ref([]);
-  const cercleEvents = ref([]);
-  const loadSavedShowRuMenu = () => {
-    try {
-      if (typeof localStorage === "undefined") return true;
-      const raw = localStorage.getItem(SHOW_RU_MENU_KEY);
-      if (raw === null) return true;
-      return raw === "true";
-    } catch {
-      return true;
-    }
+  const { availableFiles, availableTeachers, availableRooms, isAggregatorLoading, indexProgress } = storeToRefs(catalog);
+  const { cercleEvents, ruEvents, showRuMenu } = storeToRefs(overlays);
+  const { personalScheduleInfo, rawPersonalIcs } = storeToRefs(personal);
+  const { serverHealth, isOnline, currentTime } = storeToRefs(server);
+  const { statusMessage, statusAction } = storeToRefs(status);
+  const {
+    selectedMode, baseSchedule, selectedYear, selectedTrack, selectedType, selectedFile,
+    selectedTeacher, selectedRoom, events, currentWeekStart, disabledSubjects, isLoading,
+    activeModalEvent, isRoomModalOpen, selectedSubjectFilter, availableYears, availableTracks,
+    availableTypes, availableRestFiles, currentWeekEnd, weekEvents, displayedWeekEvents, nextCourse,
+  } = storeToRefs(schedule);
+
+  // Background listeners: server health polling, connectivity, app clock and
+  // browser Back/Forward.
+  const startHealthPolling = (intervalMs) => {
+    server.startHealthPolling(intervalMs);
+    schedule.startHistoryListener();
   };
-  const showRuMenu = ref(loadSavedShowRuMenu());
-  const ruEvents = ref([]);
-  const currentWeekStart = ref(getWeekStart(new Date()));
-  const disabledSubjects = ref([]);
-  const selectedSubjectFilter = computed(() => disabledSubjects.value[0] || null);
-
-  const getCurrentScheduleKey = () => {
-    if (selectedMode.value === "personal") return "personal";
-    if (selectedMode.value === "teacher" && selectedTeacher.value) return `teacher_${selectedTeacher.value}`;
-    if (selectedMode.value === "room" && selectedRoom.value) return `room_${selectedRoom.value}`;
-    if (selectedMode.value === "student" && selectedFile.value) return `student_${selectedFile.value}`;
-    if (selectedFile.value) return `student_${selectedFile.value}`;
-    return "default";
-  };
-
-  const loadSavedDisabledSubjects = (key = getCurrentScheduleKey()) => {
-    try {
-      if (typeof localStorage === "undefined") return [];
-      const raw = localStorage.getItem(DISABLED_SUBJECTS_KEY);
-      if (!raw) return [];
-      const data = JSON.parse(raw);
-      if (Array.isArray(data)) {
-        return [...data];
-      }
-      if (data && typeof data === "object") {
-        const list = data[key];
-        return Array.isArray(list) ? [...list] : [];
-      }
-    } catch (e) {
-      console.warn("Erreur lors de la lecture des matières désactivées :", e);
-    }
-    return [];
-  };
-
-  const saveDisabledSubjects = () => {
-    try {
-      if (typeof localStorage === "undefined") return;
-      const key = getCurrentScheduleKey();
-      let data = {};
-      const raw = localStorage.getItem(DISABLED_SUBJECTS_KEY);
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw);
-          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-            data = parsed;
-          }
-        } catch {}
-      }
-      if (disabledSubjects.value.length > 0) {
-        data[key] = [...disabledSubjects.value];
-      } else {
-        delete data[key];
-      }
-      localStorage.setItem(DISABLED_SUBJECTS_KEY, JSON.stringify(data));
-    } catch (e) {
-      console.warn("Erreur lors de la sauvegarde des matières désactivées :", e);
-    }
-  };
-  
-  const isLoading = ref(false);
-  const isAggregatorLoading = ref(false);
-  const statusMessage = ref("");
-  // Optional call-to-action attached to the current status message
-  // ("configure-personal"), so the UI never has to parse message text.
-  const statusAction = ref(null);
-  let statusActionMessage = "";
-  const setStatus = (message, action = null) => {
-    statusActionMessage = action ? message : "";
-    statusAction.value = action;
-    statusMessage.value = message;
-  };
-  watch(statusMessage, (msg) => {
-    if (msg !== statusActionMessage) statusAction.value = null;
-  });
-  // Progress of the teacher/room index build ({ loaded, total }), null when idle.
-  const indexProgress = ref(null);
-  const onIndexProgress = (loaded, total) => {
-    indexProgress.value = loaded >= total ? null : { loaded, total };
-  };
-  const isOnline = ref(typeof navigator === "undefined" ? true : navigator.onLine !== false);
-  
-  const activeModalEvent = ref(null);
-  const isRoomModalOpen = ref(false);
-  const serverHealth = ref(null);
-  let healthPollingTimer = null;
-  let lastHealthCheckTime = 0;
-  const currentTime = ref(Date.now());
-  let timeTickerTimer = null;
-
-  const startTimeTicker = () => {
-    stopTimeTicker();
-    if (typeof setInterval === "function") {
-      timeTickerTimer = setInterval(() => {
-        currentTime.value = Date.now();
-      }, 30000); // 30s ticker
-    }
-  };
-
-  const stopTimeTicker = () => {
-    if (timeTickerTimer) {
-      clearInterval(timeTickerTimer);
-      timeTickerTimer = null;
-    }
-  };
-
-  // Parse available options for student selects
-  const parsedFiles = computed(() => {
-    return availableFiles.value.map((fileName) => {
-      const base = fileName.replace(/\.ics$/i, "");
-      const parts = base.split("-");
-      return {
-        fileName,
-        year: parts[0] || "",
-        track: parts[1] || "",
-        type: parts[2] || "",
-        rest: parts.slice(3).join("-"),
-      };
-    });
-  });
-
-  const availableYears = computed(() => {
-    return [...new Set(parsedFiles.value.map((f) => f.year).filter(Boolean))].sort();
-  });
-
-  const availableTracks = computed(() => {
-    if (!selectedYear.value) return [];
-    return [...new Set(parsedFiles.value.filter((f) => f.year === selectedYear.value).map((f) => f.track).filter(Boolean))].sort();
-  });
-
-  const availableTypes = computed(() => {
-    if (!selectedYear.value || !selectedTrack.value) return [];
-    return [...new Set(parsedFiles.value.filter((f) => f.year === selectedYear.value && f.track === selectedTrack.value).map((f) => f.type).filter(Boolean))].sort();
-  });
-
-  const availableRestFiles = computed(() => {
-    if (!selectedYear.value || !selectedTrack.value || !selectedType.value) return [];
-    return parsedFiles.value.filter((f) => f.year === selectedYear.value && f.track === selectedTrack.value && f.type === selectedType.value);
-  });
-
-  // Filtered week events
-  const currentWeekEnd = computed(() => getWeekEnd(currentWeekStart.value));
-
-  const weekEvents = computed(() => {
-    return events.value.filter((ev) => {
-      const start = new Date(ev.start);
-      const end = new Date(ev.end);
-      return start <= currentWeekEnd.value && end >= currentWeekStart.value;
-    });
-  });
-
-  const displayedWeekEvents = computed(() => {
-    if (!disabledSubjects.value.length) return weekEvents.value;
-    return weekEvents.value.filter((ev) => {
-      const type = getSubjectType(ev);
-      const disc = getDiscipline(ev);
-      return !disabledSubjects.value.includes(type) && !disabledSubjects.value.includes(disc);
-    });
-  });
-
-  // Next upcoming course (excluding deselected/hidden subjects and RU menus, updates dynamically via currentTime ticker)
-  const nextCourse = computed(() => {
-    const now = new Date(currentTime.value);
-    return events.value.find((ev) => {
-      if (ev.isRu || isRuEvent(ev)) return false;
-      if (new Date(ev.end) <= now) return false;
-      if (disabledSubjects.value.length > 0) {
-        const type = getSubjectType(ev);
-        const disc = getDiscipline(ev);
-        if (disabledSubjects.value.includes(type) || disabledSubjects.value.includes(disc)) return false;
-      }
-      return true;
-    }) || null;
-  });
-
-  const loadCercleEvents = async () => {
-    if (cercleEvents.value.length > 0) return cercleEvents.value;
-    try {
-      const cEvs = await fetchCercleEvents();
-      cercleEvents.value = cEvs;
-      return cEvs;
-    } catch {
-      return [];
-    }
-  };
-
-  const mergeWithCercle = (studentEvents, cEvents) => {
-    if (!cEvents || !cEvents.length) return studentEvents;
-    const existingUids = new Set(studentEvents.map((e) => e.uid).filter(Boolean));
-    const toAdd = cEvents.filter((e) => !e.uid || !existingUids.has(e.uid));
-    const combined = [...studentEvents, ...toAdd];
-    combined.sort((a, b) => new Date(a.start) - new Date(b.start));
-    return combined;
-  };
-
-  const loadRuEvents = async () => {
-    if (ruEvents.value.length > 0) return ruEvents.value;
-    try {
-      const rEvs = await fetchRuEvents();
-      ruEvents.value = rEvs;
-      return rEvs;
-    } catch {
-      return [];
-    }
-  };
-
-  const mergeWithRu = (baseEvents, rEvents) => {
-    if (!showRuMenu.value || !rEvents || !rEvents.length) return baseEvents;
-    const existingUids = new Set(baseEvents.map((e) => e.uid).filter(Boolean));
-    const toAdd = rEvents.filter((e) => !e.uid || !existingUids.has(e.uid));
-    const combined = [...baseEvents, ...toAdd];
-    combined.sort((a, b) => new Date(a.start) - new Date(b.start));
-    return combined;
-  };
-
-  const toggleRuMenu = async () => {
-    showRuMenu.value = !showRuMenu.value;
-    try {
-      if (typeof localStorage !== "undefined") {
-        localStorage.setItem(SHOW_RU_MENU_KEY, String(showRuMenu.value));
-      }
-    } catch {}
-
-    if (showRuMenu.value) {
-      if (ruEvents.value.length === 0) {
-        await loadRuEvents();
-      }
-      const existing = events.value.filter((e) => !e.isRu && !isRuEvent(e));
-      events.value = mergeWithRu(existing, ruEvents.value);
-      showToast("Menu du RU affiché", "info");
-    } else {
-      events.value = events.value.filter((e) => !e.isRu && !isRuEvent(e));
-      showToast("Menu du RU masqué", "info");
-    }
-  };
-
-  const areEventsEqual = (evs1, evs2) => {
-    if (!Array.isArray(evs1) || !Array.isArray(evs2)) return false;
-    if (evs1.length !== evs2.length) return false;
-    for (let i = 0; i < evs1.length; i++) {
-      const a = evs1[i];
-      const b = evs2[i];
-      if (
-        a.summary !== b.summary ||
-        a.location !== b.location ||
-        a.description !== b.description ||
-        new Date(a.start).getTime() !== new Date(b.start).getTime() ||
-        new Date(a.end).getTime() !== new Date(b.end).getTime()
-      ) {
-        return false;
-      }
-    }
-    return true;
-  };
-
-  const reloadCurrentScheduleSilently = async () => {
-    let changed = false;
-    try {
-      try {
-        const files = await fetchFileList();
-        if (Array.isArray(files) && files.length > 0) {
-          availableFiles.value = files;
-        }
-      } catch {}
-
-      clearAggregatedCache();
-      cercleEvents.value = [];
-      ruEvents.value = [];
-
-      let newEvents = [];
-      if (selectedMode.value === "student" && selectedFile.value) {
-        const [text, cEvents, rEvents] = await Promise.all([
-          fetchIcsText(selectedFile.value),
-          loadCercleEvents(),
-          showRuMenu.value ? loadRuEvents() : Promise.resolve([]),
-        ]);
-        const parsed = parseIcs(text);
-        newEvents = mergeWithRu(mergeWithCercle(parsed, cEvents), rEvents);
-      } else if (selectedMode.value === "teacher" && selectedTeacher.value) {
-        const teacherMap = await getTeacherIndex();
-        const tEvents = teacherMap.get(selectedTeacher.value) || [];
-        const [cEvents, rEvents] = await Promise.all([
-          loadCercleEvents(),
-          showRuMenu.value ? loadRuEvents() : Promise.resolve([]),
-        ]);
-        newEvents = mergeWithRu(mergeWithCercle(tEvents, cEvents), rEvents);
-      } else if (selectedMode.value === "room" && selectedRoom.value) {
-        try {
-          const text = await fetchIcsText(`${selectedRoom.value}.ics`);
-          newEvents = parseIcs(text);
-        } catch {
-          const roomMap = await getRoomIndex();
-          newEvents = roomMap.get(selectedRoom.value) || [];
-        }
-      } else if (selectedMode.value === "personal") {
-        if (typeof localStorage !== "undefined" && localStorage.getItem(PERSONAL_CREDENTIALS_KEY)) {
-          await refreshPersonalSchedule().catch(() => {});
-          return false;
-        }
-      }
-
-      if (newEvents && newEvents.length > 0) {
-        if (!areEventsEqual(events.value, newEvents)) {
-          events.value = newEvents;
-          changed = true;
-          showToast("Planning mis à jour", "info", 3000);
-        }
-      }
-    } catch (err) {
-      console.warn("Silent schedule reload failed:", err);
-    }
-    return changed;
-  };
-
-  const checkHealth = async () => {
-    lastHealthCheckTime = Date.now();
-    try {
-      if (typeof fetch === "function") {
-        const res = await fetch("/api/health", { cache: "no-store" });
-        if (res && (res.ok || res.status === 200 || res.status === 503)) {
-          const data = await res.json();
-          const prevSync = serverHealth.value?.last_sync;
-          serverHealth.value = data;
-
-          if (prevSync && data.last_sync && prevSync !== data.last_sync) {
-            await reloadCurrentScheduleSilently();
-          }
-          return data;
-        }
-      }
-    } catch {
-      // Gracefully ignore network errors during background check
-    }
-    return null;
-  };
-
-  const handleVisibilityChange = async () => {
-    if (typeof document !== "undefined" && document.visibilityState === "visible") {
-      // Check if more than 1 minute elapsed since last check
-      if (Date.now() - lastHealthCheckTime >= 60 * 1000) {
-        await checkHealth();
-      }
-    }
-  };
-
-  const handleOnline = async () => {
-    isOnline.value = true;
-    try {
-      await checkHealth();
-      showToast("Connexion rétablie", "info", 3000);
-    } catch (err) {
-      console.warn("Online sync error:", err);
-    }
-  };
-
-  const handleOffline = () => {
-    isOnline.value = false;
-    showToast("Connexion perdue : mode hors-ligne actif", "info", 4000);
-  };
-
-  const startHealthPolling = (intervalMs = HEALTH_CHECK_INTERVAL_MS) => {
-    stopHealthPolling();
-    healthPollingTimer = setInterval(async () => {
-      await checkHealth();
-    }, intervalMs);
-
-    if (typeof document !== "undefined") {
-      document.addEventListener("visibilitychange", handleVisibilityChange);
-    }
-    if (typeof window !== "undefined") {
-      window.addEventListener("online", handleOnline);
-      window.addEventListener("offline", handleOffline);
-      window.addEventListener("popstate", handlePopState);
-    }
-    startTimeTicker();
-  };
-
   const stopHealthPolling = () => {
-    if (typeof window !== "undefined") {
-      window.removeEventListener("popstate", handlePopState);
-    }
-    if (healthPollingTimer) {
-      clearInterval(healthPollingTimer);
-      healthPollingTimer = null;
-    }
-    if (typeof document !== "undefined") {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    }
-    if (typeof window !== "undefined") {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    }
-    stopTimeTicker();
-  };
-
-  // Browser history: user-initiated schedule changes push an entry so the
-  // Back button returns to the previous schedule; restoring state (initial
-  // load, popstate) only replaces the current entry.
-  let restoringHistory = false;
-  const updateUrl = (params) => {
-    if (typeof window === "undefined") return;
-    const url = new URL(window.location);
-    for (const key of ["file", "mode", "teacher", "room"]) {
-      if (params[key]) url.searchParams.set(key, params[key]);
-      else url.searchParams.delete(key);
-    }
-    if (url.href === window.location.href) return;
-    if (restoringHistory) window.history.replaceState({}, "", url);
-    else window.history.pushState({}, "", url);
-  };
-
-  const withHistoryRestore = async (fn) => {
-    restoringHistory = true;
-    try {
-      await fn();
-    } finally {
-      restoringHistory = false;
-    }
-  };
-
-  const applyUrlState = async () => {
-    const params = new URLSearchParams(window.location.search);
-    const teacher = params.get("teacher");
-    const room = params.get("room");
-    const file = params.get("file");
-    if (teacher) {
-      await loadTeacherSchedule(teacher);
-    } else if (room) {
-      await loadRoomSchedule(room);
-    } else if (file && availableFiles.value.includes(file)) {
-      await loadSchedule(file);
-    } else if (params.get("mode") === "personal") {
-      await setMode("personal");
-    } else {
-      await returnToBaseSchedule();
-    }
-  };
-
-  const handlePopState = () => withHistoryRestore(applyUrlState);
-
-  // Actions
-  const init = async () => {
-    scrubStoredCredentials();
-    restoringHistory = true;
-    isLoading.value = true;
-    statusMessage.value = "Chargement des calendriers...";
-
-    try {
-      // Check server health and start periodic polling
-      await checkHealth();
-      startHealthPolling();
-
-      const files = await fetchFileList();
-      availableFiles.value = files;
-
-      // Restore selection from URL or localStorage
-      const urlParams = new URLSearchParams(window.location.search);
-      const urlMode = urlParams.get("mode");
-      const urlFile = urlParams.get("file");
-      const urlTeacher = urlParams.get("teacher");
-      const urlRoom = urlParams.get("room");
-
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-      const savedBase = JSON.parse(localStorage.getItem(BASE_SCHEDULE_KEY) || "null");
-      if (savedBase) {
-        baseSchedule.value = savedBase;
-      } else if (saved.mode === "student" && saved.file) {
-        baseSchedule.value = { mode: "student", file: saved.file, name: saved.file.replace(/\.ics$/i, "") };
-      } else if (saved.mode === "personal") {
-        baseSchedule.value = { mode: "personal", name: "Mon Planning ADE" };
-      }
-
-      if (urlTeacher) {
-        selectedMode.value = "teacher";
-        selectedTeacher.value = urlTeacher;
-        await Promise.all([loadTeacherList(), loadTeacherSchedule(urlTeacher)]);
-      } else if (urlRoom) {
-        selectedMode.value = "room";
-        selectedRoom.value = urlRoom;
-        await Promise.all([loadRoomList(), loadRoomSchedule(urlRoom)]);
-      } else if (urlFile && files.includes(urlFile)) {
-        selectedMode.value = "student";
-        autoSelectFromFile(urlFile);
-        await loadSchedule(urlFile);
-      } else if (urlMode === "personal" || saved.mode === "personal") {
-        const cachedIcs = localStorage.getItem(PERSONAL_CACHE_KEY);
-        const meta = JSON.parse(localStorage.getItem(PERSONAL_META_KEY) || "null");
-
-        if (cachedIcs) {
-          loadPersonalEvents(cachedIcs, meta || {});
-          if (localStorage.getItem(PERSONAL_CREDENTIALS_KEY)) {
-            refreshPersonalSchedule().catch(() => {});
-          }
-        } else if (localStorage.getItem(PERSONAL_CREDENTIALS_KEY)) {
-          await refreshPersonalSchedule();
-        } else if (files.length > 0) {
-          selectedMode.value = "student";
-          autoSelectFromFile(files[0]);
-          await loadSchedule(files[0]);
-        }
-      } else if (saved.mode === "teacher" && saved.teacher) {
-        selectedMode.value = "teacher";
-        selectedTeacher.value = saved.teacher;
-        await Promise.all([loadTeacherList(), loadTeacherSchedule(saved.teacher)]);
-      } else if (saved.mode === "room" && saved.room) {
-        selectedMode.value = "room";
-        selectedRoom.value = saved.room;
-        await Promise.all([loadRoomList(), loadRoomSchedule(saved.room)]);
-      } else {
-        if (saved.file && files.includes(saved.file)) {
-          selectedMode.value = "student";
-          autoSelectFromFile(saved.file);
-          await loadSchedule(saved.file);
-        } else if (files.length > 0) {
-          selectedMode.value = "student";
-          autoSelectFromFile(files[0]);
-          await loadSchedule(files[0]);
-        }
-      }
-    } catch (err) {
-      statusMessage.value = `Erreur: ${err.message}`;
-    } finally {
-      isLoading.value = false;
-      restoringHistory = false;
-    }
-  };
-
-  const autoSelectFromFile = (fileName) => {
-    const item = parsedFiles.value.find((f) => f.fileName === fileName);
-    if (item) {
-      selectedYear.value = item.year;
-      selectedTrack.value = item.track;
-      selectedType.value = item.type;
-      selectedFile.value = item.fileName;
-    }
-  };
-
-  const loadSchedule = async (fileName) => {
-    if (!fileName) return;
-    isLoading.value = true;
-    selectedFile.value = fileName;
-    selectedMode.value = "student";
-    disabledSubjects.value = loadSavedDisabledSubjects(`student_${fileName}`);
-    statusMessage.value = "Chargement de l'emploi du temps...";
-    autoSelectFromFile(fileName);
-
-    try {
-      const [text, cEvents, rEvents] = await Promise.all([
-        fetchIcsText(fileName),
-        loadCercleEvents(),
-        showRuMenu.value ? loadRuEvents() : Promise.resolve([]),
-      ]);
-      const parsed = parseIcs(text);
-      const mergedWithC = mergeWithCercle(parsed, cEvents);
-      const merged = mergeWithRu(mergedWithC, rEvents);
-      events.value = merged;
-      currentWeekStart.value = getRelevantWeekStart(parsed.length ? parsed : merged);
-      statusMessage.value = "";
-
-      // Save selection and update base schedule reference
-      const cleanName = fileName.replace(/\.ics$/i, "");
-      baseSchedule.value = { mode: "student", file: fileName, name: cleanName };
-      localStorage.setItem(BASE_SCHEDULE_KEY, JSON.stringify(baseSchedule.value));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode: "student", file: fileName }));
-      updateUrl({ file: fileName });
-    } catch (err) {
-      statusMessage.value = `Erreur: ${err.message}`;
-    } finally {
-      isLoading.value = false;
-    }
-  };
-
-  // Loads events from raw ICS text obtained out-of-band (e.g. personal calendar)
-  const loadPersonalEvents = (icsText, meta = {}) => {
-    try {
-      selectedMode.value = "personal";
-      disabledSubjects.value = loadSavedDisabledSubjects("personal");
-      const parsed = parseIcs(icsText);
-      const merged = mergeWithRu(parsed, ruEvents.value);
-      events.value = merged;
-      currentWeekStart.value = getRelevantWeekStart(parsed.length ? parsed : merged);
-      rawPersonalIcs.value = icsText;
-      statusMessage.value = "";
-
-      const now = new Date();
-      const lastUpdated = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
-      const fullMeta = {
-        name: meta.name || personalScheduleInfo.value?.name || "Mon Planning ADE",
-        universityId: meta.universityId || personalScheduleInfo.value?.universityId || "",
-        universityName: meta.universityName || personalScheduleInfo.value?.universityName || "",
-        resourceId: meta.resourceId || personalScheduleInfo.value?.resourceId || "",
-        inputMode: meta.inputMode || personalScheduleInfo.value?.inputMode || "list",
-        adeUrl: meta.adeUrl || personalScheduleInfo.value?.adeUrl || "",
-        branchPath: meta.branchPath || personalScheduleInfo.value?.branchPath || [],
-        // No login/password here: this object is persisted unconditionally.
-        lastUpdated,
-      };
-
-      personalScheduleInfo.value = fullMeta;
-
-      baseSchedule.value = {
-        mode: "personal",
-        name: fullMeta.name || "Mon Planning ADE",
-      };
-      localStorage.setItem(BASE_SCHEDULE_KEY, JSON.stringify(baseSchedule.value));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode: "personal" }));
-      localStorage.setItem(PERSONAL_CACHE_KEY, icsText);
-      localStorage.setItem(PERSONAL_META_KEY, JSON.stringify(fullMeta));
-
-      updateUrl({ mode: "personal" });
-    } catch (err) {
-      statusMessage.value = `Erreur de traitement du calendrier: ${err.message}`;
-    }
-  };
-
-  const refreshPersonalSchedule = async () => {
-    let creds;
-    try {
-      creds = JSON.parse(localStorage.getItem(PERSONAL_CREDENTIALS_KEY) || "null");
-    } catch {
-      creds = null;
-    }
-
-    if (!creds) {
-      setStatus("Aucun identifiant sauvegardé pour actualiser le planning personnel.", "configure-personal");
-      return;
-    }
-
-    isLoading.value = true;
-    statusMessage.value = "Actualisation du planning ADE...";
-
-    try {
-      const text = await fetchPersonalCalendar(creds);
-      loadPersonalEvents(text, {
-        ...creds,
-        name: personalScheduleInfo.value?.name || creds.resourceName,
-        universityId: creds.universityId,
-        resourceId: creds.resourceId,
-        inputMode: creds.inputMode,
-        branchPath: creds.branchPath || [],
-      });
-      statusMessage.value = "";
-    } catch (err) {
-      setStatus(`Impossible d'actualiser le planning : ${err.message}`, "configure-personal");
-    } finally {
-      isLoading.value = false;
-    }
-  };
-
-  const clearPersonalSchedule = () => {
-    localStorage.removeItem(PERSONAL_CREDENTIALS_KEY);
-    localStorage.removeItem(PERSONAL_CACHE_KEY);
-    localStorage.removeItem(PERSONAL_META_KEY);
-    localStorage.removeItem("personalAdeCredentials");
-    localStorage.removeItem("cachedPersonalIcs");
-    localStorage.removeItem("personalScheduleMeta");
-    personalScheduleInfo.value = null;
-    rawPersonalIcs.value = "";
-
-    selectedMode.value = "student";
-    if (availableFiles.value.length > 0) {
-      autoSelectFromFile(availableFiles.value[0]);
-      loadSchedule(availableFiles.value[0]);
-    }
-  };
-
-  const downloadPersonalIcs = () => {
-    const text = rawPersonalIcs.value || localStorage.getItem(PERSONAL_CACHE_KEY);
-    if (!text) return;
-
-    const blob = new Blob([text], { type: "text/calendar;charset=utf-8" });
-    const blobUrl = URL.createObjectURL(blob);
-    const baseName = (personalScheduleInfo.value?.name || "mon_planning_ade")
-      .toLowerCase()
-      .replace(/[^a-z0-9_-]/g, "_");
-
-    const link = document.createElement("a");
-    link.href = blobUrl;
-    link.download = `${baseName}.ics`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(blobUrl);
-  };
-
-  const loadTeacherList = async () => {
-    if (availableTeachers.value.length > 0) return;
-    isAggregatorLoading.value = true;
-    try {
-      const teacherMap = await getTeacherIndex(onIndexProgress);
-      availableTeachers.value = Array.from(teacherMap.keys()).sort((a, b) =>
-        a.localeCompare(b, "fr", { sensitivity: "base" })
-      );
-    } catch {
-      // Graceful degradation when offline or unindexed
-    } finally {
-      isAggregatorLoading.value = false;
-      indexProgress.value = null;
-    }
-  };
-
-  const loadRoomList = async () => {
-    if (availableRooms.value.length > 0) return;
-    isAggregatorLoading.value = true;
-    try {
-      const roomSet = new Set();
-
-      // Fast path: static room files from /api/rooms
-      try {
-        const apiRooms = await fetchRoomList();
-        apiRooms.forEach((r) => roomSet.add(r));
-        if (roomSet.size > 0) {
-          availableRooms.value = Array.from(roomSet).sort((a, b) =>
-            a.localeCompare(b, "fr", { numeric: true, sensitivity: "base" })
-          );
-        }
-      } catch {}
-
-      // Aggregated rooms from all parsed student calendars
-      try {
-        const roomMap = await getRoomIndex(onIndexProgress);
-        for (const room of roomMap.keys()) {
-          roomSet.add(room);
-        }
-      } catch {}
-
-      availableRooms.value = Array.from(roomSet).sort((a, b) =>
-        a.localeCompare(b, "fr", { numeric: true, sensitivity: "base" })
-      );
-    } catch {
-      // Graceful degradation when offline or unindexed
-    } finally {
-      isAggregatorLoading.value = false;
-      indexProgress.value = null;
-    }
-  };
-
-  // Watch mode switches to load lists lazily when entering teacher/room mode,
-  // and automatically restore schedule when returning to student/personal mode
-  watch(selectedMode, (newMode, oldMode) => {
-    if (newMode === oldMode) return;
-    if (newMode === "teacher") {
-      if (availableTeachers.value.length === 0) {
-        loadTeacherList();
-      }
-      if (selectedTeacher.value) {
-        loadTeacherSchedule(selectedTeacher.value);
-      }
-    } else if (newMode === "room") {
-      if (availableRooms.value.length === 0) {
-        loadRoomList();
-      }
-      if (selectedRoom.value) {
-        loadRoomSchedule(selectedRoom.value);
-      }
-    } else if (newMode === "student" && oldMode && oldMode !== "student") {
-      const targetFile = selectedFile.value || baseSchedule.value?.file || (availableFiles.value.length > 0 ? availableFiles.value[0] : "");
-      if (targetFile) {
-        autoSelectFromFile(targetFile);
-        loadSchedule(targetFile);
-      }
-    } else if (newMode === "personal" && oldMode && oldMode !== "personal") {
-      const cachedIcs = localStorage.getItem(PERSONAL_CACHE_KEY);
-      const meta = JSON.parse(localStorage.getItem(PERSONAL_META_KEY) || "null");
-      if (cachedIcs) {
-        loadPersonalEvents(cachedIcs, meta || {});
-      } else if (localStorage.getItem(PERSONAL_CREDENTIALS_KEY)) {
-        refreshPersonalSchedule().catch(() => {});
-      }
-    }
-  });
-
-  const loadTeacherSchedule = async (teacherName) => {
-    if (!teacherName) return;
-    isLoading.value = true;
-    selectedMode.value = "teacher";
-    selectedTeacher.value = teacherName;
-    disabledSubjects.value = loadSavedDisabledSubjects(`teacher_${teacherName}`);
-    statusMessage.value = "Agrégation des cours du professeur...";
-
-    try {
-      if (availableTeachers.value.length === 0) {
-        loadTeacherList().catch(() => {});
-      }
-      const [teacherMap, cEvents, rEvents] = await Promise.all([
-        getTeacherIndex(),
-        loadCercleEvents(),
-        showRuMenu.value ? loadRuEvents() : Promise.resolve([]),
-      ]);
-      const teacherEvents = teacherMap.get(teacherName) || [];
-      const mergedWithC = mergeWithCercle(teacherEvents, cEvents);
-      const merged = mergeWithRu(mergedWithC, rEvents);
-      events.value = merged;
-      currentWeekStart.value = getRelevantWeekStart(teacherEvents.length ? teacherEvents : merged);
-      statusMessage.value = "";
-
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode: "teacher", teacher: teacherName }));
-
-      updateUrl({ teacher: teacherName });
-    } catch (err) {
-      statusMessage.value = `Erreur: ${err.message}`;
-    } finally {
-      isLoading.value = false;
-    }
-  };
-
-  const loadRoomSchedule = async (roomName) => {
-    if (!roomName) return;
-    isLoading.value = true;
-    selectedMode.value = "room";
-    selectedRoom.value = roomName;
-    disabledSubjects.value = loadSavedDisabledSubjects(`room_${roomName}`);
-    statusMessage.value = "Recherche des cours dans la salle...";
-
-    try {
-      if (availableRooms.value.length === 0) {
-        loadRoomList().catch(() => {});
-      }
-
-      let roomEvents = [];
-      // 1. Try fetching direct room calendar from backend /rooms/{roomName}.ics
-      try {
-        const resp = await fetch(`/rooms/${encodeURIComponent(roomName)}.ics`, { cache: "no-store" });
-        if (resp.ok) {
-          const text = await decodeTextWithFallback(resp);
-          roomEvents = parseIcs(text);
-        }
-      } catch {}
-
-      // 2. Fallback to aggregator (from student promo files)
-      if (!roomEvents || roomEvents.length === 0) {
-        const roomMap = await getRoomIndex();
-        roomEvents = roomMap.get(roomName) || [];
-      }
-
-      roomEvents.sort((a, b) => new Date(a.start) - new Date(b.start));
-      events.value = roomEvents;
-      currentWeekStart.value = getRelevantWeekStart(roomEvents);
-      statusMessage.value = "";
-
-      selectedMode.value = "room";
-      selectedRoom.value = roomName;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode: "room", room: roomName }));
-
-      updateUrl({ room: roomName });
-    } catch (err) {
-      statusMessage.value = `Erreur: ${err.message}`;
-    } finally {
-      isLoading.value = false;
-    }
-  };
-
-  const returnToBaseSchedule = async () => {
-    const base = baseSchedule.value || JSON.parse(localStorage.getItem(BASE_SCHEDULE_KEY) || "null");
-
-    if (base?.mode === "personal") {
-      selectedMode.value = "personal";
-      const cachedIcs = localStorage.getItem(PERSONAL_CACHE_KEY);
-      const meta = JSON.parse(localStorage.getItem(PERSONAL_META_KEY) || "null");
-      if (cachedIcs) {
-        loadPersonalEvents(cachedIcs, meta || {});
-      } else if (localStorage.getItem(PERSONAL_CREDENTIALS_KEY)) {
-        await refreshPersonalSchedule();
-      }
-      return;
-    }
-
-    selectedMode.value = "student";
-    const targetFile = base?.file || selectedFile.value || (availableFiles.value.length > 0 ? availableFiles.value[0] : "");
-    if (targetFile) {
-      autoSelectFromFile(targetFile);
-      await loadSchedule(targetFile);
-    }
-  };
-
-  const setMode = async (mode) => {
-    if (selectedMode.value === mode) {
-      if (mode === "student" && selectedFile.value && events.value.length === 0) {
-        await loadSchedule(selectedFile.value);
-      } else if (mode === "personal" && events.value.length === 0) {
-        const cachedIcs = localStorage.getItem(PERSONAL_CACHE_KEY);
-        const meta = JSON.parse(localStorage.getItem(PERSONAL_META_KEY) || "null");
-        if (cachedIcs) loadPersonalEvents(cachedIcs, meta || {});
-      } else if (mode === "teacher" && selectedTeacher.value && events.value.length === 0) {
-        await loadTeacherSchedule(selectedTeacher.value);
-      } else if (mode === "room" && selectedRoom.value && events.value.length === 0) {
-        await loadRoomSchedule(selectedRoom.value);
-      }
-      return;
-    }
-
-    selectedMode.value = mode;
-
-    if (mode === "student") {
-      const targetFile = selectedFile.value || baseSchedule.value?.file || (availableFiles.value.length > 0 ? availableFiles.value[0] : "");
-      if (targetFile) {
-        autoSelectFromFile(targetFile);
-        await loadSchedule(targetFile);
-      }
-    } else if (mode === "personal") {
-      const cachedIcs = localStorage.getItem(PERSONAL_CACHE_KEY);
-      const meta = JSON.parse(localStorage.getItem(PERSONAL_META_KEY) || "null");
-      if (cachedIcs) {
-        loadPersonalEvents(cachedIcs, meta || {});
-      } else if (localStorage.getItem(PERSONAL_CREDENTIALS_KEY)) {
-        await refreshPersonalSchedule();
-      }
-    } else if (mode === "teacher") {
-      if (availableTeachers.value.length === 0) {
-        await loadTeacherList();
-      }
-      if (selectedTeacher.value) {
-        await loadTeacherSchedule(selectedTeacher.value);
-      }
-    } else if (mode === "room") {
-      if (availableRooms.value.length === 0) {
-        await loadRoomList();
-      }
-      if (selectedRoom.value) {
-        await loadRoomSchedule(selectedRoom.value);
-      }
-    }
-  };
-
-  const nextWeek = () => {
-    const next = new Date(currentWeekStart.value);
-    next.setDate(next.getDate() + 7);
-    currentWeekStart.value = next;
-  };
-
-  const prevWeek = () => {
-    const prev = new Date(currentWeekStart.value);
-    prev.setDate(prev.getDate() - 7);
-    currentWeekStart.value = prev;
-  };
-
-  const goToCurrentWeek = () => {
-    currentWeekStart.value = getWeekStart(new Date());
-  };
-
-  const toggleSubjectFilter = (type) => {
-    if (!type) return;
-    const current = [...disabledSubjects.value];
-    const index = current.indexOf(type);
-    if (index === -1) {
-      current.push(type);
-    } else {
-      current.splice(index, 1);
-    }
-    disabledSubjects.value = current;
-    saveDisabledSubjects();
-  };
-
-  const resetSubjectFilters = () => {
-    disabledSubjects.value = [];
-    saveDisabledSubjects();
-  };
-
-  const openRoomModal = () => {
-    isRoomModalOpen.value = true;
-  };
-
-  const closeRoomModal = () => {
-    isRoomModalOpen.value = false;
-  };
-
-  const openEventModal = (ev) => {
-    activeModalEvent.value = ev;
-  };
-
-  const closeEventModal = () => {
-    activeModalEvent.value = null;
+    server.stopHealthPolling();
+    schedule.stopHistoryListening();
   };
 
   return {
+    // catalog
     availableFiles,
     availableTeachers,
     availableRooms,
+    isAggregatorLoading,
+    indexProgress,
+    loadTeacherList: catalog.loadTeacherList,
+    loadRoomList: catalog.loadRoomList,
+    // overlays
+    cercleEvents,
+    ruEvents,
+    showRuMenu,
+    loadCercleEvents: overlays.loadCercleEvents,
+    loadRuEvents: overlays.loadRuEvents,
+    // personal schedule
+    personalScheduleInfo,
+    rawPersonalIcs,
+    downloadPersonalIcs: personal.downloadPersonalIcs,
+    // server
+    serverHealth,
+    isOnline,
+    currentTime,
+    checkHealth: server.checkHealth,
+    startHealthPolling,
+    stopHealthPolling,
+    // status
+    statusMessage,
+    statusAction,
+    // planning
     selectedMode,
     baseSchedule,
-    returnToBaseSchedule,
-    setMode,
     selectedYear,
     selectedTrack,
     selectedType,
     selectedFile,
     selectedTeacher,
     selectedRoom,
-    availableYears,
-    availableTracks,
-    availableTypes,
-    availableRestFiles,
     events,
     currentWeekStart,
     currentWeekEnd,
     weekEvents,
     displayedWeekEvents,
     nextCourse,
-    currentTime,
     disabledSubjects,
     selectedSubjectFilter,
     isLoading,
-    isAggregatorLoading,
-    indexProgress,
-    isOnline,
-    statusMessage,
-    statusAction,
     activeModalEvent,
     isRoomModalOpen,
-    serverHealth,
-    init,
-    loadSchedule,
-    loadPersonalEvents,
-    loadTeacherList,
-    loadRoomList,
-    loadTeacherSchedule,
-    loadRoomSchedule,
-    personalScheduleInfo,
-    refreshPersonalSchedule,
-    clearPersonalSchedule,
-    downloadPersonalIcs,
-    nextWeek,
-    prevWeek,
-    goToCurrentWeek,
-    toggleSubjectFilter,
-    resetSubjectFilters,
-    loadSavedDisabledSubjects,
-    saveDisabledSubjects,
-    getCurrentScheduleKey,
-    openRoomModal,
-    closeRoomModal,
-    openEventModal,
-    closeEventModal,
-    cercleEvents,
-    loadCercleEvents,
-    showRuMenu,
-    ruEvents,
-    toggleRuMenu,
-    loadRuEvents,
-    checkHealth,
-    reloadCurrentScheduleSilently,
-    startHealthPolling,
-    stopHealthPolling,
+    availableYears,
+    availableTracks,
+    availableTypes,
+    availableRestFiles,
+    init: schedule.init,
+    setMode: schedule.setMode,
+    returnToBaseSchedule: schedule.returnToBaseSchedule,
+    loadSchedule: schedule.loadSchedule,
+    loadPersonalEvents: schedule.loadPersonalEvents,
+    loadTeacherSchedule: schedule.loadTeacherSchedule,
+    loadRoomSchedule: schedule.loadRoomSchedule,
+    refreshPersonalSchedule: schedule.refreshPersonalSchedule,
+    clearPersonalSchedule: schedule.clearPersonalSchedule,
+    reloadCurrentScheduleSilently: schedule.reloadCurrentScheduleSilently,
+    toggleRuMenu: schedule.toggleRuMenu,
+    toggleSubjectFilter: schedule.toggleSubjectFilter,
+    resetSubjectFilters: schedule.resetSubjectFilters,
+    loadSavedDisabledSubjects: schedule.loadSavedDisabledSubjects,
+    saveDisabledSubjects: schedule.saveDisabledSubjects,
+    getCurrentScheduleKey: schedule.getCurrentScheduleKey,
+    nextWeek: schedule.nextWeek,
+    prevWeek: schedule.prevWeek,
+    goToCurrentWeek: schedule.goToCurrentWeek,
+    openRoomModal: schedule.openRoomModal,
+    closeRoomModal: schedule.closeRoomModal,
+    openEventModal: schedule.openEventModal,
+    closeEventModal: schedule.closeEventModal,
   };
 }
