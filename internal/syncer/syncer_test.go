@@ -183,3 +183,73 @@ func TestSyncerWithCercleIsolation(t *testing.T) {
 		t.Errorf("expected promo file to contain ADE event")
 	}
 }
+
+func newPruneTestSyncer(t *testing.T) (s *Syncer, outputDir, roomsDir string) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	outputDir = filepath.Join(tmpDir, "output")
+	roomsDir = filepath.Join(tmpDir, "rooms")
+	_ = os.MkdirAll(outputDir, 0o755)
+	_ = os.MkdirAll(roomsDir, 0o755)
+	cfg := &config.Config{OutputDir: outputDir, RoomsOutputDir: roomsDir, AcademicYear: "2026-2027"}
+	return New(cfg, ade.NewClient("", "", cfg.AcademicYear), nil), outputDir, roomsDir
+}
+
+func TestPruneStaleFiles(t *testing.T) {
+	s, outputDir, roomsDir := newPruneTestSyncer(t)
+
+	for _, name := range []string{"1A-A.ics", "1A-B.ics", "2A-A.ics", "3A-Old.ics", "cercle.ics", "ru.ics", "files.json", "1A-A.ics.tmp"} {
+		_ = os.WriteFile(filepath.Join(outputDir, name), []byte("x"), 0o644)
+	}
+	_ = os.WriteFile(filepath.Join(roomsDir, "A042.ics"), []byte("x"), 0o644)
+
+	s.pruneStaleFiles([]ade.Resource{
+		{Name: "1A-A", ID: "1"}, {Name: "1A-B", ID: "2"}, {Name: "2A-A", ID: "3"},
+		{Name: "A042", ID: "9", IsRoom: true},
+	})
+
+	for _, gone := range []string{"3A-Old.ics", "1A-A.ics.tmp"} {
+		if _, err := os.Stat(filepath.Join(outputDir, gone)); !os.IsNotExist(err) {
+			t.Errorf("expected %s to be removed", gone)
+		}
+	}
+	for _, kept := range []string{"1A-A.ics", "1A-B.ics", "2A-A.ics", "cercle.ics", "ru.ics", "files.json"} {
+		if _, err := os.Stat(filepath.Join(outputDir, kept)); err != nil {
+			t.Errorf("expected %s to be kept: %v", kept, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(roomsDir, "A042.ics")); err != nil {
+		t.Errorf("expected room calendar to be kept: %v", err)
+	}
+}
+
+func TestPruneStaleFilesRefusesMassDeletion(t *testing.T) {
+	s, outputDir, _ := newPruneTestSyncer(t)
+	for _, name := range []string{"1A-A.ics", "1A-B.ics", "2A-A.ics", "2A-B.ics"} {
+		_ = os.WriteFile(filepath.Join(outputDir, name), []byte("x"), 0o644)
+	}
+
+	// A partial crawl returning a single resource must not wipe 3 of 4 calendars.
+	s.pruneStaleFiles([]ade.Resource{{Name: "1A-A", ID: "1"}})
+
+	entries, _ := os.ReadDir(outputDir)
+	if len(entries) != 4 {
+		t.Errorf("expected all 4 calendars to be kept, got %d", len(entries))
+	}
+}
+
+func TestFilesIndexExcludesAuxiliaryCalendars(t *testing.T) {
+	s, outputDir, _ := newPruneTestSyncer(t)
+	for _, name := range []string{"1A-A.ics", "cercle.ics", "ru.ics"} {
+		_ = os.WriteFile(filepath.Join(outputDir, name), []byte("x"), 0o644)
+	}
+	if err := s.generateFilesIndex(); err != nil {
+		t.Fatalf("generateFilesIndex: %v", err)
+	}
+	data, _ := os.ReadFile(filepath.Join(outputDir, "files.json"))
+	var files []string
+	_ = json.Unmarshal(data, &files)
+	if len(files) != 1 || files[0] != "1A-A.ics" {
+		t.Errorf("expected only 1A-A.ics in files.json, got %v", files)
+	}
+}
