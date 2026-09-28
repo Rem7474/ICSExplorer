@@ -31,6 +31,61 @@ test.describe("planning", () => {
   });
 });
 
+const mondayOfThisWeek = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay();
+  d.setDate(d.getDate() - day + (day === 0 ? -6 : 1));
+  return d;
+};
+const longDay = (d) => d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+
+test.describe("native planning grid", () => {
+  test("swiping past Friday in the 1-day view moves to the next week and re-centres", async ({ page }) => {
+    await openApp(page);
+    await page.getByRole("button", { name: "Vue jour" }).click();
+    const scroller = page.locator(".grid-scroller");
+
+    // Native horizontal scroll to Tuesday of next week (6 days after Monday).
+    await scroller.evaluate((el) => {
+      const colW = el.clientWidth - 44;
+      const monday = [...el.querySelectorAll(".day-col")].findIndex((c) => c.classList.contains("week-start") && c.offsetLeft > 0 && c.offsetLeft - 44 >= el.scrollLeft - 5);
+      el.scrollTo({ left: (monday + 6) * colW - 0, behavior: "instant" });
+    });
+
+    const tuesdayNextWeek = mondayOfThisWeek();
+    tuesdayNextWeek.setDate(tuesdayNextWeek.getDate() + 8);
+    await expect(page.getByRole("tab", { selected: true })).toHaveAttribute("aria-label", longDay(tuesdayNextWeek));
+
+    // Re-centred: the displayed day sits in the middle week of the rendered window.
+    const index = await scroller.evaluate((el) => Math.round(el.scrollLeft / (el.clientWidth - 44)));
+    expect(index).toBeGreaterThanOrEqual(5);
+    expect(index).toBeLessThan(10);
+  });
+
+  test("the 5-day view pages by week and column headers open a day", async ({ page }) => {
+    await openApp(page);
+    await page.getByRole("button", { name: "Vue semaine" }).click();
+    await page.getByRole("button", { name: "Semaine suivante" }).click();
+    const nextMonday = mondayOfThisWeek();
+    nextMonday.setDate(nextMonday.getDate() + 7);
+    const label = nextMonday.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+    await expect(page.locator(".period-btn")).toContainText(label);
+
+    await page.getByRole("button", { name: `Afficher ${longDay(nextMonday)}` }).click();
+    await expect(page.getByRole("button", { name: "Vue jour" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("course details open in a sheet and close with Escape", async ({ page }) => {
+    await openApp(page);
+    await page.locator(".event:visible", { hasText: FIXTURE.courseA }).first().click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toContainText(FIXTURE.courseA);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+  });
+});
+
 test.describe("navigation", () => {
   test("tabs switch screens and the Planning tab keeps the displayed schedule", async ({ page }) => {
     await openApp(page);

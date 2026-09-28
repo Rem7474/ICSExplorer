@@ -8,7 +8,7 @@ import { isIOS } from "./plugins/vuetify.js";
 
 import AppTopBar from "./components/shell/AppTopBar.vue";
 import AppNav from "./components/shell/AppNav.vue";
-import EventModal from "./components/EventModal.vue";
+import EventSheet from "./components/planning/EventSheet.vue";
 import PersonalScheduleModal from "./components/PersonalScheduleModal.vue";
 import ToastContainer from "./components/ToastContainer.vue";
 
@@ -56,8 +56,7 @@ onUnmounted(() => {
       <router-view />
     </v-main>
 
-    <EventModal
-      v-if="schedule.activeModalEvent"
+    <EventSheet
       :event="schedule.activeModalEvent"
       @close="schedule.closeEventModal"
       @select-teacher="schedule.loadTeacherSchedule"

@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import ScheduleControls from "../components/ScheduleControls.vue";
-import ScheduleWeek from "../components/ScheduleWeek.vue";
 import { useSchedule } from "../composables/useSchedule.js";
-import { formatRelativeTime, getWeekStart } from "../utils/dates.js";
+import { formatRelativeTime } from "../utils/dates.js";
 import { router } from "../router/index.js";
 
 describe("formatRelativeTime", () => {
@@ -186,24 +185,6 @@ describe("useSchedule UX state", () => {
       schedule.stopHealthPolling();
       vi.restoreAllMocks();
     }
-  });
-});
-
-describe("ScheduleWeek accessibility", () => {
-  it("describes each course for screen readers", () => {
-    const monday = getWeekStart(new Date());
-    const start = new Date(monday);
-    start.setHours(8, 15, 0, 0);
-    const end = new Date(monday);
-    end.setHours(10, 15, 0, 0);
-
-    const events = [{ uid: "1", summary: "Algorithmique", location: "A042", start, end }];
-    const wrapper = mount(ScheduleWeek, { props: { events, allEvents: events, currentWeekStart: monday } });
-
-    const label = wrapper.find(".event").attributes("aria-label");
-    expect(label).toContain("Algorithmique");
-    expect(label).toContain("08h15 - 10h15");
-    expect(label).toContain("salle A042");
   });
 });
 

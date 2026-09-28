@@ -127,6 +127,11 @@ export const useScheduleStore = defineStore("schedule", () => {
     events.value.filter((ev) => new Date(ev.start) <= currentWeekEnd.value && new Date(ev.end) >= currentWeekStart.value)
   );
 
+  // All events except hidden subjects (the planning grid spans several weeks).
+  const displayedEvents = computed(() =>
+    disabledSubjects.value.length ? events.value.filter((ev) => !isHidden(ev, disabledSubjects.value)) : events.value
+  );
+
   const displayedWeekEvents = computed(() =>
     disabledSubjects.value.length ? weekEvents.value.filter((ev) => !isHidden(ev, disabledSubjects.value)) : weekEvents.value
   );
@@ -701,6 +706,7 @@ export const useScheduleStore = defineStore("schedule", () => {
     scheduleQuery,
     scheduleLabel,
     weekEvents,
+    displayedEvents,
     displayedWeekEvents,
     nextCourse,
     init,
