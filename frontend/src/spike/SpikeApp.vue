@@ -4,7 +4,8 @@
 import { ref, computed, onMounted, nextTick, watch } from "vue";
 import { useTheme as useVuetifyTheme } from "vuetify";
 import {
-  mdiCalendarToday, mdiMagnify, mdiDoorOpen, mdiDotsHorizontal, mdiStarOutline,
+  mdiCalendarToday, mdiCalendarTodayOutline, mdiMagnify, mdiDoorOpen, mdiDoor,
+  mdiDotsHorizontalCircle, mdiDotsHorizontalCircleOutline, mdiStarOutline,
   mdiCalendarCursor, mdiClockOutline, mdiMapMarkerOutline, mdiAccountOutline,
   mdiCalendarPlus, mdiWeatherNight, mdiWhiteBalanceSunny,
 } from "@mdi/js";
@@ -26,6 +27,29 @@ const PX_PER_HOUR = 64;
 const RAIL = 44;
 
 const nav = ref("planning");
+// Filled icon when active, outlined otherwise (Material 3 / iOS tab bar convention).
+const navItems = [
+  { value: "planning", label: "Planning", icon: mdiCalendarTodayOutline, active: mdiCalendarToday },
+  { value: "search", label: "Rechercher", icon: mdiMagnify, active: mdiMagnify },
+  { value: "rooms", label: "Salles libres", icon: mdiDoor, active: mdiDoorOpen },
+  { value: "more", label: "Plus", icon: mdiDotsHorizontalCircleOutline, active: mdiDotsHorizontalCircle },
+];
+
+// Colored course cards: tinted fill, strong accent bar, title in the subject hue.
+const eventStyle = (item) => {
+  const accent = getSubjectColors(item.ev, isDark.value).border;
+  const surface = "rgb(var(--v-theme-surface))";
+  const ink = "rgb(var(--v-theme-on-surface))";
+  return {
+    top: `${item.top}px`,
+    height: `${item.height}px`,
+    left: item.left,
+    width: item.width,
+    "--accent": accent,
+    background: `color-mix(in srgb, ${accent} ${isDark.value ? 30 : 17}%, ${surface})`,
+    color: `color-mix(in srgb, ${accent} ${isDark.value ? 25 : 55}%, ${ink})`,
+  };
+};
 const daysPerPage = ref(1);
 const fileName = ref("");
 const events = ref([]);
@@ -140,15 +164,15 @@ onMounted(async () => {
 
 <template>
   <v-app :class="{ 'is-ios': isIOS }">
-    <v-app-bar color="surface-container" class="app-bar-safe">
+    <v-app-bar class="app-bar-safe brand-bar" flat>
       <v-app-bar-title>
         <div class="bar-title">{{ fileName.replace(/\.ics$/, "") || "ICSExplorer" }}</div>
         <div class="bar-subtitle">Semaine du {{ weekLabel }}</div>
       </v-app-bar-title>
       <template #append>
-        <v-btn :icon="mdiCalendarCursor" aria-label="Aujourd'hui" @click="scrollToDay(Math.max(0, days.findIndex((d) => isToday(d.date))))" />
-        <v-btn :icon="mdiStarOutline" aria-label="Épingler" />
-        <v-btn :icon="isDark ? mdiWhiteBalanceSunny : mdiWeatherNight" aria-label="Changer de thème" @click="toggleTheme" />
+        <v-btn :icon="mdiCalendarCursor" color="white" aria-label="Aujourd'hui" @click="scrollToDay(Math.max(0, days.findIndex((d) => isToday(d.date))))" />
+        <v-btn :icon="mdiStarOutline" color="white" aria-label="Épingler" />
+        <v-btn :icon="isDark ? mdiWhiteBalanceSunny : mdiWeatherNight" color="white" aria-label="Changer de thème" @click="toggleTheme" />
       </template>
     </v-app-bar>
 
@@ -168,11 +192,18 @@ onMounted(async () => {
             <span class="num">{{ d.date.getDate() }}</span>
           </button>
         </div>
-        <v-btn-toggle v-model="daysPerPage" mandatory density="compact" divided variant="outlined" class="span-toggle">
-          <v-btn :value="1" size="small">1J</v-btn>
-          <v-btn :value="3" size="small">3J</v-btn>
-          <v-btn :value="5" size="small">5J</v-btn>
-        </v-btn-toggle>
+        <div class="span-toggle" role="group" aria-label="Nombre de jours affichés">
+          <button
+            v-for="n in [1, 3, 5]"
+            :key="n"
+            class="span-btn ios-press"
+            :class="{ active: daysPerPage === n }"
+            :aria-pressed="daysPerPage === n"
+            @click="daysPerPage = n"
+          >
+            {{ n }}J
+          </button>
+        </div>
       </div>
 
       <!-- Native planning: one scroll container, horizontal snap per day, sticky hour rail. -->
@@ -194,12 +225,7 @@ onMounted(async () => {
             v-for="item in d.events"
             :key="item.ev.uid + item.top"
             class="event ios-press"
-            :style="{
-              top: `${item.top}px`, height: `${item.height}px`, left: item.left, width: item.width,
-              background: getSubjectColors(item.ev, isDark).background,
-              borderColor: getSubjectColors(item.ev, isDark).border,
-              color: getSubjectColors(item.ev, isDark).text,
-            }"
+            :style="eventStyle(item)"
             :aria-label="`${item.ev.summary}, ${item.time}${item.ev.location ? ', salle ' + item.ev.location : ''}`"
             @click="openEvent(item.ev)"
           >
@@ -212,12 +238,19 @@ onMounted(async () => {
       </div>
     </v-main>
 
-    <v-bottom-navigation v-model="nav" grow color="primary" class="bottom-nav-safe">
-      <v-btn value="planning"><v-icon :icon="mdiCalendarToday" /><span>Planning</span></v-btn>
-      <v-btn value="search"><v-icon :icon="mdiMagnify" /><span>Rechercher</span></v-btn>
-      <v-btn value="rooms"><v-icon :icon="mdiDoorOpen" /><span>Salles libres</span></v-btn>
-      <v-btn value="more"><v-icon :icon="mdiDotsHorizontal" /><span>Plus</span></v-btn>
-    </v-bottom-navigation>
+    <nav class="tab-bar" aria-label="Navigation principale">
+      <button
+        v-for="item in navItems"
+        :key="item.value"
+        class="tab-item ios-press"
+        :class="{ active: nav === item.value }"
+        :aria-current="nav === item.value ? 'page' : undefined"
+        @click="nav = item.value"
+      >
+        <span class="tab-indicator"><v-icon :icon="nav === item.value ? item.active : item.icon" size="24" /></span>
+        <span class="tab-label">{{ item.label }}</span>
+      </button>
+    </nav>
 
     <v-bottom-sheet v-model="sheet">
       <v-card v-if="selected" class="sheet-card">
@@ -296,9 +329,14 @@ button.day-chip {
   padding-top: env(safe-area-inset-top);
 }
 
-.bottom-nav-safe {
-  padding-bottom: env(safe-area-inset-bottom);
-  height: calc(64px + env(safe-area-inset-bottom)) !important;
+/* Brand header: same blue gradient as the current app, deeper in dark mode. */
+.brand-bar.v-app-bar {
+  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%) !important;
+  color: #fff !important;
+}
+
+.v-theme--dark .brand-bar.v-app-bar {
+  background: linear-gradient(135deg, #0b1740 0%, #1e3a8a 100%) !important;
 }
 
 /* iOS pressed state replaces the Material ripple. */
@@ -311,9 +349,12 @@ button.day-chip {
 
 <style scoped>
 .main-fill {
+  --tab-h: calc(64px + env(safe-area-inset-bottom));
   height: 100dvh;
   display: flex;
   flex-direction: column;
+  padding-bottom: var(--tab-h) !important;
+  box-sizing: border-box;
 }
 
 .bar-title {
@@ -331,8 +372,17 @@ button.day-chip {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: rgb(var(--v-theme-surface-container));
+  padding: 0.25rem 0.75rem 0.75rem;
+  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+  border-radius: 0 0 22px 22px;
+  box-shadow: 0 6px 16px -8px rgba(30, 58, 138, 0.55);
+  position: relative;
+  z-index: 4;
+}
+
+.v-theme--dark .day-strip {
+  background: linear-gradient(135deg, #0b1740 0%, #1e3a8a 100%);
+  box-shadow: none;
 }
 
 .day-chips {
@@ -348,8 +398,9 @@ button.day-chip {
   align-items: center;
   padding: 0.3rem 0;
   border-radius: 14px;
-  color: rgb(var(--v-theme-on-surface-variant));
+  color: rgba(255, 255, 255, 0.78);
   -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .day-chip .dow {
@@ -363,12 +414,47 @@ button.day-chip {
 }
 
 .day-chip.active {
-  background: rgb(var(--v-theme-secondary-container));
-  color: rgb(var(--v-theme-on-secondary-container));
+  background: #fff;
+  color: #1e3a8a;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
-.day-chip.today .num {
-  color: rgb(var(--v-theme-primary));
+.day-chip.today:not(.active) .num {
+  color: #fde047;
+}
+
+.day-chip.today .num::after {
+  content: "";
+  display: block;
+  width: 5px;
+  height: 5px;
+  margin: 2px auto 0;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.span-toggle {
+  display: flex;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.span-btn {
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.span-btn.active {
+  background: #fff;
+  color: #1e3a8a;
 }
 
 .pager {
@@ -380,7 +466,14 @@ button.day-chip {
   scroll-padding-left: var(--rail);
   overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
-  background: rgb(var(--v-theme-surface));
+  background: rgb(var(--v-theme-surface-container-lowest));
+  margin-top: -14px; /* slide under the rounded header */
+  padding-top: 14px;
+  scrollbar-width: none; /* like iOS: no persistent scrollbars */
+}
+
+.pager::-webkit-scrollbar {
+  display: none;
 }
 
 .rail {
@@ -388,7 +481,7 @@ button.day-chip {
   left: 0;
   z-index: 3;
   flex: 0 0 var(--rail);
-  background: rgb(var(--v-theme-surface));
+  background: rgb(var(--v-theme-surface-container-lowest));
 }
 
 .hour {
@@ -426,9 +519,10 @@ button.day-chip {
 .event {
   position: absolute;
   margin-left: 2px;
-  padding: 4px 6px;
-  border-radius: 10px;
-  border-left: 4px solid;
+  padding: 5px 7px 5px 9px;
+  border: 0;
+  border-radius: 12px;
+  box-shadow: inset 4px 0 0 var(--accent), 0 1px 2px rgba(15, 23, 42, 0.08);
   text-align: left;
   font-size: 0.78rem;
   line-height: 1.25;
@@ -440,7 +534,8 @@ button.day-chip {
 }
 
 .event strong {
-  font-size: 0.82rem;
+  font-size: 0.84rem;
+  font-weight: 700;
 }
 
 .empty-day {
@@ -450,6 +545,71 @@ button.day-chip {
   text-align: center;
   color: rgb(var(--v-theme-on-surface-variant));
   font-size: 0.85rem;
+}
+
+/* Tab bar: translucent frosted glass (iOS), Material 3 pill indicator. */
+.tab-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1004;
+  display: flex;
+  height: calc(64px + env(safe-area-inset-bottom));
+  padding: 6px 4px env(safe-area-inset-bottom);
+  background: rgba(var(--v-theme-surface), 0.78);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-top: 0.5px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+.tab-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: rgb(var(--v-theme-on-surface-variant));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tab-indicator {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 30px;
+  border-radius: 999px;
+  transition: background-color 0.2s ease;
+}
+
+.tab-label {
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.tab-item.active {
+  color: #1e3a8a;
+}
+
+.tab-item.active .tab-indicator {
+  background: rgba(37, 99, 235, 0.14);
+}
+
+.tab-item.active .tab-label {
+  font-weight: 700;
+}
+
+.v-theme--dark .tab-item.active {
+  color: rgb(var(--v-theme-primary));
+}
+
+.v-theme--dark .tab-item.active .tab-indicator {
+  background: rgba(var(--v-theme-primary), 0.18);
 }
 
 .sheet-card {
