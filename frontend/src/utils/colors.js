@@ -1,22 +1,27 @@
-const KNOWN_PREFIXES = ["IN", "SN", "PR", "LV", "XP", "AU", "EP", "MAC", "SP", "PT"];
+// Known disciplines with defined CSS variables in main.css
+export const KNOWN_DISCIPLINES = [
+  "IN",
+  "TE",
+  "SN",
+  "PR",
+  "MT",
+  "LV",
+  "XP",
+  "AU",
+  "EP",
+  "MAC",
+  "SP",
+  "PT",
+  "HU",
+];
 
+// Special fixed labels only for non-course external event sources
 export const SUBJECT_NAMES = {
-  IN: "Informatique",
-  SN: "Signal & Numérique",
-  PR: "Maths & Sciences",
-  LV: "Langues Vivantes",
-  XP: "Projets & Expérimentations",
-  AU: "Automatique",
-  EP: "Électronique & Physique",
-  MAC: "Management & Gestion",
-  SP: "Sport & EPS",
-  PT: "Projets Techniques",
   CERCLE: "Cercle des Élèves",
   RU: "RU Briff'O (CROUS)",
-  DEFAULT: "Autre",
 };
 
-// Curated harmonious color palette for non-Esisar & general university courses
+// Curated harmonious color palette for other disciplines or courses
 const GENERAL_PALETTE = [
   {
     // Blue / Indigo
@@ -80,16 +85,23 @@ export const stringToHash = (str) => {
   return Math.abs(hash);
 };
 
-export const getSubjectFullName = (type) => {
-  if (SUBJECT_NAMES[type]) return SUBJECT_NAMES[type];
-  if (!type || type === "DEFAULT") return "Autre";
+export const normalizeCourseTitle = (rawSummary) => {
+  if (!rawSummary) return "";
+  let s = String(rawSummary).trim();
 
-  // Clean and capitalize dynamic subject titles
-  return type
-    .toLowerCase()
-    .split(" ")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
+  // Strip leading stars, hashes, dashes or bullet points
+  s = s.replace(/^[\s*#~_—\-•]+/, "");
+
+  // Strip bracketed promo tags (e.g. "[M1 MSI] ")
+  s = s.replace(/^\[[^\]]+\]\s*/, "");
+
+  // Strip session type prefixes (e.g. "CM - ", "TD : ", "TP ", "COURS ")
+  s = s.replace(/^(CM|TD|TP|COURS|CONF|CONFERENCE|EXAM|EXAMEN|EVALUATION|RATTRAPAGE|SOUTENANCE)[\s:-]+/i, "");
+
+  // Strip trailing group suffixes (e.g. " - Groupe 1", " (Grp A)", " - TD1")
+  s = s.replace(/[\s:-]+(GROUPE|GRP|GR|TD|TP)\s*[\d\w]*$/i, "");
+
+  return s.trim();
 };
 
 export const isCercleEvent = (eventOrSummary) => {
@@ -146,25 +158,59 @@ export const isRuEvent = (eventOrSummary) => {
   );
 };
 
-export const normalizeCourseTitle = (rawSummary) => {
-  if (!rawSummary) return "";
-  let s = String(rawSummary).trim();
+/**
+ * Extracts specific course module code (e.g. "IN331", "TE510", "PIN50", "MT321") from an event or summary.
+ */
+export const extractModuleCode = (eventOrSummary) => {
+  if (!eventOrSummary) return null;
+  const raw = typeof eventOrSummary === "object" ? eventOrSummary.summary || "" : String(eventOrSummary);
+  const cleaned = normalizeCourseTitle(raw);
 
-  // Strip leading stars, hashes, dashes or bullet points (e.g. "***Strategic Management" -> "Strategic Management")
-  s = s.replace(/^[\s*#~_—\-•]+/, "");
-
-  // Strip bracketed promo tags (e.g. "[M1 MSI] ")
-  s = s.replace(/^\[[^\]]+\]\s*/, "");
-
-  // Strip session type prefixes (e.g. "CM - ", "TD : ", "TP ", "COURS ")
-  s = s.replace(/^(CM|TD|TP|COURS|CONF|CONFERENCE|EXAM|EXAMEN|EVALUATION|RATTRAPAGE|SOUTENANCE)[\s:-]+/i, "");
-
-  // Strip trailing group suffixes (e.g. " - Groupe 1", " (Grp A)", " - TD1")
-  s = s.replace(/[\s:-]+(GROUPE|GRP|GR|TD|TP)\s*[\d\w]*$/i, "");
-
-  return s.trim();
+  const match = cleaned.match(/^([A-Z]{2,5}\d{2,4}(?:-[A-Za-z0-9]+)?)\b/i);
+  if (match) {
+    return match[1].toUpperCase();
+  }
+  return null;
 };
 
+/**
+ * Resolves the 2-letter discipline code extracted directly from the course code, used for coloring.
+ * No heuristic guessing of full names: solely extracts the 2 letters.
+ */
+export const getDiscipline = (typeOrSummary) => {
+  if (!typeOrSummary) return "DEFAULT";
+  if (isRuEvent(typeOrSummary)) return "RU";
+  if (isCercleEvent(typeOrSummary)) return "CERCLE";
+
+  const raw = typeof typeOrSummary === "object" ? typeOrSummary.summary || "" : String(typeOrSummary);
+  const code = extractModuleCode(raw);
+  if (code) {
+    // Project codes starting with P followed by discipline (e.g. PIN50 -> IN, PAU50 -> AU, PEP50 -> EP, PSN50 -> SN)
+    if (/^P[A-Z]{2}\d/i.test(code)) {
+      return code.slice(1, 3).toUpperCase();
+    }
+    // Standard 2-letter discipline prefix (e.g. IN331 -> IN, TE510 -> TE, AU331 -> AU, EP331 -> EP, MT321 -> MT, LV01 -> LV)
+    if (/^[A-Z]{2}/i.test(code)) {
+      return code.slice(0, 2).toUpperCase();
+    }
+  }
+
+  // If a discipline identifier was passed directly (e.g. "IN", "TE", "MAC", "MT")
+  const trimmed = raw.trim().toUpperCase();
+  if (KNOWN_DISCIPLINES.includes(trimmed)) {
+    return trimmed;
+  }
+  if (/^[A-Z]{2,4}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  return "DEFAULT";
+};
+
+/**
+ * Returns the subject type: module code when present (e.g. "IN331", "TE510"),
+ * or normalized course name otherwise.
+ */
 export const getSubjectType = (eventOrSummary) => {
   if (!eventOrSummary) return "DEFAULT";
   if (isRuEvent(eventOrSummary)) {
@@ -174,42 +220,36 @@ export const getSubjectType = (eventOrSummary) => {
     return "CERCLE";
   }
 
-  const rawSummary = typeof eventOrSummary === "object" ? eventOrSummary.summary || "" : String(eventOrSummary);
-  const trimmed = rawSummary.trim();
-
-  // 1. Check exact Esisar prefixes (IN101, LV01, PR301...)
-  for (const prefix of KNOWN_PREFIXES) {
-    if (trimmed.startsWith(prefix)) {
-      return prefix;
-    }
+  // Extract specific module code (e.g. IN331, TE510, PIN50, AU331, MT321...)
+  const moduleCode = extractModuleCode(eventOrSummary);
+  if (moduleCode) {
+    return moduleCode;
   }
 
-  // 2. Clean out course type prefixes & symbols
-  const cleaned = normalizeCourseTitle(trimmed);
-  const upper = cleaned.toUpperCase();
-
-  // 3. Match universal educational domains
-  if (/\b(MATH|MATHS|STAT|PROBA|ALGEBRE|ANALYSE)\b/i.test(upper)) return "PR";
-  if (/\b(INFO|INFORMATIQUE|DEV|PROGRAMMATION|ALGO|ALGORITHME|WEB|PYTHON|JAVA|DATA|BDD|CYBER|RESEAU|BASE DE DONNEES|BASES DE DONNEES|SYSTEME D'INFORMATION|SYSTEMES D'INFORMATION)\b/i.test(upper)) return "IN";
-  if (/\b(MANAGEMENT|GESTION|MARKETING|FINANCE|COMPTABILITE|RH|COMMUNICATION|DROIT|JURIDIQUE|ECONOMIE|ECO|AUDIT|STRATEGIE|STRATEGIC)\b/i.test(upper)) return "MAC";
-  if (/\b(ANGLAIS|ENGLISH|ESPAGNOL|ALLEMAND|CHINOIS|FLE|LANGUE|TOEIC)\b/i.test(upper)) return "LV";
-  if (/\b(PHYSIQUE|ELECTRONIQUE|ELEC|OPTIQUE|MECANIQUE|ENERGIE)\b/i.test(upper)) return "EP";
-  if (/\b(AUTOMATIQUE|ROBOTIQUE|ASSERVISSEMENT)\b/i.test(upper)) return "AU";
-  if (/\b(PROJET|ATELIER|WORKSHOP|STAGE|MISSION)\b/i.test(upper)) return "XP";
-  if (/\b(SPORT|EPS|FITNESS|BADMINTON|ESCALADE|VOLLEY)\b/i.test(upper)) return "SP";
-
-  // 4. Fallback to normalized title as category key
+  // Fallback to normalized title
+  const rawSummary = typeof eventOrSummary === "object" ? eventOrSummary.summary || "" : String(eventOrSummary);
+  const cleaned = normalizeCourseTitle(rawSummary);
   if (cleaned.length > 0) {
-    return upper;
+    return cleaned.toUpperCase();
   }
 
   return "DEFAULT";
 };
 
-export const getSubjectColors = (eventOrSummary, isDarkMode = false) => {
-  const type = getSubjectType(eventOrSummary);
+/**
+ * Returns human-readable subject name: keeps the code or exact title as is,
+ * without artificial or guessed heuristic translations.
+ */
+export const getSubjectFullName = (type) => {
+  if (!type || type === "DEFAULT") return "Autre";
+  if (SUBJECT_NAMES[type]) return SUBJECT_NAMES[type];
 
-  if (type === "RU") {
+  // Return the code / title directly
+  return type;
+};
+
+export const getSubjectColors = (eventOrSummary, isDarkMode = false) => {
+  if (isRuEvent(eventOrSummary)) {
     return {
       background: isDarkMode ? "#431407" : "#ffedd5",
       border: isDarkMode ? "#fb923c" : "#ea580c",
@@ -219,7 +259,7 @@ export const getSubjectColors = (eventOrSummary, isDarkMode = false) => {
     };
   }
 
-  if (type === "CERCLE") {
+  if (isCercleEvent(eventOrSummary)) {
     return {
       background: isDarkMode ? "#3b174a" : "#f5e8ff",
       border: isDarkMode ? "#c084fc" : "#a855f7",
@@ -229,20 +269,21 @@ export const getSubjectColors = (eventOrSummary, isDarkMode = false) => {
     };
   }
 
-  if (KNOWN_PREFIXES.includes(type)) {
+  const disc = getDiscipline(eventOrSummary);
+  if (KNOWN_DISCIPLINES.includes(disc)) {
     return {
-      background: `var(--color-${type})`,
-      border: `var(--border-${type})`,
+      background: `var(--color-${disc})`,
+      border: `var(--border-${disc})`,
       text: isDarkMode ? "#f1f5f9" : "#0f172a",
       subtext: isDarkMode ? "#cbd5e1" : "#475569",
-      accent: `var(--border-${type})`,
+      accent: `var(--border-${disc})`,
     };
   }
 
-  // Deterministic harmonious palette for all other courses based on normalized title hash
+  // Deterministic palette based on the 2-letter discipline prefix (or normalized title if no discipline)
   const rawSummary = typeof eventOrSummary === "object" ? eventOrSummary.summary || "" : String(eventOrSummary || "");
   const normalized = normalizeCourseTitle(rawSummary);
-  const hashKey = type !== "DEFAULT" ? type : normalized;
+  const hashKey = disc !== "DEFAULT" ? disc : normalized;
   const hash = stringToHash(hashKey);
   const theme = GENERAL_PALETTE[hash % GENERAL_PALETTE.length];
   const modeTheme = isDarkMode ? theme.dark : theme.light;

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, unref } from "vue";
-import { getSubjectType, getSubjectColors, getSubjectFullName, isRuEvent } from "../utils/colors.js";
+import { getSubjectType, getSubjectColors, getSubjectFullName, getDiscipline, isRuEvent } from "../utils/colors.js";
 import { useTheme } from "../composables/useTheme.js";
 
 const props = defineProps({
@@ -34,7 +34,7 @@ const disabledSet = computed(() => {
   return new Set();
 });
 
-const isDisabled = (type) => disabledSet.value.has(type);
+const isDisabled = (type) => disabledSet.value.has(type) || disabledSet.value.has(getDiscipline(type));
 const disabledCount = computed(() => disabledSet.value.size);
 
 // Compute stats
@@ -117,7 +117,7 @@ const onChipClick = (event, type) => {
         <button class="clear-filter-btn" type="button" @click="emit('reset')">✕ Tout réactiver</button>
       </span>
       <span v-else-if="activeFilter" class="filter-active-notice">
-        Filtre : <strong>{{ getSubjectFullName(activeFilter) }} ({{ activeFilter }})</strong>
+        Filtre : <strong>{{ getSubjectFullName(activeFilter) !== activeFilter ? `${getSubjectFullName(activeFilter)} (${activeFilter})` : activeFilter }}</strong>
         <button class="clear-filter-btn" type="button" @click="emit('filter', activeFilter)">✕ Retirer</button>
       </span>
     </div>
@@ -133,7 +133,7 @@ const onChipClick = (event, type) => {
           width: `${sub.percentage}%`,
           backgroundColor: getSubjectColors(sub.type, isDark).border,
         }"
-        :title="`${sub.fullName} (${sub.type}) : ${formatDuration(sub.minutes)} (${sub.percentage}%)${isDisabled(sub.type) ? ' [Masqué]' : ''}`"
+        :title="`${sub.fullName !== sub.type ? `${sub.fullName} (${sub.type})` : sub.type} : ${formatDuration(sub.minutes)} (${sub.percentage}%)${isDisabled(sub.type) ? ' [Masqué]' : ''}`"
       ></div>
     </div>
 
@@ -157,13 +157,13 @@ const onChipClick = (event, type) => {
           color: getSubjectColors(sub.type, isDark).text,
         }"
         :title="isDisabled(sub.type)
-          ? `Cliquer pour réactiver ${sub.fullName} (${sub.type})`
-          : `Cliquer pour masquer ${sub.fullName} (${sub.type}) - ${sub.percentage}% du temps`"
+          ? `Cliquer pour réactiver ${sub.fullName !== sub.type ? `${sub.fullName} (${sub.type})` : sub.type}`
+          : `Cliquer pour masquer ${sub.fullName !== sub.type ? `${sub.fullName} (${sub.type})` : sub.type} - ${sub.percentage}% du temps`"
         :aria-pressed="!isDisabled(sub.type)"
         @click="onChipClick($event, sub.type)"
       >
         <span class="chip-code">{{ sub.type }}</span>
-        <span class="chip-label">{{ sub.fullName }}</span>
+        <span v-if="sub.fullName !== sub.type" class="chip-label">{{ sub.fullName }}</span>
         <span class="chip-duration">{{ formatDuration(sub.minutes) }}</span>
       </button>
     </div>

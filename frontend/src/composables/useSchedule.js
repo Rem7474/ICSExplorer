@@ -3,7 +3,7 @@ import { fetchFileList, fetchRoomList, fetchIcsText, fetchCercleEvents, fetchRuE
 import { parseIcs } from "../ics/parser.js";
 import { getRelevantWeekStart, getWeekStart, getWeekEnd } from "../utils/dates.js";
 import { getTeacherIndex, getRoomIndex, clearAggregatedCache } from "../ics/aggregator.js";
-import { getSubjectType, isRuEvent } from "../utils/colors.js";
+import { getSubjectType, getDiscipline, isRuEvent } from "../utils/colors.js";
 import { useToast } from "./useToast.js";
 
 const STORAGE_KEY = "edtSelection";
@@ -182,7 +182,8 @@ export function useSchedule() {
     if (!disabledSubjects.value.length) return weekEvents.value;
     return weekEvents.value.filter((ev) => {
       const type = getSubjectType(ev);
-      return !disabledSubjects.value.includes(type);
+      const disc = getDiscipline(ev);
+      return !disabledSubjects.value.includes(type) && !disabledSubjects.value.includes(disc);
     });
   });
 
@@ -194,7 +195,8 @@ export function useSchedule() {
       if (new Date(ev.end) <= now) return false;
       if (disabledSubjects.value.length > 0) {
         const type = getSubjectType(ev);
-        if (disabledSubjects.value.includes(type)) return false;
+        const disc = getDiscipline(ev);
+        if (disabledSubjects.value.includes(type) || disabledSubjects.value.includes(disc)) return false;
       }
       return true;
     }) || null;

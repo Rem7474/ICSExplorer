@@ -33,9 +33,8 @@ describe("WeekStats component", () => {
 
     expect(wrapper.exists()).toBe(true);
     expect(wrapper.text()).toContain("Total semaine : 4.0h");
-    expect(wrapper.text()).toContain("IN");
-    expect(wrapper.text()).toContain("SN");
-    expect(wrapper.text()).toContain("Informatique");
+    expect(wrapper.text()).toContain("IN101");
+    expect(wrapper.text()).toContain("SN201");
   });
 
   it("emits filter when a subject chip is clicked", async () => {
@@ -52,7 +51,7 @@ describe("WeekStats component", () => {
     await chip.trigger("click");
 
     expect(wrapper.emitted("filter")).toBeTruthy();
-    expect(wrapper.emitted("filter")[0]).toEqual(["IN"]);
+    expect(wrapper.emitted("filter")[0]).toEqual(["IN101"]);
   });
 
   it("calls blur on the chip element upon click to prevent sticky hover/focus on mobile", async () => {
@@ -83,7 +82,7 @@ describe("WeekStats component", () => {
     const wrapper = mount(WeekStats, {
       props: {
         events: testEvents,
-        disabledSubjects: ["IN"],
+        disabledSubjects: ["IN101"],
       },
     });
 
@@ -122,7 +121,7 @@ describe("WeekStats component", () => {
     expect(inChip.classes()).not.toContain("is-disabled");
 
     // Dynamically update disabledSubjects prop
-    await wrapper.setProps({ disabledSubjects: ["IN"] });
+    await wrapper.setProps({ disabledSubjects: ["IN101"] });
 
     expect(inChip.classes()).toContain("is-disabled");
     expect(wrapper.text()).toContain("1 matière masquée");

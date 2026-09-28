@@ -266,6 +266,48 @@ function getTodayDayIndex() {
 const activeDayIndex = ref(0);
 const scheduleContainer = ref(null);
 
+const MOBILE_VIEW_MODE_KEY = "edtMobileViewMode";
+const mobileViewMode = ref("day");
+
+try {
+  if (typeof localStorage !== "undefined") {
+    const saved = localStorage.getItem(MOBILE_VIEW_MODE_KEY);
+    if (saved === "week" || saved === "day") {
+      mobileViewMode.value = saved;
+    }
+  }
+} catch {}
+
+const setMobileViewMode = (mode) => {
+  mobileViewMode.value = mode;
+  try {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(MOBILE_VIEW_MODE_KEY, mode);
+    }
+  } catch {}
+  if (mode === "day") {
+    nextTick(() => {
+      scrollDayIntoView(activeDayIndex.value, "auto");
+    });
+  }
+};
+
+const onSelectMobileDay = (idx) => {
+  if (mobileViewMode.value !== "day") {
+    setMobileViewMode("day");
+  }
+  scrollDayIntoView(idx);
+};
+
+const onDayHeaderClick = (idx) => {
+  if (mobileViewMode.value === "week") {
+    setMobileViewMode("day");
+    nextTick(() => {
+      scrollDayIntoView(idx);
+    });
+  }
+};
+
 const scrollDayIntoView = (idx, behavior = "smooth") => {
   activeDayIndex.value = idx;
   if (scheduleContainer.value) {
@@ -294,6 +336,7 @@ const scrollDayIntoView = (idx, behavior = "smooth") => {
 };
 
 const onScheduleScroll = () => {
+  if (mobileViewMode.value === "week") return;
   if (!scheduleContainer.value) return;
   const container = scheduleContainer.value;
   if (container.scrollWidth <= container.clientWidth) return;
@@ -460,7 +503,7 @@ const onTouchEnd = (e) => {
     const dy = e.changedTouches[0].clientY - touchStartY;
 
     if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.4) {
-      if (rawEvents.value.length === 0) {
+      if (rawEvents.value.length === 0 || mobileViewMode.value === "week") {
         if (dx < 0) {
           onNextWeek(0);
         } else {
@@ -654,18 +697,44 @@ defineExpose({
       </Button>
     </div>
 
-    <!-- Mobile Day Dots -->
-    <div class="day-dots" role="tablist">
-      <button
-        v-for="(day, idx) in days"
-        :key="day.dayKey"
-        type="button"
-        class="day-dot"
-        :class="{ active: activeDayIndex === idx, today: isDayToday(day.date) }"
-        @click="scrollDayIntoView(idx)"
-      >
-        {{ day.dayName.split(' ')[0] }}
-      </button>
+    <!-- Mobile Day Navigation & View Mode Toggle -->
+    <div class="mobile-nav-bar">
+      <div class="day-dots" role="tablist">
+        <button
+          v-for="(day, idx) in days"
+          :key="day.dayKey"
+          type="button"
+          class="day-dot"
+          :class="{ active: mobileViewMode === 'day' && activeDayIndex === idx, today: isDayToday(day.date) }"
+          :title="`Afficher ${day.dayName}`"
+          @click="onSelectMobileDay(idx)"
+        >
+          {{ day.dayName.split(' ')[0] }}
+        </button>
+      </div>
+
+      <div class="mobile-view-toggle" role="group" aria-label="Mode d'affichage">
+        <button
+          type="button"
+          class="view-toggle-btn"
+          :class="{ active: mobileViewMode === 'day' }"
+          title="Vue 1 jour"
+          aria-label="Vue 1 jour"
+          @click="setMobileViewMode('day')"
+        >
+          1J
+        </button>
+        <button
+          type="button"
+          class="view-toggle-btn"
+          :class="{ active: mobileViewMode === 'week' }"
+          title="Vue semaine complète (5 jours)"
+          aria-label="Vue semaine"
+          @click="setMobileViewMode('week')"
+        >
+          5J
+        </button>
+      </div>
     </div>
 
     <!-- Schedule Viewport (with Week Transition) -->
@@ -704,6 +773,7 @@ defineExpose({
       v-else
       ref="scheduleContainer"
       class="schedule"
+      :class="{ 'mobile-view-week': mobileViewMode === 'week' }"
       @touchstart="onTouchStart"
       @touchend="onTouchEnd"
       @scroll.passive="onScheduleScroll"
@@ -732,12 +802,20 @@ defineExpose({
 
       <!-- Day Columns -->
       <div
-        v-for="day in days"
+        v-for="(day, idx) in days"
         :key="day.dayKey"
         class="day-group"
         :class="{ today: isDayToday(day.date) }"
       >
-        <div class="day-title" :class="{ 'day-title-today': isDayToday(day.date) }" :title="day.dayName">
+        <div
+          class="day-title"
+          :class="{
+            'day-title-today': isDayToday(day.date),
+            'day-title-clickable': mobileViewMode === 'week'
+          }"
+          :title="mobileViewMode === 'week' ? `Cliquer pour zoomer sur ${day.dayName}` : day.dayName"
+          @click="onDayHeaderClick(idx)"
+        >
           <span class="day-weekday">{{ getDayWeekday(day.date) }}</span>
           <span class="day-number-badge" :class="{ 'badge-today': isDayToday(day.date) }">
             {{ day.date.getDate() }}
@@ -1003,6 +1081,45 @@ defineExpose({
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.mobile-nav-bar {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.mobile-view-toggle {
+  display: inline-flex;
+  align-items: center;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  padding: 2px;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.view-toggle-btn {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.25rem 0.55rem;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  line-height: 1.2;
+}
+
+.view-toggle-btn.active {
+  background: var(--accent);
+  color: white !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
 .day-dots {
@@ -1480,14 +1597,36 @@ defineExpose({
 }
 
 @media (max-width: 768px) {
+  .mobile-nav-bar {
+    display: flex;
+  }
+
   .day-dots {
     display: flex;
+    flex: 1;
+    justify-content: flex-start;
+    gap: 0.35rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .day-dots::-webkit-scrollbar {
+    display: none;
+  }
+
+  .day-dot {
+    padding: 0.25rem 0.55rem;
+    font-size: 0.78rem;
+    flex: 1;
+    text-align: center;
+    min-width: 0;
   }
 
   .hour-rail {
     display: none;
   }
 
+  /* Default Day Mode: 1 day per slide with scroll-snap */
   .schedule {
     grid-template-columns: repeat(5, 100%);
     gap: 0;
@@ -1509,6 +1648,85 @@ defineExpose({
     width: 100%;
     min-width: 100%;
     max-width: 100%;
+  }
+
+  /* Week Mode (5J) on Mobile: all 5 days side-by-side */
+  .schedule.mobile-view-week {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 3px !important;
+    padding: 0.35rem 0 !important;
+    scroll-snap-type: none !important;
+    overflow-x: hidden !important;
+  }
+
+  .schedule.mobile-view-week .day-group {
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    scroll-snap-align: none !important;
+  }
+
+  .schedule.mobile-view-week .day-title {
+    padding: 0.25rem 0.1rem;
+    font-size: 0.72rem;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.15s ease;
+  }
+
+  .schedule.mobile-view-week .day-title:active {
+    background: rgba(59, 130, 246, 0.15);
+  }
+
+  .schedule.mobile-view-week .day-weekday {
+    font-size: 0.65rem;
+  }
+
+  .schedule.mobile-view-week .day-number-badge {
+    width: 18px;
+    height: 18px;
+    font-size: 0.62rem;
+  }
+
+  .schedule.mobile-view-week .event {
+    padding: 0.15rem 0.2rem;
+    border-left-width: 3px;
+    gap: 0.05rem;
+    border-radius: 4px;
+  }
+
+  .schedule.mobile-view-week .event-title {
+    font-size: 0.65rem;
+    line-height: 1.1;
+    word-break: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .schedule.mobile-view-week .event-time {
+    display: none;
+  }
+
+  .schedule.mobile-view-week .event-location {
+    font-size: 0.58rem;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .schedule.mobile-view-week .ru-event-badge,
+  .schedule.mobile-view-week .cercle-event-badge {
+    font-size: 0.52rem;
+    padding: 0 0.2rem;
+    line-height: 1.1;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 </style>
