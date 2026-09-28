@@ -155,4 +155,12 @@ const handleAction = (toast) => {
   opacity: 0;
   transform: translateX(100px) scale(0.95);
 }
+@media (max-width: 640px) {
+  .toast-container {
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    max-width: none;
+  }
+}
 </style>

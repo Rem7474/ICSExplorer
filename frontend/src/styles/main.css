@@ -65,6 +65,13 @@ html.dark-mode {
   box-sizing: border-box;
 }
 
+/* Safety net: on phones a single overflowing element widens the whole layout
+   viewport. `clip` (unlike `hidden`) does not break position: sticky. */
+html,
+body {
+  overflow-x: clip;
+}
+
 body {
   margin: 0;
   font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;

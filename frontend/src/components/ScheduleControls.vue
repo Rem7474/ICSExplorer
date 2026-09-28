@@ -365,7 +365,9 @@ const copyShareLink = async () => {
         :aria-selected="isStudentMode"
         @click="onSelectStudentTab"
       >
-        <i class="pi pi-users" style="margin-right: 0.35rem;" aria-hidden="true"></i> Élèves (Promos)
+        <i class="pi pi-users tab-icon" aria-hidden="true"></i>
+        <span class="tab-label-desktop">Élèves (Promos)</span>
+        <span class="tab-label-mobile">Promos</span>
       </button>
       <button
         type="button"
@@ -375,7 +377,7 @@ const copyShareLink = async () => {
         :aria-selected="isPersonalMode"
         @click="onSelectPersonalTab"
       >
-        <i class="pi pi-calendar" style="margin-right: 0.35rem;" aria-hidden="true"></i>
+        <i class="pi pi-calendar tab-icon" aria-hidden="true"></i>
         <span class="tab-label-desktop">Mon Planning ADE</span>
         <span class="tab-label-mobile">Mon ADE</span>
       </button>
@@ -387,7 +389,9 @@ const copyShareLink = async () => {
         :aria-selected="isTeacherMode"
         @click="onSelectTeacherTab"
       >
-        <i class="pi pi-user" style="margin-right: 0.35rem;" aria-hidden="true"></i> Professeurs
+        <i class="pi pi-user tab-icon" aria-hidden="true"></i>
+        <span class="tab-label-desktop">Professeurs</span>
+        <span class="tab-label-mobile">Profs</span>
       </button>
       <button
         type="button"
@@ -397,7 +401,8 @@ const copyShareLink = async () => {
         :aria-selected="isRoomMode"
         @click="onSelectRoomTab"
       >
-        <i class="pi pi-building" style="margin-right: 0.35rem;" aria-hidden="true"></i> Salles
+        <i class="pi pi-building tab-icon" aria-hidden="true"></i>
+        <span>Salles</span>
       </button>
     </div>
 
@@ -415,11 +420,12 @@ const copyShareLink = async () => {
           aria-controls="quickSearchListbox"
           :aria-expanded="showSearchPanel"
           :aria-activedescendant="activeDescendant"
-          placeholder="🔍 Recherche rapide (ex: 1A-Prépa, 3A-IN, Professeur...) [Ctrl+K]"
+          placeholder="🔍 Promo, professeur, salle…"
           @focus="onSearchFocus"
           @blur="onSearchBlur"
           @keydown="onSearchKeydown"
         />
+        <kbd v-if="!searchQuery" class="search-kbd" aria-hidden="true">Ctrl K</kbd>
         <div v-if="showSearchPanel" class="search-dropdown">
           <ul
             v-if="searchResults.length > 0"
@@ -593,10 +599,11 @@ const copyShareLink = async () => {
               class="btn btn-primary btn-load-action"
               :disabled="!unref(schedule.selectedFile) || unref(schedule.isLoading)"
               title="Charger l'emploi du temps de cette promotion"
+              aria-label="Charger l'emploi du temps de cette promotion"
               @click="onLoadStudentSchedule"
             >
               <i class="pi" :class="schedule.isLoading ? 'pi-spin pi-spinner' : 'pi-check'" aria-hidden="true"></i>
-              Charger
+              <span class="btn-load-text">Charger</span>
             </button>
           </div>
         </div>
@@ -636,10 +643,11 @@ const copyShareLink = async () => {
               class="btn btn-primary btn-load-action"
               :disabled="!unref(schedule.selectedTeacher) || unref(schedule.isLoading)"
               title="Charger l'emploi du temps de cet enseignant"
+              aria-label="Charger l'emploi du temps de cet enseignant"
               @click="onTeacherSelectChange"
             >
               <i class="pi" :class="schedule.isLoading ? 'pi-spin pi-spinner' : 'pi-check'" aria-hidden="true"></i>
-              Charger
+              <span class="btn-load-text">Charger</span>
             </button>
           </div>
         </div>
@@ -679,10 +687,11 @@ const copyShareLink = async () => {
               class="btn btn-primary btn-load-action"
               :disabled="!unref(schedule.selectedRoom) || unref(schedule.isLoading)"
               title="Charger l'emploi du temps de cette salle"
+              aria-label="Charger l'emploi du temps de cette salle"
               @click="onRoomSelectChange"
             >
               <i class="pi" :class="schedule.isLoading ? 'pi-spin pi-spinner' : 'pi-check'" aria-hidden="true"></i>
-              Charger
+              <span class="btn-load-text">Charger</span>
             </button>
           </div>
         </div>
@@ -698,7 +707,8 @@ const copyShareLink = async () => {
         title="Revenir à mon emploi du temps habituel"
         @click="schedule.returnToBaseSchedule ? schedule.returnToBaseSchedule() : onSelectStudentTab()"
       >
-        <i class="pi pi-arrow-left" style="margin-right: 0.35rem;" aria-hidden="true"></i> Revenir à mon planning
+        <i class="pi pi-arrow-left" style="margin-right: 0.35rem;" aria-hidden="true"></i>
+        <span class="btn-text">Revenir à mon planning</span>
       </button>
 
       <button
@@ -753,6 +763,7 @@ const copyShareLink = async () => {
         type="button"
         class="btn btn-outline btn-copy-link"
         title="Copier le lien direct du calendrier (.ics) pour s'abonner (Google Agenda, Apple, Outlook...)"
+        aria-label="Copier le lien du calendrier"
         @click="copyIcsLink"
       >
         <i class="pi pi-link" aria-hidden="true"></i>
@@ -764,6 +775,7 @@ const copyShareLink = async () => {
         :href="webcalUrl"
         class="btn btn-outline btn-subscribe"
         title="S'abonner dans votre application d'agenda (Apple Calendar, Outlook, Thunderbird) : le planning se mettra à jour automatiquement"
+        aria-label="S'abonner dans mon agenda"
       >
         <i class="pi pi-calendar-plus" aria-hidden="true"></i>
         <span class="btn-text" style="margin-left: 0.35rem;">S'abonner</span>
@@ -773,6 +785,7 @@ const copyShareLink = async () => {
         type="button"
         class="btn btn-outline btn-share"
         title="Copier le lien partageable"
+        aria-label="Copier le lien partageable"
         @click="copyShareLink"
       >
         <i class="pi pi-share-alt" aria-hidden="true"></i>
@@ -861,6 +874,24 @@ const copyShareLink = async () => {
 .quick-search-row {
   position: relative;
   width: 100%;
+}
+
+.search-box {
+  position: relative;
+}
+
+.search-kbd {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 0.72rem;
+  color: var(--muted);
+  pointer-events: none;
 }
 
 .search-box input {
@@ -1158,8 +1189,16 @@ const copyShareLink = async () => {
 }
 
 @media (max-width: 640px) {
-  .control-group.span-3 {
-    grid-column: span 1;
+  /* Full-width blocks (teacher/room pickers, personal cards) span the whole 2-column grid. */
+  .control-group.span-3,
+  .personal-status-card.span-3,
+  .personal-unconfigured-card.span-3 {
+    grid-column: 1 / -1;
+  }
+
+  /* The toolbar already has a full-width "Revenir à mon planning" button. */
+  .control-header-row .btn-return-link {
+    display: none;
   }
   .personal-status-header {
     flex-direction: column;
@@ -1217,6 +1256,10 @@ const copyShareLink = async () => {
   display: none;
 }
 
+.tab-icon {
+  margin-right: 0.35rem;
+}
+
 @media (max-width: 640px) {
   .tab-label-desktop {
     display: none;
@@ -1224,6 +1267,31 @@ const copyShareLink = async () => {
 
   .tab-label-mobile {
     display: inline;
+  }
+
+  /* All four modes stay visible: icon above a short label, no hidden scroll. */
+  .mode-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    overflow: visible;
+    gap: 0.25rem;
+  }
+
+  .mode-tab-btn {
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.45rem 0.25rem;
+    font-size: 0.75rem;
+  }
+
+  .tab-icon {
+    margin-right: 0;
+    font-size: 1rem;
+  }
+
+  .search-kbd {
+    display: none;
   }
 
   .controls-grid {
@@ -1240,55 +1308,82 @@ const copyShareLink = async () => {
     min-width: 0 !important;
   }
 
+  .control-header-row {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
   .select-with-btn-row {
     gap: 0.35rem !important;
   }
 
+  /* The select already loads on change: keep the button as a compact icon. */
   .btn-load-action {
-    padding: 0.5rem 0.6rem !important;
+    width: 38px;
+    padding: 0 !important;
   }
 
+  .btn-load-text {
+    display: none;
+  }
+
+  /* Toolbar: labelled actions first (full-width row), then 44px icon buttons. */
   .actions-row {
     display: flex !important;
-    flex-wrap: nowrap !important;
-    gap: 0.35rem !important;
+    flex-wrap: wrap !important;
+    gap: 0.4rem !important;
+  }
+
+  .actions-row > .btn {
+    min-height: 44px;
+  }
+
+  .btn-return-base {
+    order: -2;
+    flex: 1 1 100% !important;
+  }
+
+  .btn-empty-rooms,
+  .btn-ru-menu {
+    order: -1;
+    flex: 1 1 calc(50% - 0.2rem) !important;
+    min-width: 0 !important;
+    justify-content: center !important;
+    padding: 0.5rem !important;
+  }
+
+  .btn-empty-rooms .btn-text,
+  .btn-ru-menu .btn-text {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 
   .btn-download-ics {
     display: none !important;
   }
 
+  .btn-pin,
+  .btn-copy-link,
+  .btn-subscribe,
+  .btn-share {
+    flex: 1 1 0 !important;
+    min-width: 44px;
+    padding: 0.5rem !important;
+  }
+
   .btn-pin .btn-text,
   .btn-copy-link .btn-text,
+  .btn-subscribe .btn-text,
   .btn-share .btn-text {
     display: none !important;
   }
 
   .btn-pin i,
   .btn-copy-link i,
+  .btn-subscribe i,
   .btn-share i {
     margin: 0 !important;
-  }
-
-  .btn-pin,
-  .btn-ru-menu,
-  .btn-copy-link,
-  .btn-share {
-    flex-shrink: 0 !important;
-    padding: 0.5rem 0.65rem !important;
-  }
-
-  .btn-empty-rooms {
-    flex: 1 !important;
-    min-width: 0 !important;
-    justify-content: center !important;
-    padding: 0.5rem 0.5rem !important;
-  }
-
-  .btn-empty-rooms .btn-text {
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
   }
 }
 </style>
