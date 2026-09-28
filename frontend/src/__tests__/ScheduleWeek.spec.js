@@ -432,4 +432,56 @@ describe("ScheduleWeek component", () => {
       delete document.documentElement.dataset.navDir;
     }
   });
+
+  it("handles mobile 1J and 5J view mode toggle and day navigation", async () => {
+    const monday = new Date(2026, 8, 28, 8, 0);
+    const wrapper = mount(ScheduleWeek, {
+      props: {
+        events: [
+          {
+            uid: "ev-1",
+            summary: "IN101 Algo",
+            start: monday,
+            end: new Date(2026, 8, 28, 10, 0),
+          },
+        ],
+        currentWeekStart: monday,
+        allEvents: [],
+      },
+    });
+
+    const toggleBtns = wrapper.findAll(".view-toggle-btn");
+    expect(toggleBtns.length).toBe(2);
+
+    const btn1J = toggleBtns[0];
+    const btn5J = toggleBtns[1];
+
+    // Default is 1J (day mode)
+    expect(btn1J.classes()).toContain("active");
+    expect(btn5J.classes()).not.toContain("active");
+    expect(wrapper.find(".schedule").classes()).not.toContain("mobile-view-week");
+
+    // Click 5J to switch to week mode
+    await btn5J.trigger("click");
+    expect(btn5J.classes()).toContain("active");
+    expect(btn1J.classes()).not.toContain("active");
+    expect(wrapper.find(".schedule").classes()).toContain("mobile-view-week");
+
+    // Clicking a day dot in 5J mode switches back to 1J mode for that day
+    const dayDots = wrapper.findAll(".day-dot");
+    expect(dayDots.length).toBe(5);
+    await dayDots[2].trigger("click"); // Wednesday
+    expect(btn1J.classes()).toContain("active");
+    expect(wrapper.find(".schedule").classes()).not.toContain("mobile-view-week");
+
+    // Click back to 5J and test clicking day title header
+    await btn5J.trigger("click");
+    expect(wrapper.find(".schedule").classes()).toContain("mobile-view-week");
+
+    const dayTitles = wrapper.findAll(".day-title");
+    expect(dayTitles.length).toBe(5);
+    await dayTitles[1].trigger("click"); // Tuesday
+    expect(btn1J.classes()).toContain("active");
+    expect(wrapper.find(".schedule").classes()).not.toContain("mobile-view-week");
+  });
 });

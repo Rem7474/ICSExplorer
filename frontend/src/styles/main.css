@@ -19,15 +19,18 @@
   
   /* Couleurs des cours (mode clair) */
   --color-IN: rgba(99, 102, 241, 0.12); --border-IN: #6366f1;
+  --color-TE: rgba(245, 158, 11, 0.12); --border-TE: #f59e0b;
   --color-SN: rgba(14, 165, 233, 0.12); --border-SN: #0ea5e9;
   --color-PR: rgba(244, 63, 94, 0.12); --border-PR: #f43f5e;
+  --color-MT: rgba(244, 63, 94, 0.12); --border-MT: #f43f5e;
   --color-LV: rgba(6, 182, 212, 0.12); --border-LV: #06b6d4;
   --color-XP: rgba(168, 85, 247, 0.12); --border-XP: #a855f7;
-  --color-AU: rgba(245, 158, 11, 0.12); --border-AU: #f59e0b;
+  --color-AU: rgba(249, 115, 22, 0.12); --border-AU: #f97316;
   --color-EP: rgba(59, 130, 246, 0.12); --border-EP: #3b82f6;
   --color-MAC: rgba(16, 185, 129, 0.12); --border-MAC: #10b981;
   --color-SP: rgba(236, 72, 153, 0.12); --border-SP: #ec4899;
   --color-PT: rgba(20, 184, 166, 0.12); --border-PT: #14b8a6;
+  --color-HU: rgba(168, 85, 247, 0.12); --border-HU: #a855f7;
 }
 
 html.dark-mode {
@@ -44,15 +47,18 @@ html.dark-mode {
   
   /* Couleurs des cours (mode sombre) */
   --color-IN: rgba(99, 102, 241, 0.18); --border-IN: #818cf8;
+  --color-TE: rgba(245, 158, 11, 0.18); --border-TE: #fbbf24;
   --color-SN: rgba(14, 165, 233, 0.18); --border-SN: #38bdf8;
   --color-PR: rgba(244, 63, 94, 0.18); --border-PR: #fb7185;
+  --color-MT: rgba(244, 63, 94, 0.18); --border-MT: #fb7185;
   --color-LV: rgba(6, 182, 212, 0.18); --border-LV: #22d3ee;
   --color-XP: rgba(168, 85, 247, 0.18); --border-XP: #c084fc;
-  --color-AU: rgba(245, 158, 11, 0.18); --border-AU: #fbbf24;
+  --color-AU: rgba(249, 115, 22, 0.18); --border-AU: #fb923c;
   --color-EP: rgba(59, 130, 246, 0.18); --border-EP: #60a5fa;
   --color-MAC: rgba(16, 185, 129, 0.18); --border-MAC: #34d399;
   --color-SP: rgba(236, 72, 153, 0.18); --border-SP: #f472b6;
   --color-PT: rgba(20, 184, 166, 0.18); --border-PT: #2dd4bf;
+  --color-HU: rgba(168, 85, 247, 0.18); --border-HU: #c084fc;
 }
 
 * {

@@ -1,19 +1,30 @@
 import { describe, it, expect } from "vitest";
-import { getSubjectType, getSubjectColors, getSubjectFullName, isRuEvent } from "../utils/colors.js";
+import { getSubjectType, getDiscipline, getSubjectColors, getSubjectFullName, isRuEvent } from "../utils/colors.js";
 
 describe("colors utils", () => {
-  it("detects known subject types correctly", () => {
-    expect(getSubjectType("IN101 Algo")).toBe("IN");
-    expect(getSubjectType("SN201 Signal")).toBe("SN");
-    expect(getSubjectType("LV01 Anglais")).toBe("LV");
-    expect(getSubjectType("PR301 Recherche")).toBe("PR");
+  it("detects known subject types correctly (module-level and domains)", () => {
+    expect(getSubjectType("IN101 Algo")).toBe("IN101");
+    expect(getSubjectType("SN201 Signal")).toBe("SN201");
+    expect(getSubjectType("LV01 Anglais")).toBe("LV01");
+    expect(getSubjectType("PR301 Recherche")).toBe("PR301");
+    expect(getSubjectType("TE510 Telecom")).toBe("TE510");
+    expect(getSubjectType("PIN50 Projet")).toBe("PIN50");
     expect(getSubjectType("Cercle Soiree")).toBe("CERCLE");
     expect(getSubjectType("🍽️ RU Briff'O")).toBe("RU");
     expect(getSubjectType({ summary: "🍽️ RU Briff'O", isRu: true })).toBe("RU");
-    expect(getSubjectType("CM - Management des Systèmes d'Information")).toBe("MAC");
-    expect(getSubjectType("TD Anglais Professionnel")).toBe("LV");
-    expect(getSubjectType("TP Développement Web")).toBe("IN");
+    expect(getSubjectType("CM - Management des Systèmes d'Information")).toBe("MANAGEMENT DES SYSTÈMES D'INFORMATION");
+    expect(getSubjectType("TD Anglais Professionnel")).toBe("ANGLAIS PROFESSIONNEL");
+    expect(getSubjectType("TP Développement Web")).toBe("DÉVELOPPEMENT WEB");
     expect(getSubjectType("Conférence Divers")).toBe("CONFÉRENCE DIVERS");
+  });
+
+  it("resolves discipline prefixes accurately", () => {
+    expect(getDiscipline("IN101 Algo")).toBe("IN");
+    expect(getDiscipline("TE510 Telecom")).toBe("TE");
+    expect(getDiscipline("PIN50 Projet")).toBe("IN");
+    expect(getDiscipline("AU331 Automatique")).toBe("AU");
+    expect(getDiscipline("MT321 Maths")).toBe("MT");
+    expect(getDiscipline("MAC")).toBe("MAC");
   });
 
   it("detects isRuEvent accurately", () => {
@@ -26,12 +37,15 @@ describe("colors utils", () => {
   });
 
   it("returns human-readable subject names", () => {
-    expect(getSubjectFullName("IN")).toBe("Informatique");
-    expect(getSubjectFullName("SN")).toBe("Signal & Numérique");
-    expect(getSubjectFullName("LV")).toBe("Langues Vivantes");
+    expect(getSubjectFullName("IN")).toBe("IN");
+    expect(getSubjectFullName("IN101")).toBe("IN101");
+    expect(getSubjectFullName("TE510")).toBe("TE510");
+    expect(getSubjectFullName("SN")).toBe("SN");
+    expect(getSubjectFullName("LV")).toBe("LV");
     expect(getSubjectFullName("CERCLE")).toBe("Cercle des Élèves");
-    expect(getSubjectFullName("MAC")).toBe("Management & Gestion");
-    expect(getSubjectFullName("CONFERENCE DIVERS")).toBe("Conference Divers");
+    expect(getSubjectFullName("RU")).toBe("RU Briff'O (CROUS)");
+    expect(getSubjectFullName("MAC")).toBe("MAC");
+    expect(getSubjectFullName("CONFERENCE DIVERS")).toBe("CONFERENCE DIVERS");
   });
 
   it("returns appropriate subject colors for light and dark modes", () => {

@@ -143,17 +143,17 @@ describe("useSchedule composable", () => {
     // Two events during current week
     schedule.events.value = [
       { summary: "IN101 Algo", start: eventTime, end: eventEnd },
-      { summary: "Management Projet", start: eventTime, end: eventEnd },
+      { summary: "TE510 Telecom", start: eventTime, end: eventEnd },
     ];
 
     expect(schedule.displayedWeekEvents.value.length).toBe(2);
     // Deselect IN
     schedule.toggleSubjectFilter("IN");
     expect(schedule.displayedWeekEvents.value.length).toBe(1);
-    expect(schedule.displayedWeekEvents.value[0].summary).toBe("Management Projet");
+    expect(schedule.displayedWeekEvents.value[0].summary).toBe("TE510 Telecom");
 
-    // Deselect MAC as well
-    schedule.toggleSubjectFilter("MAC");
+    // Deselect TE as well
+    schedule.toggleSubjectFilter("TE");
     expect(schedule.displayedWeekEvents.value.length).toBe(0);
 
     // Reset
