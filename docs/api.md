@@ -10,8 +10,15 @@ L'API de **ICSExplorer** est servie par le backend Go natif (port par défaut `8
   - `X-Content-Type-Options: nosniff`
   - `X-Frame-Options: SAMEORIGIN`
   - `Referrer-Policy: strict-origin-when-cross-origin`
-- **CORS** : Tous les endpoints autorisent les requêtes cross-origin (`Access-Control-Allow-Origin: *`, `GET, POST, OPTIONS`).
-- **Protection Rate-Limiting** : Les endpoints `/api/tree` et `/api/personal-calendar` appliquent une limite de **120 requêtes / minute par adresse IP** (renvoie HTTP `429 Too Many Requests` en cas de dépassement).
+  - `Content-Security-Policy` (scripts same-origin uniquement), `Permissions-Policy`, `Cross-Origin-Opener-Policy`
+  - `Strict-Transport-Security` lorsque la requête arrive en HTTPS (directement ou via un proxy listé dans `TRUSTED_PROXIES`)
+- **CORS** : Seules les données publiques en lecture sont partagées cross-origin (`Access-Control-Allow-Origin: *`) : `/output/*`, `/rooms/*`, `/api/files`, `/api/rooms`, `/api/health`. Les endpoints qui reçoivent des identifiants restent same-origin.
+- **Content-Type** : `POST /api/tree` et `POST /api/personal-calendar` exigent `Content-Type: application/json` (sinon `415`).
+- **Protection Rate-Limiting** (par IP client ; derrière un reverse proxy, renseigner `TRUSTED_PROXIES`) :
+  - `/api/tree` : **60 requêtes / minute**
+  - `/api/personal-calendar` : **15 requêtes / minute**
+  - Dépassement : HTTP `429 Too Many Requests`.
+- **URL ADE collées (`adeUrl`)** : uniquement `https://` sur le port standard, vers une adresse **publique**. Loopback, réseaux privés, link-local (dont `169.254.169.254`) sont refusés, y compris après résolution DNS et à chaque redirection (`400`).
 - **Stateless & Confidentialité** : Les identifiants transmis aux endpoints ADE ne sont jamais stockés sur disque ni écrits dans les logs.
 
 ---
@@ -27,7 +34,7 @@ L'API de **ICSExplorer** est servie par le backend Go natif (port par défaut `8
 | `GET` | [`/api/universities`](#get-apiuniversities) | Liste des universités pré-configurées pour ADE | Non |
 | `POST` | [`/api/tree`](#post-apitree) | Exploration hiérarchique de l'arborescence ADE | Non (Rate-limit) |
 | `POST` | [`/api/personal-calendar`](#post-apipersonal-calendar) | Génération à la volée d'un calendrier ADE personnel | Non (Rate-limit) |
-| `POST` | [`/api/sync`](#post-apisync) | Déclenchement manuel d'une synchronisation globale | Optionnelle (`ADMIN_TOKEN`) |
+| `POST` | [`/api/sync`](#post-apisync) | Déclenchement manuel d'une synchronisation globale | **Oui** (`ADMIN_TOKEN`) |
 | `GET` | [`/output/{fichier}`](#get-outputfichier) | Téléchargement direct d'un flux ICS ou `files.json` | Non |
 | `GET` | [`/rooms/{fichier}`](#get-roomsfichier) | Téléchargement direct d'un calendrier de salle ICS | Non |
 
@@ -149,8 +156,8 @@ Renvoie la liste des universités pré-enregistrées pour la fonctionnalité « 
 
 Explore l'arborescence ADE Campus d'un établissement pour permettre à l'utilisateur de naviguer dans les dossiers (promotions, filières, groupes TD/TP) et sélectionner son calendrier.
 
-- **Rate-limit** : 120 requêtes / min par IP.
-- **Taille maximale du corps** : 16 KiB.
+- **Rate-limit** : 60 requêtes / min par IP.
+- **Taille maximale du corps** : 16 KiB ; `branchPath` limité à 16 éléments (identifiants alphanumériques).
 
 #### Corps de la requête (`application/json`) :
 ```json
@@ -196,8 +203,8 @@ Explore l'arborescence ADE Campus d'un établissement pour permettre à l'utilis
 
 Récupère et nettoie en temps réel le planning ADE personnel d'un étudiant ou d'un enseignant, et le renvoie au format normalisé iCalendar RFC 5545 (`text/calendar`).
 
-- **Rate-limit** : 120 requêtes / min par IP.
-- **Taille maximale du corps** : 16 KiB.
+- **Rate-limit** : 15 requêtes / min par IP.
+- **Taille maximale du corps** : 16 KiB ; `branchPath` limité à 16 éléments ; `resourceId` = liste d'identifiants séparés par des virgules.
 
 #### Corps de la requête (`application/json`) :
 ```json
@@ -233,7 +240,8 @@ END:VCALENDAR
 ```
 
 - **Codes d'erreur possibles :**
-  - `400 Bad Request` : URL non reconnue ou `resourceId` manquant.
+  - `400 Bad Request` : URL non reconnue, non autorisée (adresse non publique / non HTTPS), `resourceId` invalide ou manquant.
+  - `415 Unsupported Media Type` : `Content-Type` différent de `application/json`.
   - `401 Unauthorized` : Identifiants ADE rejetés.
   - `429 Too Many Requests` : Limite d'appels par minute atteinte.
   - `502 Bad Gateway` : Échec de communication avec l'instance ADE distante.
@@ -244,10 +252,11 @@ END:VCALENDAR
 
 Déclenche immédiatement un cycle de synchronisation global des calendriers en tâche de fond.
 
-- **Authentification** : Si la variable d'environnement `ADMIN_TOKEN` est définie sur le serveur, l'en-tête suivant est requis :
+- **Authentification** : obligatoire. Si `ADMIN_TOKEN` n'est pas défini sur le serveur, l'endpoint est désactivé (`403`). Sinon, l'en-tête suivant est requis :
   ```http
   Authorization: Bearer <ADMIN_TOKEN>
   ```
+- **Anti-rafale** : une synchronisation manuelle au plus par minute (`429` + en-tête `Retry-After`).
 
 #### Exemple `curl` :
 ```bash
@@ -264,7 +273,9 @@ curl -X POST http://localhost:8080/api/sync \
 
 - **Codes d'erreur possibles :**
   - `401 Unauthorized` : Token manquant ou invalide.
+  - `403 Forbidden` : Synchronisation manuelle désactivée (`ADMIN_TOKEN` non configuré).
   - `409 Conflict` : Un cycle de synchronisation est déjà en cours d'exécution.
+  - `429 Too Many Requests` : Synchronisation déclenchée il y a moins d'une minute.
   - `405 Method Not Allowed` : Méthode autre que `POST`.
 
 ---

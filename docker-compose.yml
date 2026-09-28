@@ -21,8 +21,14 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - LOG_FORMAT=${LOG_FORMAT:-json}
       - ADMIN_TOKEN=${ADMIN_TOKEN:-}
+      - TRUSTED_PROXIES=${TRUSTED_PROXIES:-}
+      - SYNC_RU=${SYNC_RU:-true}
+      - RU_RESTAURANT_ID=${RU_RESTAURANT_ID:-1459}
+      - RU_SLOT_START=${RU_SLOT_START:-12:00}
+      - RU_SLOT_END=${RU_SLOT_END:-13:00}
       - PRIMEUI_LICENSE=${PRIMEUI_LICENSE:-${VITE_PRIMEUI_LICENSE:-}}
-      - VITE_PRIMEUI_LICENSE=${VITE_PRIMEUI_LICENSE:-${PRIMEUI_LICENSE:-}}
+    security_opt:
+      - no-new-privileges:true
     volumes:
       - ./data/output:/app/data/output
       - ./data/rooms:/app/data/rooms
