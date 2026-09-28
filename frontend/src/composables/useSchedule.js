@@ -31,6 +31,7 @@ export function useSchedule() {
     selectedTeacher, selectedRoom, events, currentWeekStart, disabledSubjects, isLoading,
     activeModalEvent, isRoomModalOpen, selectedSubjectFilter, availableYears, availableTracks,
     availableTypes, availableRestFiles, currentWeekEnd, weekEvents, displayedWeekEvents, nextCourse,
+    scheduleQuery, scheduleLabel,
   } = storeToRefs(schedule);
 
   // Background listeners: server health polling, connectivity, app clock and
@@ -85,6 +86,8 @@ export function useSchedule() {
     events,
     currentWeekStart,
     currentWeekEnd,
+    scheduleQuery,
+    scheduleLabel,
     weekEvents,
     displayedWeekEvents,
     nextCourse,

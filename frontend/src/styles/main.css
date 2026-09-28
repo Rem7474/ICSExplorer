@@ -1,4 +1,10 @@
 :root {
+  /* App shell: bottom tab bar (phones) and navigation rail (wide screens). */
+  --nav-h: calc(64px + env(safe-area-inset-bottom));
+  --rail-w: 88px;
+  /* System font (SF Pro on iOS) instead of Vuetify's default Roboto. */
+  --v-font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, system-ui, sans-serif;
+  --v-font-heading: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, system-ui, sans-serif;
   color-scheme: only light;
   --bg: #f5f7fb;
   --card: #ffffff;
@@ -84,6 +90,25 @@ body {
 .container {
   width: min(1180px, 94%);
   margin: 0 auto;
+}
+
+/* Screens rendered in the shell's main area. */
+.screen {
+  padding-top: 1rem;
+  padding-bottom: 1.5rem;
+}
+
+.v-application {
+  background: var(--bg) !important;
+  color: var(--text);
+}
+
+/* iOS pressed state replaces the Material ripple (disabled on iOS). */
+.is-ios .v-btn:active,
+.is-ios .nav-item:active,
+.is-ios .v-list-item:active {
+  opacity: 0.55;
+  transition: opacity 0s;
 }
 
 /* ===== Card Styling ===== */

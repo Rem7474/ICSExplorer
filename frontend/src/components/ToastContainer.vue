@@ -159,7 +159,7 @@ const handleAction = (toast) => {
   .toast-container {
     left: 0.75rem;
     right: 0.75rem;
-    bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    bottom: calc(var(--nav-h) + 0.75rem);
     max-width: none;
   }
 }

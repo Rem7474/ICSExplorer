@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, unref, watch, onMounted, onUnmounted } from "vue";
-import { fileUrl } from "../ics/api.js";
+import { useScheduleLinks } from "../composables/useScheduleLinks.js";
 import { useFavorites } from "../composables/useFavorites.js";
 import { useToast } from "../composables/useToast.js";
 
@@ -8,6 +8,11 @@ const props = defineProps({
   schedule: {
     type: Object,
     required: true,
+  },
+  // The app shell moves these actions to the top bar and the "Plus" screen.
+  showActions: {
+    type: Boolean,
+    default: true,
   },
 });
 
@@ -172,52 +177,7 @@ const onRoomSelectChange = () => {
 };
 
 
-const currentIcsUrl = computed(() => {
-  const mode = unref(props.schedule.selectedMode);
-  if (mode === "room") {
-    const room = unref(props.schedule.selectedRoom);
-    if (!room) return "#";
-    return `/rooms/${encodeURIComponent(room)}.ics`;
-  }
-  const file = unref(props.schedule.selectedFile);
-  if (!file || typeof file !== "string") return "#";
-  return fileUrl(file);
-});
-
-const canCopyIcsLink = computed(() => {
-  const mode = unref(props.schedule.selectedMode);
-  if (mode === "student") {
-    return Boolean(unref(props.schedule.selectedFile));
-  }
-  if (mode === "room") {
-    return Boolean(unref(props.schedule.selectedRoom));
-  }
-  return false;
-});
-
-const absoluteIcsUrl = computed(() => {
-  if (!canCopyIcsLink.value || currentIcsUrl.value === "#") return "";
-  try {
-    return new URL(currentIcsUrl.value, window.location.origin).href;
-  } catch {
-    return currentIcsUrl.value;
-  }
-});
-
-// webcal:// lets calendar apps (Apple Calendar, Outlook, Thunderbird)
-// subscribe to the feed instead of importing a one-off copy.
-const webcalUrl = computed(() => absoluteIcsUrl.value.replace(/^https?:/, "webcal:"));
-
-const copyIcsLink = async () => {
-  const url = absoluteIcsUrl.value;
-  if (!url) return;
-  try {
-    await navigator.clipboard.writeText(url);
-    showToast("Lien du calendrier (.ics) copié !", "success");
-  } catch {
-    prompt("Copiez ce lien du calendrier :", url);
-  }
-};
+const { canCopyIcsLink, currentIcsUrl, webcalUrl, copyIcsLink, copyShareLink } = useScheduleLinks(props.schedule);
 
 
 // Quick Search Filtering
@@ -343,14 +303,6 @@ const selectSearchResult = (item) => {
   showToast(`Planning chargé : ${item.label}`, "success");
 };
 
-const copyShareLink = async () => {
-  try {
-    await navigator.clipboard.writeText(window.location.href);
-    showToast("Lien de partage copié dans le presse-papier !", "success");
-  } catch {
-    prompt("Copiez ce lien :", window.location.href);
-  }
-};
 </script>
 
 <template>
@@ -699,7 +651,7 @@ const copyShareLink = async () => {
     </div>
 
     <!-- Actions toolbar -->
-    <div class="actions-row">
+    <div v-if="showActions" class="actions-row">
       <button
         v-if="isTeacherMode || isRoomMode"
         type="button"

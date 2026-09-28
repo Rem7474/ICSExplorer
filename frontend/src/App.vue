@@ -1,233 +1,67 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed, reactive, unref } from "vue";
+import { ref, reactive, provide, watch, onMounted, onUnmounted } from "vue";
+import { useTheme as useVuetifyTheme } from "vuetify";
 import { useSchedule } from "./composables/useSchedule.js";
-import { getWeekStart } from "./utils/dates.js";
-
-import AppHeader from "./components/AppHeader.vue";
-import ScheduleControls from "./components/ScheduleControls.vue";
-import FavoritesBar from "./components/FavoritesBar.vue";
-import NextCourseCard from "./components/NextCourseCard.vue";
-import WeekStats from "./components/WeekStats.vue";
-import ScheduleWeek from "./components/ScheduleWeek.vue";
-import EventModal from "./components/EventModal.vue";
-import EmptyRoomsModal from "./components/EmptyRoomsModal.vue";
-import PersonalScheduleModal from "./components/PersonalScheduleModal.vue";
-
-import ScheduleSkeleton from "./components/skeletons/ScheduleSkeleton.vue";
-import NextCourseSkeleton from "./components/skeletons/NextCourseSkeleton.vue";
-import WeekStatsSkeleton from "./components/skeletons/WeekStatsSkeleton.vue";
-import ToastContainer from "./components/ToastContainer.vue";
+import { useTheme } from "./composables/useTheme.js";
 import { useToast } from "./composables/useToast.js";
+import { isIOS } from "./plugins/vuetify.js";
 
+import AppTopBar from "./components/shell/AppTopBar.vue";
+import AppNav from "./components/shell/AppNav.vue";
+import EventModal from "./components/EventModal.vue";
+import PersonalScheduleModal from "./components/PersonalScheduleModal.vue";
+import ToastContainer from "./components/ToastContainer.vue";
+
+// App shell: top app bar, the current screen (router view), main navigation
+// (bottom tab bar on phones, rail on wide screens) and global dialogs.
 const schedule = reactive(useSchedule());
 const { showToast } = useToast();
 const isPersonalScheduleModalOpen = ref(false);
+const openPersonalSchedule = () => (isPersonalScheduleModalOpen.value = true);
 
-const rawVersion = import.meta.env.VITE_APP_VERSION || "";
-const appVersion = rawVersion && !rawVersion.startsWith("v") ? `v${rawVersion}` : rawVersion;
+provide("schedule", schedule);
+provide("openPersonalSchedule", openPersonalSchedule);
+
+// Keep Vuetify's theme in sync with the app's light/dark preference.
+const { isDark } = useTheme();
+const vuetifyTheme = useVuetifyTheme();
+watch(isDark, (dark) => vuetifyTheme.change(dark ? "dark" : "light"), { immediate: true });
 
 const handlePwaUpdate = (e) => {
-  showToast(
-    "Une nouvelle version de l'application est disponible.",
-    "info",
-    0,
-    {
-      label: "Mettre à jour",
-      onClick: () => {
-        if (e.detail && typeof e.detail.update === "function") {
-          e.detail.update();
-        } else {
-          window.location.reload();
-        }
-      },
-    }
-  );
+  showToast("Une nouvelle version de l'application est disponible.", "info", 0, {
+    label: "Mettre à jour",
+    onClick: () => (typeof e.detail?.update === "function" ? e.detail.update() : window.location.reload()),
+  });
 };
 
 onMounted(() => {
   schedule.init();
-  if (typeof window !== "undefined") {
-    window.addEventListener("pwa-update-available", handlePwaUpdate);
-  }
+  window.addEventListener("pwa-update-available", handlePwaUpdate);
 });
 
 onUnmounted(() => {
   schedule.stopHealthPolling?.();
-  if (typeof window !== "undefined") {
-    window.removeEventListener("pwa-update-available", handlePwaUpdate);
-  }
+  window.removeEventListener("pwa-update-available", handlePwaUpdate);
 });
-
-const currentKey = computed(() => {
-  const mode = unref(schedule.selectedMode);
-  const teacher = unref(schedule.selectedTeacher);
-  const room = unref(schedule.selectedRoom);
-  const file = unref(schedule.selectedFile);
-
-  if (mode === "personal") return "personal_edt";
-  if (mode === "teacher" && teacher) return `teacher_${teacher}`;
-  if (mode === "room" && room) return `room_${room}`;
-  if (mode === "student" && file && typeof file === "string") return `file_${file}`;
-  return "";
-});
-
-const onSelectFavorite = (fav) => {
-  if (fav.mode === "personal") {
-    schedule.selectedMode = "personal";
-    schedule.refreshPersonalSchedule();
-  } else if (fav.mode === "student") {
-    schedule.selectedFile = fav.file;
-    schedule.selectedMode = "student";
-    schedule.loadSchedule(fav.file);
-  } else if (fav.mode === "teacher") {
-    schedule.selectedTeacher = fav.teacher;
-    schedule.selectedMode = "teacher";
-    schedule.loadTeacherSchedule(fav.teacher);
-  } else if (fav.mode === "room") {
-    schedule.selectedRoom = fav.room;
-    schedule.selectedMode = "room";
-    schedule.loadRoomSchedule(fav.room);
-  }
-};
-
-const onSelectTeacherFromEvent = (teacher) => {
-  schedule.selectedMode = "teacher";
-  schedule.selectedTeacher = teacher;
-  schedule.loadTeacherSchedule(teacher);
-};
-
-const onSelectRoomFromEvent = (room) => {
-  schedule.selectedMode = "room";
-  schedule.selectedRoom = room;
-  schedule.loadRoomSchedule(room);
-};
-
-const onJumpToWeek = (date) => {
-  schedule.currentWeekStart = getWeekStart(new Date(date));
-};
 </script>
 
 <template>
-  <div class="app-root">
-    <a class="skip-link" href="#planning">Aller au planning</a>
+  <v-app :class="{ 'is-ios': isIOS }">
+    <a class="skip-link" href="#main-content">Aller au contenu</a>
 
-    <AppHeader
-      :health="schedule.serverHealth"
-      :is-personal-active="schedule.selectedMode === 'personal'"
-      :is-online="schedule.isOnline"
-      :now="schedule.currentTime"
-      @open-personal-schedule="isPersonalScheduleModalOpen = true"
-    />
+    <AppTopBar />
+    <AppNav />
 
-    <main class="container">
-      <!-- Upcoming course card -->
-      <NextCourseSkeleton v-if="schedule.isLoading && !schedule.nextCourse" />
-      <NextCourseCard
-        v-else-if="schedule.nextCourse"
-        :course="schedule.nextCourse"
-        @click="schedule.activeModalEvent = $event"
-      />
+    <v-main id="main-content" class="app-main" tabindex="-1">
+      <router-view />
+    </v-main>
 
-      <!-- Controls & Selectors -->
-      <ScheduleControls
-        :schedule="schedule"
-        @open-empty-rooms="schedule.openRoomModal"
-        @open-personal-schedule="isPersonalScheduleModalOpen = true"
-      />
-
-      <!-- Favorites Bar -->
-      <FavoritesBar :current-key="currentKey" @select="onSelectFavorite" />
-
-      <!-- Status or error message -->
-      <div v-if="schedule.statusMessage" class="status-banner card" role="status">
-        <span class="status-message-text">{{ schedule.statusMessage }}</span>
-        <button
-          v-if="schedule.statusAction === 'configure-personal'"
-          type="button"
-          class="btn btn-primary btn-sm status-action-btn"
-          @click="isPersonalScheduleModalOpen = true"
-        >
-          ✨ Configurer mon planning ADE
-        </button>
-      </div>
-
-      <!-- Welcome card if 0 files -->
-      <div v-if="!schedule.isLoading && schedule.availableFiles.length === 0" class="welcome-card card">
-        <h2>👋 Bienvenue sur ICSExplorer</h2>
-        <p>Les emplois du temps de l'école ne sont pas encore disponibles sur ce serveur.</p>
-        <p class="welcome-help">
-          En attendant, vous pouvez afficher votre propre planning ADE.
-          <em>Administrateur :</em> renseignez <code>AGALAN_LOGIN</code> / <code>AGALAN_PASSWORD</code> pour activer la synchronisation automatique.
-        </p>
-        <div class="welcome-actions">
-          <button class="btn btn-primary" type="button" @click="isPersonalScheduleModalOpen = true">
-            ✨ Configurer mon planning ADE
-          </button>
-        </div>
-      </div>
-
-      <!-- Schedule Section -->
-      <div v-else id="planning" class="card schedule-main-card" tabindex="-1">
-        <!-- Week Statistics & Subject Filter Chips -->
-        <WeekStatsSkeleton v-if="schedule.isLoading && schedule.weekEvents.length === 0" />
-        <WeekStats
-          v-else
-          :events="schedule.weekEvents"
-          :disabled-subjects="schedule.disabledSubjects"
-          @filter="schedule.toggleSubjectFilter"
-          @reset="schedule.resetSubjectFilters"
-        />
-
-        <!-- Main Schedule Grid -->
-        <ScheduleSkeleton v-if="schedule.isLoading && schedule.events.length === 0" />
-        <ScheduleWeek
-          v-else
-          :events="schedule.displayedWeekEvents"
-          :all-events="schedule.events"
-          :current-week-start="schedule.currentWeekStart"
-          @prev-week="schedule.prevWeek"
-          @next-week="schedule.nextWeek"
-          @current-week="schedule.goToCurrentWeek"
-          @event-click="schedule.openEventModal"
-          @jump-to-week="onJumpToWeek"
-        />
-      </div>
-    </main>
-
-    <!-- Footer -->
-    <footer class="footer">
-      <div class="container footer-content">
-        <span class="footer-brand">
-          ICSExplorer
-          <span v-if="appVersion" class="version-tag">{{ appVersion }}</span>
-        </span>
-        <div class="footer-links">
-          <a href="https://github.com/Rem7474/ICSExplorer" target="_blank" rel="noopener">Code source</a>
-          <details class="footer-diagnostics">
-            <summary>Diagnostic</summary>
-            <div class="footer-diagnostics-links">
-              <a href="/api/health" target="_blank" rel="noopener">Santé API</a>
-              <a href="/api/status" target="_blank" rel="noopener">Statut synchro</a>
-              <a href="/output/files.json" target="_blank" rel="noopener">Index des fichiers</a>
-            </div>
-          </details>
-        </div>
-      </div>
-    </footer>
-
-    <!-- Modals -->
     <EventModal
       v-if="schedule.activeModalEvent"
       :event="schedule.activeModalEvent"
       @close="schedule.closeEventModal"
-      @select-teacher="onSelectTeacherFromEvent"
-      @select-room="onSelectRoomFromEvent"
-    />
-
-    <EmptyRoomsModal
-      v-if="schedule.isRoomModalOpen"
-      @close="schedule.closeRoomModal"
-      @select-room="onSelectRoomFromEvent"
+      @select-teacher="schedule.loadTeacherSchedule"
+      @select-room="schedule.loadRoomSchedule"
     />
 
     <PersonalScheduleModal
@@ -236,118 +70,11 @@ const onJumpToWeek = (date) => {
       @close="isPersonalScheduleModalOpen = false"
     />
 
-    <!-- Global Toast Notifications -->
     <ToastContainer />
-  </div>
+  </v-app>
 </template>
 
 <style scoped>
-.app-root {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-main {
-  flex: 1;
-}
-
-.status-banner {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  font-size: 0.9rem;
-  color: var(--accent);
-  border-left: 4px solid var(--accent);
-}
-
-.status-message-text {
-  flex: 1;
-}
-
-.status-action-btn {
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.schedule-main-card {
-  padding: 1.5rem;
-}
-
-@media (max-width: 768px) {
-  .schedule-main-card {
-    padding: 0.75rem 0.5rem;
-  }
-}
-
-.footer {
-  margin-top: 2rem;
-  padding: 1.5rem 0;
-  border-top: 1px solid var(--border);
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.footer-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.footer-brand {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-}
-
-.version-tag {
-  display: inline-block;
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.1rem 0.45rem;
-  border-radius: 9999px;
-  background: var(--border);
-  color: var(--muted);
-  letter-spacing: 0.02em;
-  line-height: 1.2;
-}
-
-.footer-links {
-  display: flex;
-  align-items: flex-start;
-  gap: 1rem;
-}
-
-.footer-diagnostics summary {
-  cursor: pointer;
-  list-style: none;
-}
-
-.footer-diagnostics summary::-webkit-details-marker {
-  display: none;
-}
-
-.footer-diagnostics summary::after {
-  content: " ▾";
-}
-
-.footer-diagnostics[open] summary::after {
-  content: " ▴";
-}
-
-.footer-diagnostics-links {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  margin-top: 0.35rem;
-}
-
 .skip-link {
   position: absolute;
   left: 0.75rem;
@@ -366,17 +93,19 @@ main {
   top: 0.75rem;
 }
 
-.schedule-main-card:focus {
+/* Room for the bottom tab bar (phones) or the navigation rail (wide screens). */
+.app-main {
+  padding-bottom: var(--nav-h) !important;
+}
+
+.app-main:focus {
   outline: none;
 }
 
-.footer-links a {
-  color: var(--muted);
-  text-decoration: none;
-}
-
-.footer-links a:hover {
-  color: var(--accent);
-  text-decoration: underline;
+@media (min-width: 960px) {
+  .app-main {
+    padding-bottom: 0 !important;
+    padding-left: var(--rail-w) !important;
+  }
 }
 </style>
