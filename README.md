@@ -225,12 +225,18 @@ cd frontend && npm test
 # Vérifier le linter (0 warning, 0 error)
 npm run lint
 
+# Tests de bout en bout (Playwright) sur l'app réelle servie par le backend Go :
+# iPhone/Safari (WebKit), Android (Chromium) et desktop
+npx playwright install webkit chromium   # une seule fois
+npm run test:e2e
+
 # Exécuter les tests du backend Go avec détection de concurrence de données
 go test -v -race ./internal/... ./cmd/...
 ```
 
 - ✅ **Suite complète de tests unitaires frontend** couvrant le calendrier, la navigation, le découpage multi-jours, les calculs d'horaires et les modales PrimeVue.
 - ✅ **100% des paquets Go couverts** par des tests automatisés avec race detector.
+- ✅ **Tests de bout en bout Playwright** : parcours clés (planning, recherche, retour navigateur, salles) et absence de débordement horizontal, sur WebKit (iPhone), Chromium (Android) et desktop, avec des données générées pour la semaine en cours.
 - ✅ **Scan de sécurité Trivy** intégré au pipeline GitHub Actions sur chaque image Docker produite.
 
 ---

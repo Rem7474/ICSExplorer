@@ -33,3 +33,8 @@ pr_body.md
 Thumbs.db
 .idea/
 .vscode/
+# Playwright (frontend end-to-end tests)
+/frontend/e2e/.data/
+/frontend/test-results/
+/frontend/playwright-report/
+/frontend/blob-report/
