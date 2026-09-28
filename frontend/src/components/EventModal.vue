@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted } from "vue";
 import Dialog from "primevue/dialog";
 import Button from "primevue/button";
 import { formatDateTime, formatTimeOnly, formatDateOnly, isAllDayEvent } from "../utils/dates.js";
-import { isCercleEvent } from "../utils/colors.js";
+import { isCercleEvent, isRuEvent } from "../utils/colors.js";
 import { useToast } from "../composables/useToast.js";
 import { extractTeacherNames } from "../ics/parser.js";
 
@@ -139,8 +139,17 @@ const copyDetails = async () => {
     @update:visible="emit('close')"
   >
     <div v-if="event" class="modal-body-content">
+      <!-- RU Briff'O source notice -->
+      <div v-if="isRuEvent(event)" class="ru-source-banner">
+        <span class="ru-banner-icon" aria-hidden="true">🍽️</span>
+        <div class="ru-info">
+          <strong>Restaurant Universitaire Briff'O</strong>
+          <p>Menu officiel CROUS Grenoble Alpes (fourni via CROUStillant Open Data).</p>
+        </div>
+      </div>
+
       <!-- Cercle source notice -->
-      <div v-if="isCercleEvent(event)" class="cercle-source-banner">
+      <div v-else-if="isCercleEvent(event)" class="cercle-source-banner">
         <i class="pi pi-sparkles" style="color: #a855f7; font-size: 1.25rem;" aria-hidden="true"></i>
         <div class="cercle-info">
           <strong>Source : Cercle des Élèves</strong>
@@ -159,7 +168,17 @@ const copyDetails = async () => {
         <span class="detail-label"><i class="pi pi-map-pin mr-1" aria-hidden="true"></i> Lieu :</span>
         <div class="detail-value-wrapper">
           <span class="detail-value">{{ event.location }}</span>
-          <div v-if="extractedRooms.length > 0" class="rebound-buttons">
+          <div v-if="extractedRooms.length > 0 || isRuEvent(event)" class="rebound-buttons">
+            <a
+              v-if="isRuEvent(event)"
+              href="https://www.crous-grenoble.fr/restaurant/ru-briffo-valence/"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="rebound-badge"
+              title="Consulter la fiche du restaurant sur le site officiel du CROUS"
+            >
+              <i class="pi pi-external-link mr-1" aria-hidden="true"></i> Site CROUS ➔
+            </a>
             <button
               v-for="r in extractedRooms"
               :key="r"
@@ -305,6 +324,43 @@ const copyDetails = async () => {
   background: rgba(168, 85, 247, 0.22);
   border-color: rgba(192, 132, 252, 0.4);
   color: #f3e8ff;
+}
+
+.ru-source-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: rgba(234, 88, 12, 0.1);
+  border: 1px solid rgba(234, 88, 12, 0.35);
+  color: #9a3412;
+  margin-bottom: 0.25rem;
+}
+
+:global(.dark-mode) .ru-source-banner {
+  background: rgba(251, 146, 60, 0.18);
+  border-color: rgba(251, 146, 60, 0.45);
+  color: #ffedd5;
+}
+
+.ru-banner-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.ru-info strong {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 0.15rem;
+}
+
+.ru-info p {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.3;
+  opacity: 0.9;
 }
 
 .cercle-icon {

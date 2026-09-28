@@ -1,9 +1,9 @@
 import { ref, computed, watch } from "vue";
-import { fetchFileList, fetchRoomList, fetchIcsText, fetchCercleEvents, fetchPersonalCalendar, decodeTextWithFallback } from "../ics/api.js";
+import { fetchFileList, fetchRoomList, fetchIcsText, fetchCercleEvents, fetchRuEvents, fetchPersonalCalendar, decodeTextWithFallback } from "../ics/api.js";
 import { parseIcs } from "../ics/parser.js";
 import { getRelevantWeekStart, getWeekStart, getWeekEnd } from "../utils/dates.js";
 import { getTeacherIndex, getRoomIndex, clearAggregatedCache } from "../ics/aggregator.js";
-import { getSubjectType } from "../utils/colors.js";
+import { getSubjectType, isRuEvent } from "../utils/colors.js";
 import { useToast } from "./useToast.js";
 
 const STORAGE_KEY = "edtSelection";
@@ -12,6 +12,7 @@ const PERSONAL_CREDENTIALS_KEY = "edtPersonalCreds";
 const PERSONAL_CACHE_KEY = "edt_cached_personal_ics";
 const PERSONAL_META_KEY = "edt_personal_meta";
 export const DISABLED_SUBJECTS_KEY = "edtDisabledSubjects";
+export const SHOW_RU_MENU_KEY = "edtShowRuMenu";
 const HEALTH_CHECK_INTERVAL_MS = 3 * 60 * 1000; // 3 minutes
 
 export function useSchedule() {
@@ -35,6 +36,18 @@ export function useSchedule() {
   
   const events = ref([]);
   const cercleEvents = ref([]);
+  const loadSavedShowRuMenu = () => {
+    try {
+      if (typeof localStorage === "undefined") return true;
+      const raw = localStorage.getItem(SHOW_RU_MENU_KEY);
+      if (raw === null) return true;
+      return raw === "true";
+    } catch {
+      return true;
+    }
+  };
+  const showRuMenu = ref(loadSavedShowRuMenu());
+  const ruEvents = ref([]);
   const currentWeekStart = ref(getWeekStart(new Date()));
   const disabledSubjects = ref([]);
   const selectedSubjectFilter = computed(() => disabledSubjects.value[0] || null);
@@ -173,10 +186,11 @@ export function useSchedule() {
     });
   });
 
-  // Next upcoming course (excluding deselected/hidden subjects, updates dynamically via currentTime ticker)
+  // Next upcoming course (excluding deselected/hidden subjects and RU menus, updates dynamically via currentTime ticker)
   const nextCourse = computed(() => {
     const now = new Date(currentTime.value);
     return events.value.find((ev) => {
+      if (ev.isRu || isRuEvent(ev)) return false;
       if (new Date(ev.end) <= now) return false;
       if (disabledSubjects.value.length > 0) {
         const type = getSubjectType(ev);
@@ -204,6 +218,47 @@ export function useSchedule() {
     const combined = [...studentEvents, ...toAdd];
     combined.sort((a, b) => new Date(a.start) - new Date(b.start));
     return combined;
+  };
+
+  const loadRuEvents = async () => {
+    if (ruEvents.value.length > 0) return ruEvents.value;
+    try {
+      const rEvs = await fetchRuEvents();
+      ruEvents.value = rEvs;
+      return rEvs;
+    } catch {
+      return [];
+    }
+  };
+
+  const mergeWithRu = (baseEvents, rEvents) => {
+    if (!showRuMenu.value || !rEvents || !rEvents.length) return baseEvents;
+    const existingUids = new Set(baseEvents.map((e) => e.uid).filter(Boolean));
+    const toAdd = rEvents.filter((e) => !e.uid || !existingUids.has(e.uid));
+    const combined = [...baseEvents, ...toAdd];
+    combined.sort((a, b) => new Date(a.start) - new Date(b.start));
+    return combined;
+  };
+
+  const toggleRuMenu = async () => {
+    showRuMenu.value = !showRuMenu.value;
+    try {
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem(SHOW_RU_MENU_KEY, String(showRuMenu.value));
+      }
+    } catch {}
+
+    if (showRuMenu.value) {
+      if (ruEvents.value.length === 0) {
+        await loadRuEvents();
+      }
+      const existing = events.value.filter((e) => !e.isRu && !isRuEvent(e));
+      events.value = mergeWithRu(existing, ruEvents.value);
+      showToast("Menu du RU affiché", "info");
+    } else {
+      events.value = events.value.filter((e) => !e.isRu && !isRuEvent(e));
+      showToast("Menu du RU masqué", "info");
+    }
   };
 
   const areEventsEqual = (evs1, evs2) => {
@@ -237,20 +292,25 @@ export function useSchedule() {
 
       clearAggregatedCache();
       cercleEvents.value = [];
+      ruEvents.value = [];
 
       let newEvents = [];
       if (selectedMode.value === "student" && selectedFile.value) {
-        const [text, cEvents] = await Promise.all([
+        const [text, cEvents, rEvents] = await Promise.all([
           fetchIcsText(selectedFile.value),
           loadCercleEvents(),
+          showRuMenu.value ? loadRuEvents() : Promise.resolve([]),
         ]);
         const parsed = parseIcs(text);
-        newEvents = mergeWithCercle(parsed, cEvents);
+        newEvents = mergeWithRu(mergeWithCercle(parsed, cEvents), rEvents);
       } else if (selectedMode.value === "teacher" && selectedTeacher.value) {
         const teacherMap = await getTeacherIndex();
         const tEvents = teacherMap.get(selectedTeacher.value) || [];
-        const cEvents = await loadCercleEvents();
-        newEvents = mergeWithCercle(tEvents, cEvents);
+        const [cEvents, rEvents] = await Promise.all([
+          loadCercleEvents(),
+          showRuMenu.value ? loadRuEvents() : Promise.resolve([]),
+        ]);
+        newEvents = mergeWithRu(mergeWithCercle(tEvents, cEvents), rEvents);
       } else if (selectedMode.value === "room" && selectedRoom.value) {
         try {
           const text = await fetchIcsText(`${selectedRoom.value}.ics`);
@@ -458,12 +518,14 @@ export function useSchedule() {
     autoSelectFromFile(fileName);
 
     try {
-      const [text, cEvents] = await Promise.all([
+      const [text, cEvents, rEvents] = await Promise.all([
         fetchIcsText(fileName),
         loadCercleEvents(),
+        showRuMenu.value ? loadRuEvents() : Promise.resolve([]),
       ]);
       const parsed = parseIcs(text);
-      const merged = mergeWithCercle(parsed, cEvents);
+      const mergedWithC = mergeWithCercle(parsed, cEvents);
+      const merged = mergeWithRu(mergedWithC, rEvents);
       events.value = merged;
       currentWeekStart.value = getRelevantWeekStart(parsed.length ? parsed : merged);
       statusMessage.value = "";
@@ -492,8 +554,9 @@ export function useSchedule() {
       selectedMode.value = "personal";
       disabledSubjects.value = loadSavedDisabledSubjects("personal");
       const parsed = parseIcs(icsText);
-      events.value = parsed;
-      currentWeekStart.value = getRelevantWeekStart(parsed);
+      const merged = mergeWithRu(parsed, ruEvents.value);
+      events.value = merged;
+      currentWeekStart.value = getRelevantWeekStart(parsed.length ? parsed : merged);
       rawPersonalIcs.value = icsText;
       statusMessage.value = "";
 
@@ -702,11 +765,16 @@ export function useSchedule() {
       if (availableTeachers.value.length === 0) {
         loadTeacherList().catch(() => {});
       }
-      const teacherMap = await getTeacherIndex();
+      const [teacherMap, cEvents, rEvents] = await Promise.all([
+        getTeacherIndex(),
+        loadCercleEvents(),
+        showRuMenu.value ? loadRuEvents() : Promise.resolve([]),
+      ]);
       const teacherEvents = teacherMap.get(teacherName) || [];
-      teacherEvents.sort((a, b) => new Date(a.start) - new Date(b.start));
-      events.value = teacherEvents;
-      currentWeekStart.value = getRelevantWeekStart(teacherEvents);
+      const mergedWithC = mergeWithCercle(teacherEvents, cEvents);
+      const merged = mergeWithRu(mergedWithC, rEvents);
+      events.value = merged;
+      currentWeekStart.value = getRelevantWeekStart(teacherEvents.length ? teacherEvents : merged);
       statusMessage.value = "";
 
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode: "teacher", teacher: teacherName }));
@@ -972,6 +1040,10 @@ export function useSchedule() {
     closeEventModal,
     cercleEvents,
     loadCercleEvents,
+    showRuMenu,
+    ruEvents,
+    toggleRuMenu,
+    loadRuEvents,
     triggerSync,
     checkHealth,
     reloadCurrentScheduleSilently,

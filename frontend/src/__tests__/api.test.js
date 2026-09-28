@@ -67,3 +67,20 @@ describe("fetchPersonalCalendar", () => {
     ).rejects.toThrow("invalid credentials");
   });
 });
+
+describe("fetchRuEvents", () => {
+  it("fetches and tags ru events with isRu", async () => {
+    const { fetchRuEvents } = await import("../ics/api.js");
+    const icsContent = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:ru-1\r\nSUMMARY:🍽️ RU Briff'O\r\nDTSTART:20260928T120000\r\nDTEND:20260928T130000\r\nEND:VEVENT\r\nEND:VCALENDAR";
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new TextEncoder().encode(icsContent).buffer,
+    });
+
+    const evs = await fetchRuEvents();
+    expect(evs.length).toBe(1);
+    expect(evs[0].isRu).toBe(true);
+    expect(evs[0].source).toBe("RU Briff'O");
+  });
+});

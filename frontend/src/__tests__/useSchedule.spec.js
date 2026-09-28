@@ -580,5 +580,53 @@ END:VCALENDAR`;
     expect(schedule.events.value[0].summary).toBe("Physics (Room Change)");
     expect(schedule.events.value[0].location).toBe("Amphi A");
   });
+
+  it("handles RU menu toggle and merges RU events into schedule", async () => {
+    const schedule = useSchedule();
+    schedule.selectedMode.value = "student";
+    schedule.selectedFile.value = "1A-SEM.ics";
+
+    const classIcs = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:class-1\r\nSUMMARY:IN101 Algo\r\nDTSTART:20260928T080000\r\nDTEND:20260928T100000\r\nEND:VEVENT\r\nEND:VCALENDAR";
+    const ruEventsList = [
+      {
+        uid: "ru-1",
+        summary: "🍽️ RU Briff'O",
+        description: "Saveurs du Jour: Curry",
+        start: new Date("2026-09-28T12:00:00"),
+        end: new Date("2026-09-28T13:00:00"),
+        isRu: true,
+      },
+    ];
+
+    vi.spyOn(api, "fetchFileList").mockResolvedValue(["1A-SEM.ics"]);
+    vi.spyOn(api, "fetchCercleEvents").mockResolvedValue([]);
+    vi.spyOn(api, "fetchRuEvents").mockResolvedValue(ruEventsList);
+    vi.spyOn(api, "fetchIcsText").mockResolvedValue(classIcs);
+
+    schedule.showRuMenu.value = true;
+    schedule.currentTime.value = new Date("2026-09-28T07:00:00").getTime();
+    await schedule.loadSchedule("1A-SEM.ics");
+
+    // Both class and RU event should be present
+    expect(schedule.events.value.some((e) => e.isRu)).toBe(true);
+    expect(schedule.events.value.some((e) => e.summary === "IN101 Algo")).toBe(true);
+
+    // Next course should be the class, NOT the RU menu
+    expect(schedule.nextCourse.value?.summary).toBe("IN101 Algo");
+
+    // When class is finished, RU event is still ignored by nextCourse
+    schedule.currentTime.value = new Date("2026-09-28T10:30:00").getTime();
+    expect(schedule.nextCourse.value).toBeNull();
+
+    // Toggle off
+    await schedule.toggleRuMenu();
+    expect(schedule.showRuMenu.value).toBe(false);
+    expect(schedule.events.value.some((e) => e.isRu)).toBe(false);
+
+    // Toggle back on
+    await schedule.toggleRuMenu();
+    expect(schedule.showRuMenu.value).toBe(true);
+    expect(schedule.events.value.some((e) => e.isRu)).toBe(true);
+  });
 });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getSubjectType, getSubjectColors, getSubjectFullName } from "../utils/colors.js";
+import { getSubjectType, getSubjectColors, getSubjectFullName, isRuEvent } from "../utils/colors.js";
 
 describe("colors utils", () => {
   it("detects known subject types correctly", () => {
@@ -8,10 +8,21 @@ describe("colors utils", () => {
     expect(getSubjectType("LV01 Anglais")).toBe("LV");
     expect(getSubjectType("PR301 Recherche")).toBe("PR");
     expect(getSubjectType("Cercle Soiree")).toBe("CERCLE");
+    expect(getSubjectType("🍽️ RU Briff'O")).toBe("RU");
+    expect(getSubjectType({ summary: "🍽️ RU Briff'O", isRu: true })).toBe("RU");
     expect(getSubjectType("CM - Management des Systèmes d'Information")).toBe("MAC");
     expect(getSubjectType("TD Anglais Professionnel")).toBe("LV");
     expect(getSubjectType("TP Développement Web")).toBe("IN");
     expect(getSubjectType("Conférence Divers")).toBe("CONFÉRENCE DIVERS");
+  });
+
+  it("detects isRuEvent accurately", () => {
+    expect(isRuEvent("🍽️ RU Briff'O")).toBe(true);
+    expect(isRuEvent("Menu RU")).toBe(true);
+    expect(isRuEvent({ isRu: true })).toBe(true);
+    expect(isRuEvent({ categories: "RU,CROUS" })).toBe(true);
+    expect(isRuEvent({ source: "RU Briff'O" })).toBe(true);
+    expect(isRuEvent("IN101 Algo")).toBe(false);
   });
 
   it("returns human-readable subject names", () => {

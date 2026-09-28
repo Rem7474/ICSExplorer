@@ -22,6 +22,12 @@ type Config struct {
 	SyncOnStartup    bool
 	SyncCercle       bool
 	CercleIcsURL     string
+	SyncRU           bool
+	RURestaurantID   string
+	RUSlotStartHour  int
+	RUSlotStartMin   int
+	RUSlotEndHour    int
+	RUSlotEndMin     int
 	Concurrency      int
 	MaxDataAge       time.Duration
 	MinFileSizeBytes int64
@@ -82,6 +88,9 @@ func Load() (*Config, error) {
 		minFileSize = 50000
 	}
 
+	startH, startM := parseTimeSlot(getEnv("RU_SLOT_START", "12:00"), 12, 0)
+	endH, endM := parseTimeSlot(getEnv("RU_SLOT_END", "13:00"), 13, 0)
+
 	cfg := &Config{
 		Port:             port,
 		AgalanLogin:      getEnv("AGALAN_LOGIN", ""),
@@ -94,6 +103,12 @@ func Load() (*Config, error) {
 		SyncOnStartup:    getEnvBool("SYNC_ON_STARTUP", true),
 		SyncCercle:       getEnvBool("SYNC_CERCLE", true),
 		CercleIcsURL:     getEnv("CERCLE_ICS_URL", DefaultCercleURL),
+		SyncRU:           getEnvBool("SYNC_RU", true),
+		RURestaurantID:   getEnv("RU_RESTAURANT_ID", "1459"),
+		RUSlotStartHour:  startH,
+		RUSlotStartMin:   startM,
+		RUSlotEndHour:    endH,
+		RUSlotEndMin:     endM,
 		Concurrency:      concurrency,
 		MaxDataAge:       maxDataAge,
 		MinFileSizeBytes: minFileSize,
@@ -120,4 +135,16 @@ func getEnvBool(key string, fallback bool) bool {
 		return valLower == "true" || valLower == "1" || valLower == "yes" || valLower == "on"
 	}
 	return fallback
+}
+
+func parseTimeSlot(slotStr string, fallbackHour, fallbackMin int) (int, int) {
+	parts := strings.Split(strings.TrimSpace(slotStr), ":")
+	if len(parts) == 2 {
+		h, err1 := strconv.Atoi(parts[0])
+		m, err2 := strconv.Atoi(parts[1])
+		if err1 == nil && err2 == nil && h >= 0 && h <= 23 && m >= 0 && m <= 59 {
+			return h, m
+		}
+	}
+	return fallbackHour, fallbackMin
 }

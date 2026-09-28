@@ -12,6 +12,7 @@ export const SUBJECT_NAMES = {
   SP: "Sport & EPS",
   PT: "Projets Techniques",
   CERCLE: "Cercle des Élèves",
+  RU: "RU Briff'O (CROUS)",
   DEFAULT: "Autre",
 };
 
@@ -122,6 +123,29 @@ export const isCercleEvent = (eventOrSummary) => {
   );
 };
 
+export const isRuEvent = (eventOrSummary) => {
+  if (!eventOrSummary) return false;
+  if (typeof eventOrSummary === "object") {
+    if (eventOrSummary.isRu) return true;
+    if (eventOrSummary.categories && (eventOrSummary.categories.toUpperCase().includes("RU") || eventOrSummary.categories.toUpperCase().includes("CROUS"))) {
+      return true;
+    }
+    if (eventOrSummary.source && (eventOrSummary.source.toUpperCase().includes("RU") || eventOrSummary.source.toUpperCase().includes("BRIFF"))) {
+      return true;
+    }
+    return isRuEvent(eventOrSummary.summary);
+  }
+
+  const s = String(eventOrSummary).toLowerCase();
+  return (
+    s.includes("ru briff") ||
+    s.includes("ru briff'o") ||
+    s.includes("briffo") ||
+    s.includes("🍽️ ru") ||
+    s.includes("menu ru")
+  );
+};
+
 export const normalizeCourseTitle = (rawSummary) => {
   if (!rawSummary) return "";
   let s = String(rawSummary).trim();
@@ -143,6 +167,9 @@ export const normalizeCourseTitle = (rawSummary) => {
 
 export const getSubjectType = (eventOrSummary) => {
   if (!eventOrSummary) return "DEFAULT";
+  if (isRuEvent(eventOrSummary)) {
+    return "RU";
+  }
   if (isCercleEvent(eventOrSummary)) {
     return "CERCLE";
   }
@@ -181,6 +208,16 @@ export const getSubjectType = (eventOrSummary) => {
 
 export const getSubjectColors = (eventOrSummary, isDarkMode = false) => {
   const type = getSubjectType(eventOrSummary);
+
+  if (type === "RU") {
+    return {
+      background: isDarkMode ? "#431407" : "#ffedd5",
+      border: isDarkMode ? "#fb923c" : "#ea580c",
+      text: isDarkMode ? "#fff7ed" : "#7c2d12",
+      subtext: isDarkMode ? "#fed7aa" : "#9a3412",
+      accent: isDarkMode ? "#f97316" : "#ea580c",
+    };
+  }
 
   if (type === "CERCLE") {
     return {
