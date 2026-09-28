@@ -278,6 +278,30 @@ const bannerStyle = (event) => {
   return { "--accent": accent, background: `color-mix(in srgb, ${accent} 22%, rgb(var(--v-theme-surface)))` };
 };
 
+// Titles fit on one line: the RU/Cercle marker is part of the title instead
+// of an extra line (which got cut off in one-hour slots).
+const eventTitle = (event) => {
+  const summary = event.summary || "Événement";
+  if (isRuEvent(event)) return mode.value === "week" ? "🍽️ RU" : summary;
+  if (isCercleEvent(event) && !/^\p{Extended_Pictographic}/u.test(summary)) return `🎉 ${summary}`;
+  return summary;
+};
+
+// RU menu: the first dish of the day is more useful than the (always 12h–13h) time.
+const ruHighlight = (event) =>
+  (event.description || "")
+    .split("\n")
+    .map((l) => l.trim())
+    .find((l) => l.startsWith("•"))
+    ?.replace(/^•\s*/, "") || "";
+
+// Second piece of information: the first dish for RU menus, the time otherwise.
+const eventDetail = (item) => {
+  // Narrow 5-day columns: a short slot keeps only its title.
+  if (mode.value === "week" && item.height < 44) return "";
+  return isRuEvent(item.event) ? ruHighlight(item.event) : item.time;
+};
+
 const eventLabel = (item, date) =>
   [item.event.summary || "Événement", dayLabel(date), item.time, item.event.location ? `salle ${item.event.location}` : ""]
     .filter(Boolean)
@@ -440,11 +464,16 @@ defineExpose({ goToDate, goToToday, step, mode, activeIndex });
             :aria-label="eventLabel(item, c.date)"
             @click="emit('eventClick', item.event)"
           >
-            <span v-if="isRuEvent(item.event)" class="event-tag">🍽️ RU</span>
-            <span v-else-if="isCercleEvent(item.event)" class="event-tag">🎉 Cercle</span>
-            <strong class="event-title">{{ item.event.summary }}</strong>
-            <span v-if="item.height >= 44" class="event-time">{{ item.time }}</span>
-            <span v-if="item.height >= 64 && item.event.location" class="event-room">{{ item.event.location }}</span>
+            <!-- Short slots (e.g. 1h): a single line "title · detail" -->
+            <span v-if="item.height < 44" class="event-inline">
+              <strong class="event-title">{{ eventTitle(item.event) }}</strong>
+              <span v-if="eventDetail(item)" class="event-sub"> · {{ eventDetail(item) }}</span>
+            </span>
+            <template v-else>
+              <strong class="event-title">{{ eventTitle(item.event) }}</strong>
+              <span v-if="eventDetail(item)" class="event-line">{{ eventDetail(item) }}</span>
+              <span v-if="!isRuEvent(item.event) && item.height >= 64 && item.event.location" class="event-line">{{ item.event.location }}</span>
+            </template>
           </button>
 
           <p v-if="!c.items.length && !c.allDay.length" class="empty-day">Pas de cours</p>
@@ -796,9 +825,36 @@ button.day-date {
   text-overflow: ellipsis;
 }
 
-.event-tag {
-  font-size: 0.65rem;
-  font-weight: 700;
+.event-line {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Narrow 5-day columns: let the time wrap rather than cutting it, tighter padding. */
+.mode-week .event-line {
+  white-space: normal;
+}
+
+.mode-week .event {
+  padding-left: 7px;
+  padding-right: 4px;
+}
+
+.event-inline {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.event-inline .event-title {
+  display: inline;
+}
+
+.event-sub {
+  font-size: 0.74rem;
+  opacity: 0.9;
 }
 
 .empty-day {

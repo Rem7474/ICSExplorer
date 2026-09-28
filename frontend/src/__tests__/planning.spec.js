@@ -82,6 +82,20 @@ describe("PlanningGrid", () => {
     expect(wrapper.find(".period-btn").text()).toMatch(/–/); // week range, not the day
   });
 
+  it("shows the RU menu once, with its first dish, without an extra tag line", () => {
+    localStorage.setItem("edtMobileViewMode", "day");
+    const ru = course("🍽️ RU Briff'O", 0, 12, 13, {
+      categories: "RU,CROUS",
+      location: "RU Briff'O (Valence)",
+      description: "🍽️ Saveurs du Jour :\n• Curry de légumes\n• Riz",
+    });
+    const wrapper = mountGrid({ events: [ru] });
+    const block = wrapper.find(".event-ru");
+    expect(block.text()).toContain("🍽️ RU Briff'O");
+    expect(block.text()).toContain("Curry de légumes");
+    expect(block.text().match(/RU/g)).toHaveLength(1);
+  });
+
   it("only offers 1-day and 5-day views", () => {
     const wrapper = mountGrid();
     expect(wrapper.findAll(".span-btn").map((b) => b.text())).toEqual(["1J", "5J"]);
