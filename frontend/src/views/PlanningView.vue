@@ -9,6 +9,7 @@ import PlanningGrid from "../components/planning/PlanningGrid.vue";
 import ScheduleSkeleton from "../components/skeletons/ScheduleSkeleton.vue";
 import PullIndicator from "../components/PullIndicator.vue";
 import { usePullToRefresh } from "../composables/usePullToRefresh.js";
+import { vSwipeDismiss } from "../composables/swipeDismiss.js";
 import { useScheduleStore } from "../stores/schedule.js";
 
 // Planning screen: fills the viewport; only the grid scrolls (natively).
@@ -111,7 +112,7 @@ const weekStart = computed({
       </PlanningGrid>
 
       <v-bottom-sheet v-model="filtersOpen">
-        <v-card class="filters-sheet">
+        <v-card v-swipe-dismiss="() => (filtersOpen = false)" class="filters-sheet">
           <div class="grabber" aria-hidden="true" />
           <v-card-title class="filters-title">Matières de la semaine</v-card-title>
           <v-card-text>

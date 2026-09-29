@@ -12,6 +12,7 @@ import { isCercleEvent, isRuEvent } from "../../utils/colors.js";
 import { extractTeacherNames } from "../../ics/parser.js";
 import { buildSingleEventIcs } from "../../utils/icsExport.js";
 import { useToast } from "../../composables/useToast.js";
+import { vSwipeDismiss } from "../../composables/swipeDismiss.js";
 
 const props = defineProps({
   event: { type: Object, default: null },
@@ -97,7 +98,7 @@ const copyDetails = async () => {
     :max-width="smAndDown ? undefined : 560"
     scrollable
   >
-    <v-card v-if="event" class="event-sheet" :aria-label="event.summary">
+    <v-card v-if="event" v-swipe-dismiss="() => smAndDown && emit('close')" class="event-sheet" :aria-label="event.summary">
       <div v-if="smAndDown" class="grabber" aria-hidden="true" />
       <v-card-title class="sheet-title">{{ event.summary }}</v-card-title>
 
