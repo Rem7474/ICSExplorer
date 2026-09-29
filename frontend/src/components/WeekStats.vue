@@ -360,6 +360,22 @@ const onChipClick = (event, type) => {
   font-size: 0.75rem;
   font-weight: 700;
 }
+
+/* Desktop: readable chips. */
+@media (min-width: 960px) {
+  .chip {
+    padding: 0.4rem 0.85rem;
+    font-size: 0.92rem;
+  }
+
+  .chip-code {
+    font-size: 0.8rem;
+  }
+
+  .chip-duration {
+    font-size: 0.85rem;
+  }
+}
 </style>
 
 <style>

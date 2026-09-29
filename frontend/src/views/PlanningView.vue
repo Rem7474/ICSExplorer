@@ -138,9 +138,15 @@ const weekStart = computed({
 }
 
 @media (min-width: 960px) {
+  /* Desktop: use the width (the grid adapts), comfortable margins. */
   .planning-screen {
+    width: min(1680px, calc(100% - 48px));
     height: calc(100dvh - var(--v-layout-top, 64px));
+    gap: 10px;
+    padding-top: 16px;
+    padding-bottom: 16px;
   }
+
 }
 
 .grid-fill {
@@ -253,6 +259,21 @@ const weekStart = computed({
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+@media (min-width: 960px) {
+  .next-banner {
+    min-height: 44px;
+    padding: 8px 12px 8px 16px;
+  }
+
+  .next-kicker {
+    font-size: 0.75rem;
+  }
+
+  .next-text {
+    font-size: 1rem;
+  }
 }
 </style>
 

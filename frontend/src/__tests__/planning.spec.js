@@ -113,7 +113,7 @@ describe("PlanningGrid", () => {
     localStorage.setItem("edtMobileViewMode", "day");
     const wrapper = mountGrid();
     const scroller = wrapper.find(".grid-scroller").element;
-    Object.defineProperty(scroller, "clientWidth", { value: 344, configurable: true }); // 300px per day + 44px rail
+    Object.defineProperty(scroller, "clientWidth", { value: 356, configurable: true }); // 300px per day + 56px rail (desktop-sized test window)
     scroller.scrollTo = ({ left }) => (scroller.scrollLeft = left);
 
     scroller.scrollLeft = 300 * 10; // first day of next week
