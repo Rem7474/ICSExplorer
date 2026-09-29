@@ -335,7 +335,7 @@ const indexLabel = computed(() =>
 /* The search field stays reachable while the lists scroll. */
 .search-head {
   position: sticky;
-  top: var(--v-layout-top, 0px);
+  top: var(--top-h);
   z-index: 2;
   padding: 10px 16px 8px;
   background: var(--bg);

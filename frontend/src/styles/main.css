@@ -2,6 +2,8 @@
   /* App shell: bottom tab bar (phones) and navigation rail (wide screens). */
   --nav-h: calc(64px + env(safe-area-inset-bottom));
   --rail-w: 96px;
+  /* Top app bar incl. the notch/status-bar inset (Vuetify only knows the 52px). */
+  --top-h: calc(52px + env(safe-area-inset-top));
   /* System font (SF Pro on iOS) instead of Vuetify's default Roboto. */
   --v-font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, system-ui, sans-serif;
   --v-font-heading: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, system-ui, sans-serif;
@@ -34,6 +36,13 @@
   --color-SP: rgba(236, 72, 153, 0.12); --border-SP: #ec4899;
   --color-PT: rgba(20, 184, 166, 0.12); --border-PT: #14b8a6;
   --color-HU: rgba(168, 85, 247, 0.12); --border-HU: #a855f7;
+}
+
+/* Desktop: taller bar, no inset. */
+@media (min-width: 960px) {
+  :root {
+    --top-h: 64px;
+  }
 }
 
 /* Large screens: the rail becomes a navigation drawer. */
