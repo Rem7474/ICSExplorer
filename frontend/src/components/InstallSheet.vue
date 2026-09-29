@@ -1,5 +1,6 @@
 <script setup>
 import { mdiExportVariant, mdiPlusBoxOutline, mdiCheck, mdiCellphoneArrowDown } from "@mdi/js";
+import { vSwipeDismiss } from "../composables/swipeDismiss.js";
 import { useInstallPrompt } from "../composables/useInstallPrompt.js";
 
 // "Install the app" sheet: the browser's own prompt on Android, step-by-step
@@ -10,7 +11,7 @@ const iconUrl = "/apple-touch-icon.png"; // from public/, left untouched by the 
 
 <template>
   <v-bottom-sheet v-model="sheetOpen" max-width="560" @update:model-value="(open) => !open && dismiss()">
-    <v-card class="install-sheet">
+    <v-card v-swipe-dismiss="() => (sheetOpen = false)" class="install-sheet">
       <div class="grabber" aria-hidden="true" />
       <div class="install-head">
         <img :src="iconUrl" alt="" width="56" height="56" class="install-icon" />
