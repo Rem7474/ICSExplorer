@@ -16,6 +16,11 @@ const props = defineProps({
     type: String,
     default: null,
   },
+  // Single scrollable row (total + subject chips), for the phone planning screen.
+  compact: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const emit = defineEmits(["filter", "reset"]);
@@ -106,8 +111,8 @@ const onChipClick = (event, type) => {
 </script>
 
 <template>
-  <div v-if="rawEvents.length > 0" class="week-stats">
-    <div class="stats-header">
+  <div v-if="rawEvents.length > 0" class="week-stats" :class="{ compact }">
+    <div v-if="!compact" class="stats-header">
       <span class="total-hours">
         📊 Total semaine : <strong>{{ stats.activeHours }}h</strong>
         <span v-if="disabledCount > 0" class="total-muted"> (sur {{ stats.totalHours }}h)</span>
@@ -123,7 +128,7 @@ const onChipClick = (event, type) => {
     </div>
 
     <!-- Segmented Distribution Bar -->
-    <div v-if="stats.subjects.length > 0" class="distribution-bar" title="Répartition du temps de cours cette semaine">
+    <div v-if="!compact && stats.subjects.length > 0" class="distribution-bar" title="Répartition du temps de cours cette semaine">
       <div
         v-for="sub in stats.subjects"
         :key="sub.type"
@@ -142,6 +147,12 @@ const onChipClick = (event, type) => {
       class="subject-chips"
       @wheel.passive="onChipsWheel"
     >
+      <span v-if="compact" class="chip total-chip" title="Total d'heures de cours affichées cette semaine">
+        {{ stats.activeHours }}h
+      </span>
+      <button v-if="compact && disabledCount > 0" type="button" class="chip reset-chip" @click="emit('reset')">
+        ✕ {{ disabledCount }} masquée{{ disabledCount > 1 ? 's' : '' }}
+      </button>
       <button
         v-for="sub in stats.subjects"
         :key="sub.type"
@@ -244,6 +255,31 @@ const onChipClick = (event, type) => {
   padding: 2px 2px 4px 2px;
 }
 
+.week-stats.compact {
+  gap: 0;
+  margin-bottom: 0;
+}
+
+.week-stats.compact .subject-chips {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.4rem;
+  padding: 0 0 6px;
+}
+
+.total-chip {
+  cursor: default;
+  border-color: transparent;
+  background: rgba(37, 99, 235, 0.12);
+  color: #1e3a8a;
+}
+
+.reset-chip {
+  border-style: dashed;
+  background: transparent;
+  color: inherit;
+}
+
 .subject-chips::-webkit-scrollbar {
   display: none;
 }
@@ -323,5 +359,12 @@ const onChipClick = (event, type) => {
   opacity: 0.9;
   font-size: 0.75rem;
   font-weight: 700;
+}
+</style>
+
+<style>
+.v-theme--dark .week-stats .total-chip {
+  background: rgba(var(--v-theme-primary), 0.16);
+  color: rgb(var(--v-theme-primary));
 }
 </style>

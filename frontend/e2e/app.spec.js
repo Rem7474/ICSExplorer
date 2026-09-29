@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { FIXTURE } from "./global-setup.js";
-import { openApp, expectNoHorizontalOverflow, goToTab, topBarTitle } from "./helpers.js";
+import { openApp, expectNoHorizontalOverflow, goToTab, topBarTitle, isMobile } from "./helpers.js";
 
 const promoA = FIXTURE.promoA.replace(/\.ics$/, "");
 const promoAQuery = new RegExp(`/\\?file=${encodeURIComponent(FIXTURE.promoA)}`);
@@ -28,6 +28,80 @@ test.describe("planning", () => {
     const label = await page.locator(".event", { hasText: FIXTURE.courseA }).first().getAttribute("aria-label");
     expect(label).toContain(FIXTURE.courseA);
     expect(label).toContain(`salle ${FIXTURE.room}`);
+  });
+});
+
+const mondayOfThisWeek = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay();
+  d.setDate(d.getDate() - day + (day === 0 ? -6 : 1));
+  return d;
+};
+const longDay = (d) => d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+
+test.describe("native planning grid", () => {
+  test("swiping past Friday in the 1-day view moves to the next week and re-centres", async ({ page }) => {
+    await openApp(page);
+    await page.getByRole("button", { name: "Vue jour" }).click();
+    const scroller = page.locator(".grid-scroller");
+
+    // Native horizontal scroll to Tuesday of next week (6 days after Monday).
+    await scroller.evaluate((el) => {
+      const colW = el.clientWidth - 44;
+      const monday = [...el.querySelectorAll(".day-col")].findIndex((c) => c.classList.contains("week-start") && c.offsetLeft > 0 && c.offsetLeft - 44 >= el.scrollLeft - 5);
+      el.scrollTo({ left: (monday + 6) * colW - 0, behavior: "instant" });
+    });
+
+    const tuesdayNextWeek = mondayOfThisWeek();
+    tuesdayNextWeek.setDate(tuesdayNextWeek.getDate() + 8);
+    await expect(page.getByRole("tab", { selected: true })).toHaveAttribute("aria-label", longDay(tuesdayNextWeek));
+
+    // Re-centred: the displayed day sits in the middle week of the rendered window.
+    const index = await scroller.evaluate((el) => Math.round(el.scrollLeft / (el.clientWidth - 44)));
+    expect(index).toBeGreaterThanOrEqual(5);
+    expect(index).toBeLessThan(10);
+  });
+
+  test("the 5-day view pages by week and column headers open a day", async ({ page }) => {
+    await openApp(page);
+    await page.getByRole("button", { name: "Vue semaine" }).click();
+    await page.getByRole("button", { name: "Semaine suivante" }).click();
+    const nextMonday = mondayOfThisWeek();
+    nextMonday.setDate(nextMonday.getDate() + 7);
+    const label = nextMonday.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+    await expect(page.locator(".period-btn")).toContainText(label);
+
+    await page.getByRole("button", { name: `Afficher ${longDay(nextMonday)}` }).click();
+    await expect(page.getByRole("button", { name: "Vue jour" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("the whole day fits on a phone without vertical scrolling", async ({ page }, testInfo) => {
+    test.skip(!isMobile(testInfo), "phone layout");
+    await openApp(page);
+    await page.getByRole("button", { name: "Vue jour" }).click();
+    const { client, scroll } = await page.locator(".grid-scroller").evaluate((el) => ({ client: el.clientHeight, scroll: el.scrollHeight }));
+    expect(scroll).toBeLessThanOrEqual(client + 1);
+  });
+
+  test("a floating 'Aujourd'hui' button appears away from today and brings you back", async ({ page }) => {
+    await openApp(page);
+    await page.getByRole("button", { name: "Vue jour" }).click();
+    const fab = page.getByRole("button", { name: "Aujourd'hui" });
+    await page.getByRole("button", { name: "Semaine suivante" }).or(page.getByRole("button", { name: "Jour suivant" })).first().click();
+    await page.getByRole("button", { name: "Jour suivant" }).click();
+    await expect(fab).toBeVisible();
+    await fab.click();
+    await expect(fab).toHaveCount(0);
+  });
+
+  test("course details open in a sheet and close with Escape", async ({ page }) => {
+    await openApp(page);
+    await page.locator(".event:visible", { hasText: FIXTURE.courseA }).first().click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toContainText(FIXTURE.courseA);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
   });
 });
 

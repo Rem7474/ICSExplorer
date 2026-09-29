@@ -75,6 +75,16 @@ export default function globalSetup() {
     description: `Mathematiques en CM avec ${FIXTURE.teacher}`,
   }));
 
+  // RU menus (same shape as internal/crous/ics.go), shown on top of schedules.
+  const ruEvents = [0, 1, 2, 3, 4].map((day) => ({
+    start: at(day, 12, 0),
+    end: at(day, 13, 0),
+    summary: "🍽️ RU Briff'O",
+    location: "RU Briff'O (Valence)",
+    description: "🍽️ Saveurs du Jour :\\n• Curry de légumes\\n• Saucisses sauce moutarde\\n• Riz de Camargue\\n\\n🍝 Pâtes :\\n• Penne sauce reblochon",
+  }));
+  fs.writeFileSync(path.join(output, "ru.ics"), calendar("ru", ruEvents).replace(/END:VEVENT/g, "CATEGORIES:RU,CROUS\r\nEND:VEVENT"));
+
   fs.writeFileSync(path.join(output, FIXTURE.promoA), calendar("promoA", promoAEvents));
   fs.writeFileSync(path.join(output, FIXTURE.promoB), calendar("promoB", promoBEvents));
   fs.writeFileSync(path.join(output, "files.json"), JSON.stringify([FIXTURE.promoA, FIXTURE.promoB]));

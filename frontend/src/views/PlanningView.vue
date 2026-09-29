@@ -1,116 +1,235 @@
 <script setup>
-import { inject } from "vue";
-import { getWeekStart } from "../utils/dates.js";
-import NextCourseCard from "../components/NextCourseCard.vue";
+import { computed, inject, ref } from "vue";
+import { mdiChevronRight, mdiFilterVariant } from "@mdi/js";
+import { formatTimeOnly } from "../utils/dates.js";
+import { isCercleEvent } from "../utils/colors.js";
 import WeekStats from "../components/WeekStats.vue";
-import ScheduleWeek from "../components/ScheduleWeek.vue";
+import PlanningGrid from "../components/planning/PlanningGrid.vue";
 import ScheduleSkeleton from "../components/skeletons/ScheduleSkeleton.vue";
-import NextCourseSkeleton from "../components/skeletons/NextCourseSkeleton.vue";
-import WeekStatsSkeleton from "../components/skeletons/WeekStatsSkeleton.vue";
 
-// Planning screen: the displayed schedule (next course, week stats, grid).
+// Planning screen: fills the viewport; only the grid scrolls (natively).
 const schedule = inject("schedule");
 const openPersonalSchedule = inject("openPersonalSchedule");
 
-const onJumpToWeek = (date) => {
-  schedule.currentWeekStart = getWeekStart(new Date(date));
-};
+const nextLabel = computed(() => {
+  const c = schedule.nextCourse;
+  if (!c) return "";
+  const start = new Date(c.start);
+  const day = start.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+  return [c.summary, `${day} ${formatTimeOnly(start)}`, c.location].filter(Boolean).join(" · ");
+});
+const nextIsCercle = computed(() => schedule.nextCourse && isCercleEvent(schedule.nextCourse));
+
+// Phones: subject stats/filters live in a sheet opened from the grid toolbar,
+// to leave the height to the planning.
+const filtersOpen = ref(false);
+
+const weekStart = computed({
+  get: () => schedule.currentWeekStart,
+  set: (value) => (schedule.currentWeekStart = value),
+});
 </script>
 
 <template>
-  <div class="screen container">
-    <!-- Status or error message -->
-    <div v-if="schedule.statusMessage" class="status-banner card" role="status">
+  <div class="planning-screen container">
+    <div v-if="schedule.statusMessage" class="status-banner" role="status">
       <span class="status-message-text">{{ schedule.statusMessage }}</span>
-      <button
-        v-if="schedule.statusAction === 'configure-personal'"
-        type="button"
-        class="btn btn-primary btn-sm status-action-btn"
-        @click="openPersonalSchedule"
-      >
+      <button v-if="schedule.statusAction === 'configure-personal'" type="button" class="btn btn-primary btn-sm" @click="openPersonalSchedule">
         ✨ Configurer mon planning ADE
       </button>
     </div>
 
-    <!-- Welcome card if the server has no calendar yet -->
-    <div v-if="!schedule.isLoading && schedule.availableFiles.length === 0" class="welcome-card card">
+    <div v-if="!schedule.isLoading && schedule.availableFiles.length === 0 && !schedule.events.length" class="welcome-card card">
       <h2>👋 Bienvenue sur ICSExplorer</h2>
       <p>Les emplois du temps de l'école ne sont pas encore disponibles sur ce serveur.</p>
       <p class="welcome-help">
         En attendant, vous pouvez afficher votre propre planning ADE.
         <em>Administrateur :</em> renseignez <code>AGALAN_LOGIN</code> / <code>AGALAN_PASSWORD</code> pour activer la synchronisation automatique.
       </p>
-      <div class="welcome-actions">
-        <button class="btn btn-primary" type="button" @click="openPersonalSchedule">
-          ✨ Configurer mon planning ADE
-        </button>
-      </div>
+      <button class="btn btn-primary" type="button" @click="openPersonalSchedule">✨ Configurer mon planning ADE</button>
     </div>
 
     <template v-else>
-      <NextCourseSkeleton v-if="schedule.isLoading && !schedule.nextCourse" />
-      <NextCourseCard v-else-if="schedule.nextCourse" :course="schedule.nextCourse" @click="schedule.openEventModal" />
+      <button v-if="schedule.nextCourse" type="button" class="next-banner" @click="schedule.openEventModal(schedule.nextCourse)">
+        <span class="next-kicker">{{ nextIsCercle ? "Prochain événement" : "Prochain cours" }}</span>
+        <span class="next-text">{{ nextLabel }}</span>
+        <v-icon :icon="mdiChevronRight" size="20" />
+      </button>
 
-      <div id="planning" class="card schedule-main-card" tabindex="-1">
-        <WeekStatsSkeleton v-if="schedule.isLoading && schedule.weekEvents.length === 0" />
-        <WeekStats
-          v-else
-          :events="schedule.weekEvents"
-          :disabled-subjects="schedule.disabledSubjects"
-          @filter="schedule.toggleSubjectFilter"
-          @reset="schedule.resetSubjectFilters"
-        />
+      <WeekStats
+        compact
+        class="stats-row"
+        :events="schedule.weekEvents"
+        :disabled-subjects="schedule.disabledSubjects"
+        @filter="schedule.toggleSubjectFilter"
+        @reset="schedule.resetSubjectFilters"
+      />
 
-        <ScheduleSkeleton v-if="schedule.isLoading && schedule.events.length === 0" />
-        <ScheduleWeek
-          v-else
-          :events="schedule.displayedWeekEvents"
-          :all-events="schedule.events"
-          :current-week-start="schedule.currentWeekStart"
-          @prev-week="schedule.prevWeek"
-          @next-week="schedule.nextWeek"
-          @current-week="schedule.goToCurrentWeek"
-          @event-click="schedule.openEventModal"
-          @jump-to-week="onJumpToWeek"
-        />
-      </div>
+      <ScheduleSkeleton v-if="schedule.isLoading && schedule.events.length === 0" />
+      <PlanningGrid
+        v-else
+        id="planning"
+        v-model:week-start="weekStart"
+        class="grid-fill"
+        :events="schedule.displayedEvents"
+        @event-click="schedule.openEventModal"
+      >
+        <template #toolbar-actions>
+          <v-btn
+            class="filters-btn"
+            variant="text"
+            density="comfortable"
+            icon
+            :aria-label="schedule.disabledSubjects.length ? `Matières (${schedule.disabledSubjects.length} masquées)` : 'Matières et heures de la semaine'"
+            @click="filtersOpen = true"
+          >
+            <v-badge v-if="schedule.disabledSubjects.length" :content="schedule.disabledSubjects.length" color="error" floating>
+              <v-icon :icon="mdiFilterVariant" />
+            </v-badge>
+            <v-icon v-else :icon="mdiFilterVariant" />
+          </v-btn>
+        </template>
+      </PlanningGrid>
+
+      <v-bottom-sheet v-model="filtersOpen">
+        <v-card class="filters-sheet">
+          <div class="grabber" aria-hidden="true" />
+          <v-card-title class="filters-title">Matières de la semaine</v-card-title>
+          <v-card-text>
+            <p class="filters-hint">Touchez une matière pour la masquer du planning.</p>
+            <WeekStats
+              :events="schedule.weekEvents"
+              :disabled-subjects="schedule.disabledSubjects"
+              @filter="schedule.toggleSubjectFilter"
+              @reset="schedule.resetSubjectFilters"
+            />
+          </v-card-text>
+        </v-card>
+      </v-bottom-sheet>
     </template>
   </div>
 </template>
 
 <style scoped>
+/* Fill the space between the top bar and the tab bar (or the screen bottom). */
+.planning-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: calc(100dvh - var(--v-layout-top, 64px) - var(--nav-h));
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+@media (min-width: 960px) {
+  .planning-screen {
+    height: calc(100dvh - var(--v-layout-top, 64px));
+  }
+}
+
+.grid-fill {
+  flex: 1;
+  min-height: 0;
+}
+
 .status-banner {
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  font-size: 0.9rem;
+  gap: 0.5rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: 12px;
+  font-size: 0.88rem;
   color: var(--accent);
-  border-left: 4px solid var(--accent);
+  background: rgba(37, 99, 235, 0.08);
 }
 
 .status-message-text {
   flex: 1;
 }
 
-.status-action-btn {
+/* Phones: stats move to the filters sheet; wider screens keep the chip row. */
+.filters-btn {
+  display: none;
+}
+
+@media (max-width: 599px) {
+  .stats-row {
+    display: none;
+  }
+
+  .filters-btn {
+    display: inline-flex;
+  }
+}
+
+.filters-sheet {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.grabber {
+  width: 36px;
+  height: 4px;
+  margin: 10px auto 0;
+  border-radius: 2px;
+  background: rgb(var(--v-theme-on-surface-variant));
+  opacity: 0.4;
+}
+
+.filters-title {
+  font-weight: 700;
+}
+
+.filters-hint {
+  margin: 0 0 12px;
+  font-size: 0.85rem;
+  color: rgb(var(--v-theme-on-surface-variant));
+}
+
+.next-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 5px 8px 5px 12px;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(37, 99, 235, 0.08);
+  color: rgb(var(--v-theme-on-surface));
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.next-kicker {
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #1e3a8a;
+}
+
+.next-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.88rem;
   font-weight: 600;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+</style>
+
+<style>
+.v-theme--dark .planning-screen .next-banner,
+.v-theme--dark .planning-screen .status-banner {
+  background: rgba(var(--v-theme-primary), 0.12);
 }
 
-.schedule-main-card {
-  padding: 1.5rem;
-}
-
-.schedule-main-card:focus {
-  outline: none;
-}
-
-@media (max-width: 768px) {
-  .schedule-main-card {
-    padding: 0.75rem 0.5rem;
-  }
+.v-theme--dark .planning-screen .next-kicker {
+  color: rgb(var(--v-theme-primary));
 }
 </style>

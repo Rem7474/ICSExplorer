@@ -42,7 +42,7 @@ const onTogglePin = () => {
 </script>
 
 <template>
-  <v-app-bar class="top-bar" flat height="64">
+  <v-app-bar class="top-bar" flat height="52">
     <template v-if="canGoBack" #prepend>
       <v-btn :icon="mdiArrowLeft" color="white" aria-label="Revenir à mon planning" @click="schedule.returnToBaseSchedule()" />
     </template>
@@ -71,14 +71,17 @@ const onTogglePin = () => {
   background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%) !important;
   color: #fff !important;
   padding-top: env(safe-area-inset-top);
-  height: calc(64px + env(safe-area-inset-top)) !important;
+  height: calc(52px + env(safe-area-inset-top)) !important;
 }
 
 
+/* Name and status on one line to save height. */
 .top-bar-titles {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
+  flex: 1;
   padding-left: 16px;
 }
 
@@ -88,7 +91,9 @@ const onTogglePin = () => {
 
 .top-bar-title {
   margin: 0;
-  font-size: 1.15rem;
+  min-width: 0;
+  flex: 0 1 auto;
+  font-size: 1.1rem;
   font-weight: 700;
   line-height: 1.25;
   white-space: nowrap;
@@ -100,8 +105,21 @@ const onTogglePin = () => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.78rem;
-  opacity: 0.85;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 55%;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 0.74rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-dot {
+  flex: 0 0 auto;
 }
 
 .status-dot {
