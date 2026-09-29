@@ -30,8 +30,11 @@ export const findHorizontalOverflow = (page) =>
     return offenders.slice(0, 10);
   });
 
+// Polled: a screen sliding in overflows until its transition ends (and on slow
+// CI machines the transition may not have started when we first look). A
+// real overflow stays and still fails after the timeout.
 export const expectNoHorizontalOverflow = async (page) => {
-  expect(await findHorizontalOverflow(page), "elements overflowing the viewport").toEqual([]);
+  await expect.poll(() => findHorizontalOverflow(page), { message: "elements overflowing the viewport", timeout: 5000 }).toEqual([]);
 };
 
 /** Opens the app and waits until the schedule grid shows events. */
