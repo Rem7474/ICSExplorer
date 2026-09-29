@@ -200,6 +200,11 @@ const weekStart = computed({
 
   .filters-btn {
     display: inline-flex;
+    overflow: visible;
+  }
+
+  .filters-btn :deep(.v-btn__content) {
+    overflow: visible;
   }
 }
 
