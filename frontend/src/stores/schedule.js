@@ -61,7 +61,6 @@ export const useScheduleStore = defineStore("schedule", () => {
   const disabledSubjects = ref([]);
   const isLoading = ref(false);
   const activeModalEvent = ref(null);
-  const isRoomModalOpen = ref(false);
 
   // Loaders switch the mode themselves; remember it so the selectedMode
   // watcher below does not load the same schedule a second time.
@@ -693,8 +692,6 @@ export const useScheduleStore = defineStore("schedule", () => {
     currentWeekStart.value = getWeekStart(new Date());
   };
 
-  const openRoomModal = () => (isRoomModalOpen.value = true);
-  const closeRoomModal = () => (isRoomModalOpen.value = false);
   const openEventModal = (ev) => (activeModalEvent.value = ev);
   const closeEventModal = () => (activeModalEvent.value = null);
 
@@ -712,7 +709,6 @@ export const useScheduleStore = defineStore("schedule", () => {
     disabledSubjects,
     isLoading,
     activeModalEvent,
-    isRoomModalOpen,
     selectedSubjectFilter,
     availableYears,
     availableTracks,
@@ -747,8 +743,6 @@ export const useScheduleStore = defineStore("schedule", () => {
     nextWeek,
     prevWeek,
     goToCurrentWeek,
-    openRoomModal,
-    closeRoomModal,
     openEventModal,
     closeEventModal,
   };

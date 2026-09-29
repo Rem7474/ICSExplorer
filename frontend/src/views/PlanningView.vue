@@ -49,19 +49,19 @@ const weekStart = computed({
     <PullIndicator :distance="pullDistance" :refreshing="refreshing" />
     <div v-if="schedule.statusMessage" class="status-banner" role="status">
       <span class="status-message-text">{{ schedule.statusMessage }}</span>
-      <button v-if="schedule.statusAction === 'configure-personal'" type="button" class="btn btn-primary btn-sm" @click="openPersonalSchedule">
-        ✨ Configurer mon planning ADE
-      </button>
+      <v-btn v-if="schedule.statusAction === 'configure-personal'" color="primary" variant="flat" size="small" @click="openPersonalSchedule">
+        Configurer mon planning ADE
+      </v-btn>
     </div>
 
-    <div v-if="!schedule.isLoading && schedule.availableFiles.length === 0 && !schedule.events.length" class="welcome-card card">
+    <div v-if="!schedule.isLoading && schedule.availableFiles.length === 0 && !schedule.events.length" class="welcome-card">
       <h2>👋 Bienvenue sur ICSExplorer</h2>
       <p>Les emplois du temps de l'école ne sont pas encore disponibles sur ce serveur.</p>
       <p class="welcome-help">
         En attendant, vous pouvez afficher votre propre planning ADE.
         <em>Administrateur :</em> renseignez <code>AGALAN_LOGIN</code> / <code>AGALAN_PASSWORD</code> pour activer la synchronisation automatique.
       </p>
-      <button class="btn btn-primary" type="button" @click="openPersonalSchedule">✨ Configurer mon planning ADE</button>
+      <v-btn color="primary" variant="flat" @click="openPersonalSchedule">Configurer mon planning ADE</v-btn>
     </div>
 
     <template v-else>
@@ -159,6 +159,23 @@ const weekStart = computed({
   font-size: 0.88rem;
   color: var(--accent);
   background: rgba(37, 99, 235, 0.08);
+}
+
+.welcome-card {
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgb(var(--v-theme-surface));
+}
+
+.welcome-card h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.2rem;
+}
+
+.welcome-help {
+  font-size: 0.9rem;
+  color: rgb(var(--v-theme-on-surface-variant));
 }
 
 .status-message-text {

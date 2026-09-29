@@ -15,10 +15,10 @@ import (
 	"github.com/Rem7474/ICSExplorer/internal/university"
 )
 
-// contentSecurityPolicy is the default CSP for every response. PrimeVue
-// injects its theme as runtime <style> tags, hence 'unsafe-inline' for
-// styles only; scripts must come from the same origin (see serveIndexHTML
-// for the nonce used by the optional license injection).
+// contentSecurityPolicy is the default CSP for every response. Vuetify
+// injects its theme as a runtime <style> tag and Vue binds inline style
+// attributes, hence 'unsafe-inline' for styles only; scripts must come from
+// the same origin.
 const contentSecurityPolicy = "default-src 'self'; " +
 	"script-src 'self'; " +
 	"style-src 'self' 'unsafe-inline'; " +

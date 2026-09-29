@@ -26,7 +26,6 @@ services:
       - RU_RESTAURANT_ID=${RU_RESTAURANT_ID:-1459}
       - RU_SLOT_START=${RU_SLOT_START:-12:00}
       - RU_SLOT_END=${RU_SLOT_END:-13:00}
-      - PRIMEUI_LICENSE=${PRIMEUI_LICENSE:-${VITE_PRIMEUI_LICENSE:-}}
     security_opt:
       - no-new-privileges:true
     volumes:
