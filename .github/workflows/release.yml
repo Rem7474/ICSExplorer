@@ -75,6 +75,8 @@ jobs:
           sbom: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=docker
+          cache-to: type=gha,scope=docker,mode=max
           build-args: |
             VERSION=${{ env.RELEASE_TAG }}
             BUILD_TIME=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
