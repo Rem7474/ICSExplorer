@@ -1,12 +1,15 @@
 <script setup>
+import { computed } from "vue";
+import { mdiCheckCircle, mdiAlertCircle, mdiClose } from "@mdi/js";
 import { useToast } from "../composables/useToast.js";
 
+// Material 3 snackbars: bottom of the screen, above the tab bar. Only the two
+// most recent are shown so they never cover the planning.
 const { toasts, removeToast } = useToast();
+const visible = computed(() => toasts.value.slice(-2));
 
 const handleAction = (toast) => {
-  if (toast.action && typeof toast.action.onClick === "function") {
-    toast.action.onClick();
-  }
+  if (typeof toast.action?.onClick === "function") toast.action.onClick();
   removeToast(toast.id);
 };
 </script>
@@ -15,34 +18,20 @@ const handleAction = (toast) => {
   <div class="toast-container" aria-live="polite" aria-atomic="true">
     <transition-group name="toast">
       <div
-        v-for="toast in toasts"
+        v-for="toast in visible"
         :key="toast.id"
         class="toast-item"
         :class="`toast-${toast.type}`"
-        role="alert"
-        @click="toast.action ? null : removeToast(toast.id)"
+        :role="toast.type === 'error' ? 'alert' : 'status'"
       >
-        <span class="toast-icon">
-          <template v-if="toast.type === 'success'">✓</template>
-          <template v-else-if="toast.type === 'error'">✕</template>
-          <template v-else>ℹ</template>
-        </span>
+        <v-icon v-if="toast.type === 'success'" :icon="mdiCheckCircle" size="20" class="toast-icon" />
+        <v-icon v-else-if="toast.type === 'error'" :icon="mdiAlertCircle" size="20" class="toast-icon" />
         <span class="toast-message">{{ toast.message }}</span>
-        <button
-          v-if="toast.action"
-          type="button"
-          class="toast-action"
-          @click.stop="handleAction(toast)"
-        >
+        <button v-if="toast.action" type="button" class="toast-action" @click="handleAction(toast)">
           {{ toast.action.label }}
         </button>
-        <button
-          type="button"
-          class="toast-close"
-          aria-label="Fermer la notification"
-          @click.stop="removeToast(toast.id)"
-        >
-          ×
+        <button type="button" class="toast-close" aria-label="Fermer la notification" @click="removeToast(toast.id)">
+          <v-icon :icon="mdiClose" size="18" />
         </button>
       </div>
     </transition-group>
@@ -52,115 +41,94 @@ const handleAction = (toast) => {
 <style scoped>
 .toast-container {
   position: fixed;
-  bottom: 1.5rem;
-  right: 1.5rem;
+  left: 50%;
+  bottom: calc(var(--nav-h) + 12px);
+  z-index: 2500;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  z-index: 9999;
-  max-width: min(400px, calc(100vw - 2rem));
+  align-items: stretch;
+  gap: 8px;
+  width: min(560px, calc(100vw - 32px));
+  transform: translateX(-50%);
   pointer-events: none;
 }
 
+@media (min-width: 960px) {
+  .toast-container {
+    bottom: 24px;
+    left: calc(50% + var(--rail-w) / 2);
+  }
+}
+
 .toast-item {
-  pointer-events: auto;
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.75rem 1rem;
-  border-radius: 10px;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.15), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
-  font-size: 0.9rem;
-  font-weight: 500;
-  cursor: pointer;
-  backdrop-filter: blur(8px);
-  transition: all 0.2s ease;
+  gap: 10px;
+  min-height: 48px;
+  padding: 6px 6px 6px 16px;
+  border-radius: 12px;
+  background: rgb(var(--v-theme-inverse-surface));
+  color: rgb(var(--v-theme-inverse-on-surface));
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+  font-size: 0.92rem;
+  line-height: 1.35;
+  pointer-events: auto;
 }
 
-.toast-success {
-  background: #10b981;
-  color: white;
+.toast-success .toast-icon {
+  color: #4ade80;
 }
 
-.toast-error {
-  background: #ef4444;
-  color: white;
-}
-
-.toast-info {
-  background: #3b82f6;
-  color: white;
-}
-
-.toast-icon {
-  font-weight: bold;
-  font-size: 1rem;
+.toast-error .toast-icon {
+  color: #f87171;
 }
 
 .toast-message {
   flex: 1;
+  min-width: 0;
+  padding: 6px 0;
 }
 
 .toast-action {
-  background: rgba(255, 255, 255, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  color: #ffffff;
-  padding: 0.3rem 0.65rem;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  font-weight: 600;
+  flex: 0 0 auto;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 20px;
+  background: transparent;
+  color: rgb(var(--v-theme-inverse-primary));
+  font: inherit;
+  font-weight: 700;
   cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.2s ease;
-  margin-left: 0.25rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.toast-action:hover {
-  background: rgba(255, 255, 255, 0.4);
-  transform: translateY(-1px);
-}
-
-.toast-action:active {
-  transform: translateY(0);
 }
 
 .toast-close {
+  display: grid;
+  place-items: center;
+  flex: 0 0 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
   background: transparent;
-  border: none;
   color: inherit;
-  font-size: 1.2rem;
-  line-height: 1;
+  opacity: 0.8;
   cursor: pointer;
-  opacity: 0.7;
-  padding: 0;
 }
 
-.toast-close:hover {
-  opacity: 1;
-}
-
-/* Animations */
 .toast-enter-active,
 .toast-leave-active {
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-.toast-enter-from {
-  opacity: 0;
-  transform: translateY(20px) scale(0.95);
-}
-
+.toast-enter-from,
 .toast-leave-to {
   opacity: 0;
-  transform: translateX(100px) scale(0.95);
+  transform: translateY(12px);
 }
-@media (max-width: 640px) {
-  .toast-container {
-    left: 0.75rem;
-    right: 0.75rem;
-    bottom: calc(var(--nav-h) + 0.75rem);
-    max-width: none;
+
+@media (prefers-reduced-motion: reduce) {
+  .toast-enter-active,
+  .toast-leave-active {
+    transition: none;
   }
 }
 </style>

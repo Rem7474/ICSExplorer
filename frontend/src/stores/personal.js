@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { PERSONAL_CREDENTIALS_KEY } from "../utils/credentials.js";
 import { readString, readJSON, write, remove, PERSONAL_CACHE_KEY, PERSONAL_META_KEY } from "./storage.js";
+import { kvGet, kvSet, kvDelete } from "../utils/kvStore.js";
 
 /**
  * The user's personal ADE schedule: its metadata, the cached ICS and the
@@ -12,7 +13,33 @@ export const usePersonalStore = defineStore("personal", () => {
   const personalScheduleInfo = ref(null);
   const rawPersonalIcs = ref("");
 
-  const getCachedIcs = () => readString(PERSONAL_CACHE_KEY);
+  // The cached calendar lives in IndexedDB (no size limit worth worrying
+  // about); this is its in-memory copy, loaded by hydrate() at start-up.
+  // localStorage is only a fallback when IndexedDB is unavailable.
+  const cachedIcs = ref(null);
+
+  const getCachedIcs = () => cachedIcs.value ?? readString(PERSONAL_CACHE_KEY);
+
+  /** Loads the cached calendar from IndexedDB (moving an older localStorage copy there). */
+  const hydrate = async () => {
+    try {
+      const stored = await kvGet(PERSONAL_CACHE_KEY);
+      const legacy = readString(PERSONAL_CACHE_KEY);
+      if (stored) cachedIcs.value = stored;
+      else if (legacy) {
+        await kvSet(PERSONAL_CACHE_KEY, legacy);
+        cachedIcs.value = legacy;
+      }
+      if (legacy) remove(PERSONAL_CACHE_KEY);
+    } catch {
+      // No IndexedDB: getCachedIcs() keeps reading localStorage.
+    }
+  };
+
+  const persistIcs = (icsText) =>
+    kvSet(PERSONAL_CACHE_KEY, icsText)
+      .then(() => remove(PERSONAL_CACHE_KEY))
+      .catch(() => write(PERSONAL_CACHE_KEY, icsText));
   const getCachedMeta = () => readJSON(PERSONAL_META_KEY, null);
   const getSavedCredentials = () => readJSON(PERSONAL_CREDENTIALS_KEY, null);
   const hasSavedCredentials = () => Boolean(readString(PERSONAL_CREDENTIALS_KEY));
@@ -36,7 +63,8 @@ export const usePersonalStore = defineStore("personal", () => {
     };
     personalScheduleInfo.value = fullMeta;
     rawPersonalIcs.value = icsText;
-    write(PERSONAL_CACHE_KEY, icsText);
+    cachedIcs.value = icsText;
+    persistIcs(icsText);
     write(PERSONAL_META_KEY, fullMeta);
     return fullMeta;
   };
@@ -51,8 +79,10 @@ export const usePersonalStore = defineStore("personal", () => {
       "cachedPersonalIcs",
       "personalScheduleMeta"
     );
+    kvDelete(PERSONAL_CACHE_KEY).catch(() => {});
     personalScheduleInfo.value = null;
     rawPersonalIcs.value = "";
+    cachedIcs.value = null;
   };
 
   const downloadPersonalIcs = () => {
@@ -76,6 +106,7 @@ export const usePersonalStore = defineStore("personal", () => {
     personalScheduleInfo,
     rawPersonalIcs,
     getCachedIcs,
+    hydrate,
     getCachedMeta,
     getSavedCredentials,
     hasSavedCredentials,

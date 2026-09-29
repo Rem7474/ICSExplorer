@@ -6,6 +6,9 @@ import { isCercleEvent } from "../utils/colors.js";
 import WeekStats from "../components/WeekStats.vue";
 import PlanningGrid from "../components/planning/PlanningGrid.vue";
 import ScheduleSkeleton from "../components/skeletons/ScheduleSkeleton.vue";
+import PullIndicator from "../components/PullIndicator.vue";
+import { usePullToRefresh } from "../composables/usePullToRefresh.js";
+import { useScheduleStore } from "../stores/schedule.js";
 
 // Planning screen: fills the viewport; only the grid scrolls (natively).
 const schedule = inject("schedule");
@@ -24,6 +27,17 @@ const nextIsCercle = computed(() => schedule.nextCourse && isCercleEvent(schedul
 // to leave the height to the planning.
 const filtersOpen = ref(false);
 
+// Pull down (when the day is scrolled to its top) to fetch the schedule again.
+const screenRef = ref(null);
+const store = useScheduleStore();
+const { distance: pullDistance, refreshing } = usePullToRefresh(screenRef, {
+  onRefresh: () => store.refresh(),
+  canStart: (e) => {
+    const scroller = e.target.closest?.(".grid-scroller");
+    return !scroller || scroller.scrollTop <= 0;
+  },
+});
+
 const weekStart = computed({
   get: () => schedule.currentWeekStart,
   set: (value) => (schedule.currentWeekStart = value),
@@ -31,7 +45,8 @@ const weekStart = computed({
 </script>
 
 <template>
-  <div class="planning-screen container">
+  <div ref="screenRef" class="planning-screen container">
+    <PullIndicator :distance="pullDistance" :refreshing="refreshing" />
     <div v-if="schedule.statusMessage" class="status-banner" role="status">
       <span class="status-message-text">{{ schedule.statusMessage }}</span>
       <button v-if="schedule.statusAction === 'configure-personal'" type="button" class="btn btn-primary btn-sm" @click="openPersonalSchedule">
@@ -113,6 +128,7 @@ const weekStart = computed({
 <style scoped>
 /* Fill the space between the top bar and the tab bar (or the screen bottom). */
 .planning-screen {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 6px;

@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "test:e2e": "vite build && playwright test",
     "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix"
+    "lint:fix": "eslint src/ --fix",
+    "pwa-assets": "node scripts/generate-pwa-assets.mjs"
   },
   "dependencies": {
     "@mdi/js": "^7.4.47",

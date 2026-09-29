@@ -51,8 +51,9 @@ test.describe("native planning grid", () => {
     // Native horizontal scroll to Tuesday of next week (6 days after Monday).
     await scroller.evaluate((el) => {
       const colW = el.clientWidth - 44;
-      const monday = [...el.querySelectorAll(".day-col")].findIndex((c) => c.classList.contains("week-start") && c.offsetLeft > 0 && c.offsetLeft - 44 >= el.scrollLeft - 5);
-      el.scrollTo({ left: (monday + 6) * colW - 0, behavior: "instant" });
+      // Three weeks are rendered (previous, current, next): the current Monday is the second week start.
+      const starts = [...el.querySelectorAll(".day-col")].flatMap((c, i) => (c.classList.contains("week-start") ? [i] : []));
+      el.scrollTo({ left: (starts[1] + 6) * colW, behavior: "instant" });
     });
 
     const tuesdayNextWeek = mondayOfThisWeek();
@@ -248,6 +249,13 @@ test.describe("personal ADE flow", () => {
     await expect(page.locator(".event", { hasText: FIXTURE.courseA }).first()).toBeVisible();
     // Not remembered: the password is nowhere in the browser storage.
     expect(await page.evaluate(() => JSON.stringify({ ...localStorage }))).not.toContain("secret");
+
+    // Restart: the calendar comes back from IndexedDB, without ADE.
+    await page.unroute("**/api/personal-calendar");
+    await page.reload();
+    await expect(topBarTitle(page)).toHaveText("Groupe TP A");
+    await expect(page.locator(".event", { hasText: FIXTURE.courseA }).first()).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem("edt_cached_personal_ics"))).toBeNull();
   });
 
   test("the back arrow walks back through the steps, then closes", async ({ page }) => {
@@ -261,6 +269,48 @@ test.describe("personal ADE flow", () => {
     await expect(flow.getByRole("heading", { name: "Mon établissement" })).toBeVisible();
     await flow.getByRole("button", { name: "Fermer" }).click();
     await expect(flow).toBeHidden();
+  });
+});
+
+test.describe("native touches", () => {
+  // Synthetic finger drag (Playwright's touchscreen only taps, and WebKit
+  // forbids new Touch()): plain events carrying the touch coordinates.
+  const drag = (page, selector, from, to) =>
+    page.evaluate(
+      ({ selector, from, to }) => {
+        const el = document.querySelector(selector);
+        const point = (x, y) => ({ identifier: 1, target: el, clientX: x, clientY: y });
+        const fire = (type, touches) => {
+          const ev = new Event(type, { bubbles: true, cancelable: true });
+          Object.defineProperty(ev, "touches", { value: touches });
+          el.dispatchEvent(ev);
+        };
+        fire("touchstart", [point(from.x, from.y)]);
+        const steps = 12;
+        for (let i = 1; i <= steps; i++) {
+          fire("touchmove", [point(from.x + ((to.x - from.x) * i) / steps, from.y + ((to.y - from.y) * i) / steps)]);
+        }
+        fire("touchend", []);
+      },
+      { selector, from, to }
+    );
+
+  test("pull down on the planning to refresh it", async ({ page }, testInfo) => {
+    test.skip(!isMobile(testInfo), "touch gesture");
+    await openApp(page);
+    await drag(page, ".planning-screen", { x: 200, y: 260 }, { x: 205, y: 560 });
+    await expect(page.getByText("Planning à jour")).toBeVisible();
+  });
+
+  test("the install guide explains Share → Add to Home Screen on iPhone", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== "iphone-webkit", "iOS only");
+    await openApp(page);
+    await goToTab(page, "Plus");
+    await page.getByText("Installer l'application").click();
+    const step = page.getByText("Sur l'écran d'accueil", { exact: true });
+    await expect(step).toBeVisible();
+    await page.getByRole("button", { name: "J'ai compris" }).click();
+    await expect(step).toBeHidden();
   });
 });
 

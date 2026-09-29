@@ -12,6 +12,9 @@ import AppNav from "./components/shell/AppNav.vue";
 import EventSheet from "./components/planning/EventSheet.vue";
 import PersonalScheduleFlow from "./components/personal/PersonalScheduleFlow.vue";
 import ToastContainer from "./components/ToastContainer.vue";
+import InstallSheet from "./components/InstallSheet.vue";
+import { useInstallPrompt } from "./composables/useInstallPrompt.js";
+import { readString, write } from "./stores/storage.js";
 
 // App shell: top app bar, the current screen (router view), main navigation
 // (bottom tab bar on phones, rail on wide screens) and global dialogs.
@@ -45,13 +48,31 @@ const handleShortcut = async (e) => {
   document.getElementById("quickSearchInput")?.focus();
 };
 
+// Returning users are offered the installation once (then every 30 days).
+const installPrompt = useInstallPrompt();
+let installTimer = null;
+
+// After an update, say so (the new version replaced the old one silently).
+const LAST_VERSION_KEY = "edtLastVersion";
+const announceUpdate = () => {
+  const version = import.meta.env.VITE_APP_VERSION;
+  if (!version) return;
+  const previous = readString(LAST_VERSION_KEY);
+  if (previous && previous !== version) showToast(`ICSExplorer est à jour (${version})`, "success", 4000);
+  write(LAST_VERSION_KEY, version);
+};
+
 onMounted(() => {
   schedule.init();
+  announceUpdate();
+  installPrompt.recordVisit();
+  installTimer = setTimeout(() => installPrompt.shouldSuggest() && installPrompt.openSheet(), 15000);
   window.addEventListener("pwa-update-available", handlePwaUpdate);
   window.addEventListener("keydown", handleShortcut);
 });
 
 onUnmounted(() => {
+  clearTimeout(installTimer);
   schedule.stopHealthPolling?.();
   window.removeEventListener("pwa-update-available", handlePwaUpdate);
   window.removeEventListener("keydown", handleShortcut);
@@ -66,7 +87,12 @@ onUnmounted(() => {
     <AppNav />
 
     <v-main id="main-content" class="app-main" tabindex="-1">
-      <router-view />
+      <!-- Tabs cross-fade like native apps; changing schedule on Planning doesn't re-animate. -->
+      <router-view v-slot="{ Component, route }">
+        <transition name="screen" mode="out-in">
+          <component :is="Component" :key="route.meta.tab" />
+        </transition>
+      </router-view>
     </v-main>
 
     <EventSheet
@@ -78,6 +104,7 @@ onUnmounted(() => {
 
     <PersonalScheduleFlow v-if="isPersonalFlowOpen" @close="isPersonalFlowOpen = false" />
 
+    <InstallSheet />
     <ToastContainer />
   </v-app>
 </template>
@@ -104,6 +131,27 @@ onUnmounted(() => {
 /* Room for the bottom tab bar (phones) or the navigation rail (wide screens). */
 .app-main {
   padding-bottom: var(--nav-h) !important;
+}
+
+.screen-enter-active,
+.screen-leave-active {
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+.screen-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.screen-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen-enter-active,
+  .screen-leave-active {
+    transition: none;
+  }
 }
 
 .app-main:focus {
