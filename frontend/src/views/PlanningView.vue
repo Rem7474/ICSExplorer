@@ -117,7 +117,7 @@ const weekStart = computed({
   display: flex;
   flex-direction: column;
   gap: 6px;
-  height: calc(100dvh - var(--v-layout-top, 64px) - var(--nav-h));
+  height: calc(100dvh - var(--top-h) - var(--nav-h));
   padding-top: 6px;
   padding-bottom: 6px;
 }
@@ -126,7 +126,7 @@ const weekStart = computed({
   /* Desktop: use the width (the grid adapts), comfortable margins. */
   .planning-screen {
     width: min(1680px, calc(100% - 48px));
-    height: calc(100dvh - var(--v-layout-top, 64px));
+    height: calc(100dvh - var(--top-h));
     gap: 10px;
     padding-top: 16px;
     padding-bottom: 16px;

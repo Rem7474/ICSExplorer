@@ -164,7 +164,7 @@ const openFavorite = (fav) => {
 /* Wide screens: navigation rail on the left, below the top bar */
 @media (min-width: 960px) {
   .app-nav {
-    top: var(--v-layout-top, 64px);
+    top: var(--top-h);
     right: auto;
     width: var(--rail-w);
     height: auto;

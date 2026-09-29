@@ -130,6 +130,7 @@ onUnmounted(() => {
 
 /* Room for the bottom tab bar (phones) or the navigation rail (wide screens). */
 .app-main {
+  padding-top: var(--top-h) !important;
   padding-bottom: var(--nav-h) !important;
 }
 
