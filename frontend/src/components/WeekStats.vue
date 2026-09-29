@@ -267,7 +267,9 @@ const onChipClick = (event, type) => {
   display: flex;
   flex-wrap: nowrap;
   gap: 0.4rem;
-  padding: 0 0 6px;
+  /* Room for the hover lift and shadow: overflow-x clips them otherwise. */
+  padding: 3px 3px 8px;
+  margin: -3px -3px 0;
 }
 
 .total-chip {
