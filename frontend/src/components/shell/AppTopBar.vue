@@ -189,6 +189,17 @@ const onTogglePin = () => {
 </style>
 
 <style>
+/* Collapsed drawer: the brand shrinks to the icon above the rail. */
+@media (min-width: 1280px) {
+  .nav-collapsed .top-bar-brand {
+    padding-left: 32px;
+  }
+
+  .nav-collapsed .top-bar-brand span {
+    display: none;
+  }
+}
+
 /* Dark theme overrides (unscoped: :global() in scoped styles did not apply). */
 .v-theme--dark .top-bar.v-app-bar {
   background: linear-gradient(135deg, #0b1740 0%, #1e3a8a 100%) !important;
