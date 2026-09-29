@@ -3,6 +3,8 @@ import { computed, onMounted, ref } from "vue";
 import { mdiDoorOpen, mdiChevronRight, mdiRefresh, mdiCalendarBlankOutline, mdiClockOutline } from "@mdi/js";
 import { useScheduleStore } from "../stores/schedule.js";
 import { useFreeRooms, toDateInput, toTimeInput } from "../composables/useFreeRooms.js";
+import { usePullToRefresh } from "../composables/usePullToRefresh.js";
+import PullIndicator from "../components/PullIndicator.vue";
 
 // Salles libres: rooms free at a given moment (now by default), by building.
 // Picking one opens its schedule on the Planning screen.
@@ -10,6 +12,9 @@ const schedule = useScheduleStore();
 const { date, time, target, isLoading, rooms, searched, error, search, setMoment } = useFreeRooms();
 
 onMounted(search);
+
+const screenRef = ref(null);
+const { distance: pullDistance, refreshing } = usePullToRefresh(screenRef, { onRefresh: search });
 
 // Quick moments; the date/time fields cover everything else.
 const moments = computed(() => {
@@ -49,7 +54,8 @@ const summary = computed(() => {
 </script>
 
 <template>
-  <div class="rooms-screen">
+  <div ref="screenRef" class="rooms-screen">
+    <PullIndicator :distance="pullDistance" :refreshing="refreshing" />
     <section class="when" aria-label="Moment recherché">
       <div class="moment-row">
         <v-chip
@@ -122,6 +128,7 @@ const summary = computed(() => {
 
 <style scoped>
 .rooms-screen {
+  position: relative;
   width: min(720px, 100%);
   margin: 0 auto;
   padding: 12px 16px 1.5rem;

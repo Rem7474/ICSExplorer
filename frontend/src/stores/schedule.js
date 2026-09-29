@@ -573,6 +573,22 @@ export const useScheduleStore = defineStore("schedule", () => {
 
   server.onSync(reloadCurrentScheduleSilently);
 
+  /** Pull-to-refresh: fetches the displayed schedule again and says what happened. */
+  const refresh = async () => {
+    if (!server.isOnline) {
+      showToast("Hors ligne : impossible d'actualiser pour le moment", "error", 3000);
+      return;
+    }
+    await server.checkHealth().catch(() => {});
+    if (selectedMode.value === "personal") {
+      if (personal.hasSavedCredentials()) await refreshPersonalSchedule();
+      else status.setStatus("Reconnectez-vous à ADE pour actualiser votre planning.", "configure-personal");
+      return;
+    }
+    const changed = await reloadCurrentScheduleSilently();
+    if (!changed) showToast("Planning à jour", "success", 2000);
+  };
+
   const toggleRuMenu = async () => {
     overlays.setShowRuMenu(!overlays.showRuMenu);
     if (overlays.showRuMenu) {
@@ -595,7 +611,7 @@ export const useScheduleStore = defineStore("schedule", () => {
     statusMessage.value = "Chargement des calendriers...";
 
     try {
-      await server.checkHealth();
+      await Promise.all([server.checkHealth(), personal.hydrate()]);
       server.startHealthPolling();
       startHistoryListener();
 
@@ -719,6 +735,7 @@ export const useScheduleStore = defineStore("schedule", () => {
     refreshPersonalSchedule,
     clearPersonalSchedule,
     reloadCurrentScheduleSilently,
+    refresh,
     toggleRuMenu,
     toggleSubjectFilter,
     resetSubjectFilters,

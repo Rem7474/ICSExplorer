@@ -1,17 +1,23 @@
 {
   "name": "ICSExplorer — Emplois du temps",
   "short_name": "ICSExplorer",
-  "description": "Visualisez et explorez vos emplois du temps universitaires au format ICS. Plannings semaine, salles libres, planning personnel ADE.",
+  "description": "Vos emplois du temps universitaires : planning de la semaine, salles libres, planning personnel ADE.",
   "start_url": "/",
   "scope": "/",
   "id": "/",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
-  "orientation": "portrait-primary",
-  "background_color": "#0f172a",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "portrait",
+  "background_color": "#1e3a8a",
   "theme_color": "#1e3a8a",
   "lang": "fr",
-  "categories": ["productivity", "education"],
+  "categories": [
+    "productivity",
+    "education"
+  ],
   "icons": [
     {
       "src": "/icon-192.png",
@@ -42,16 +48,58 @@
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
     }
   ],
   "shortcuts": [
     {
-      "name": "Emploi du temps cette semaine",
-      "short_name": "Semaine",
-      "description": "Acceder directement a l'emploi du temps de la semaine courante",
+      "name": "Mon planning",
+      "short_name": "Planning",
+      "description": "Ouvrir le planning de la semaine",
       "url": "/",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Rechercher un planning",
+      "short_name": "Rechercher",
+      "description": "Promo, professeur ou salle",
+      "url": "/rechercher",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Salles libres",
+      "short_name": "Salles libres",
+      "description": "Trouver une salle libre maintenant",
+      "url": "/salles",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ],
-  "prefer_related_applications": false
+  "prefer_related_applications": false,
+  "dir": "ltr",
+  "launch_handler": {
+    "client_mode": [
+      "navigate-existing",
+      "auto"
+    ]
+  }
 }

@@ -3,7 +3,9 @@ import { computed, inject } from "vue";
 import {
   mdiCalendarSync, mdiLinkVariant, mdiDownload, mdiShareVariant, mdiWeatherNight, mdiSilverwareForkKnife,
   mdiSchool, mdiRefresh, mdiLogout, mdiGithub, mdiHeartPulse, mdiInformationOutline, mdiFileDownloadOutline,
+  mdiCellphoneArrowDown,
 } from "@mdi/js";
+import { useInstallPrompt } from "../composables/useInstallPrompt.js";
 import { useScheduleLinks } from "../composables/useScheduleLinks.js";
 import { useTheme } from "../composables/useTheme.js";
 import { usePersonalStore } from "../stores/personal.js";
@@ -15,6 +17,7 @@ const openPersonalSchedule = inject("openPersonalSchedule");
 const { canCopyIcsLink, currentIcsUrl, webcalUrl, copyIcsLink, copyShareLink } = useScheduleLinks(schedule);
 const { isDark, toggleTheme } = useTheme();
 const personal = usePersonalStore();
+const { available: canInstall, openSheet: openInstall } = useInstallPrompt();
 
 const hasPersonal = computed(() => Boolean(schedule.personalScheduleInfo?.name) || personal.hasSavedCredentials());
 const isPersonalShown = computed(() => schedule.selectedMode === "personal");
@@ -49,6 +52,16 @@ const appVersion = rawVersion && !rawVersion.startsWith("v") ? `v${rawVersion}` 
         @click="schedule.downloadPersonalIcs"
       />
       <v-list-item :prepend-icon="mdiShareVariant" title="Partager ce planning" subtitle="Copie un lien vers ce planning" @click="copyShareLink" />
+    </v-list>
+
+    <v-list v-if="canInstall" class="more-section" bg-color="transparent" lines="two">
+      <v-list-item
+        class="install-item"
+        :prepend-icon="mdiCellphoneArrowDown"
+        title="Installer l'application"
+        subtitle="Sur l'écran d'accueil, en plein écran, même hors ligne"
+        @click="openInstall"
+      />
     </v-list>
 
     <v-list class="more-section" bg-color="transparent">
