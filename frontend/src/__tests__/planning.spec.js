@@ -165,7 +165,8 @@ describe("EventSheet", () => {
     const text = document.body.textContent;
     expect(text).toContain("IN401 Architecture Système");
     expect(text).toContain("18/09/2026 à 13h30 - 15h15");
-    expect(text).toContain("A166, A042");
+    expect(text).toContain("Salle A166");
+    expect(text).toContain("Salle A042");
   });
 
   it("room and teacher shortcuts emit their selection and close", async () => {

@@ -43,6 +43,9 @@ const isDisabled = (type) => disabledSet.value.has(type) || disabledSet.value.ha
 const disabledCount = computed(() => disabledSet.value.size);
 
 // Compute stats
+// 20 -> "20", 7.5 -> "7,5" (French decimal comma, no trailing ".0").
+const formatHours = (minutes) => String(Math.round(minutes / 6) / 10).replace(".", ",");
+
 const stats = computed(() => {
   let totalMinutes = 0;
   let activeMinutes = 0;
@@ -81,8 +84,8 @@ const stats = computed(() => {
 
   return {
     totalMinutes,
-    totalHours: (totalMinutes / 60).toFixed(1),
-    activeHours: (activeMinutes / 60).toFixed(1),
+    totalHours: formatHours(totalMinutes),
+    activeHours: formatHours(activeMinutes),
     subjects: subjectList,
   };
 });
@@ -114,8 +117,8 @@ const onChipClick = (event, type) => {
   <div v-if="rawEvents.length > 0" class="week-stats" :class="{ compact }">
     <div v-if="!compact" class="stats-header">
       <span class="total-hours">
-        📊 Total semaine : <strong>{{ stats.activeHours }}h</strong>
-        <span v-if="disabledCount > 0" class="total-muted"> (sur {{ stats.totalHours }}h)</span>
+        📊 Total semaine : <strong>{{ stats.activeHours }}&nbsp;h</strong>
+        <span v-if="disabledCount > 0" class="total-muted"> (sur {{ stats.totalHours }}&nbsp;h)</span>
       </span>
       <span v-if="disabledCount > 0" class="filter-active-notice">
         {{ disabledCount }} matière{{ disabledCount > 1 ? 's' : '' }} masquée{{ disabledCount > 1 ? 's' : '' }}
@@ -148,7 +151,7 @@ const onChipClick = (event, type) => {
       @wheel.passive="onChipsWheel"
     >
       <span v-if="compact" class="chip total-chip" title="Total d'heures de cours affichées cette semaine">
-        {{ stats.activeHours }}h
+        {{ stats.activeHours }}&nbsp;h
       </span>
       <button v-if="compact && disabledCount > 0" type="button" class="chip reset-chip" @click="emit('reset')">
         ✕ {{ disabledCount }} masquée{{ disabledCount > 1 ? 's' : '' }}

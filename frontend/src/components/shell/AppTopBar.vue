@@ -129,6 +129,8 @@ const onTogglePin = () => {
   }
 
   .top-bar-status {
+    margin-left: auto;
+    margin-right: 8px;
     padding: 5px 12px;
     font-size: 0.85rem;
   }

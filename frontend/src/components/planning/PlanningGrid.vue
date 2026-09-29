@@ -320,8 +320,8 @@ const ruHighlight = (event) =>
 const isShort = (item) => item.height < (wide.value ? 56 : 44);
 
 const eventDetail = (item) => {
-  // Narrow 5-day columns: a short slot keeps only its title.
-  if (mode.value === "week" && isShort(item) && !wide.value) return "";
+  // Narrow 5-day columns: the hour axis gives the time, keep the title (and the RU menu).
+  if (mode.value === "week" && !wide.value && !isRuEvent(item.event)) return "";
   return isRuEvent(item.event) ? ruHighlight(item.event) : item.time;
 };
 

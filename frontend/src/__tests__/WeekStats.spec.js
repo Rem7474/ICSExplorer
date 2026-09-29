@@ -32,7 +32,7 @@ describe("WeekStats component", () => {
     });
 
     expect(wrapper.exists()).toBe(true);
-    expect(wrapper.text()).toContain("Total semaine : 4.0h");
+    expect(wrapper.text()).toContain("Total semaine : 4 h");
     expect(wrapper.text()).toContain("IN101");
     expect(wrapper.text()).toContain("SN201");
   });
@@ -86,9 +86,9 @@ describe("WeekStats component", () => {
       },
     });
 
-    // Active hours is 2.0h (out of 4.0h)
-    expect(wrapper.text()).toContain("2.0h");
-    expect(wrapper.text()).toContain("sur 4.0h");
+    // Active hours is 2 h (out of 4 h)
+    expect(wrapper.text()).toContain("2 h");
+    expect(wrapper.text()).toContain("sur 4 h");
     expect(wrapper.text()).toContain("1 matière masquée");
 
     const chips = wrapper.findAll(".chip");
@@ -148,8 +148,8 @@ describe("WeekStats component", () => {
       props: { events: testEvents },
     });
 
-    // Only the 2.0h course should be counted
-    expect(wrapper.text()).toContain("Total semaine : 2.0h");
+    // Only the 2 h course should be counted
+    expect(wrapper.text()).toContain("Total semaine : 2 h");
   });
 
   it("categorizes events with isCercle: true under CERCLE regardless of summary", () => {
@@ -169,7 +169,7 @@ describe("WeekStats component", () => {
 
     expect(wrapper.text()).toContain("CERCLE");
     expect(wrapper.text()).toContain("Cercle des Élèves");
-    expect(wrapper.text()).toContain("2.0h (sur 4.0h)");
+    expect(wrapper.text()).toContain("2 h (sur 4 h)");
 
     const chips = wrapper.findAll(".chip");
     const cercleChip = chips.find((c) => c.text().includes("CERCLE"));
