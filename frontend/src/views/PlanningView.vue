@@ -1,5 +1,6 @@
 <script setup>
 import { computed, inject, ref } from "vue";
+import { useDisplay } from "vuetify";
 import { mdiChevronRight, mdiFilterVariant } from "@mdi/js";
 import { formatTimeOnly } from "../utils/dates.js";
 import { isCercleEvent } from "../utils/colors.js";
@@ -13,6 +14,9 @@ import { useScheduleStore } from "../stores/schedule.js";
 // Planning screen: fills the viewport; only the grid scrolls (natively).
 const schedule = inject("schedule");
 const openPersonalSchedule = inject("openPersonalSchedule");
+
+// The next-course banner is a phone/tablet aid; desktop has the whole week in view.
+const { mdAndUp } = useDisplay();
 
 const nextLabel = computed(() => {
   const c = schedule.nextCourse;
@@ -65,7 +69,7 @@ const weekStart = computed({
     </div>
 
     <template v-else>
-      <button v-if="schedule.nextCourse" type="button" class="next-banner" @click="schedule.openEventModal(schedule.nextCourse)">
+      <button v-if="schedule.nextCourse && !mdAndUp" type="button" class="next-banner" @click="schedule.openEventModal(schedule.nextCourse)">
         <span class="next-kicker">{{ nextIsCercle ? "Prochain événement" : "Prochain cours" }}</span>
         <span class="next-text">{{ nextLabel }}</span>
         <v-icon :icon="mdiChevronRight" size="20" />

@@ -4,9 +4,11 @@ import { useRoute, useRouter } from "vue-router";
 import {
   mdiCalendarToday, mdiCalendarTodayOutline, mdiMagnify, mdiDoorOpen, mdiDoor,
   mdiDotsHorizontalCircle, mdiDotsHorizontalCircleOutline, mdiSchool, mdiAccountOutline, mdiAccountSchoolOutline,
+  mdiChevronDoubleLeft, mdiChevronDoubleRight,
 } from "@mdi/js";
 import { PLANNING_PATH } from "../../router/index.js";
 import { useFavorites } from "../../composables/useFavorites.js";
+import { useNavCollapsed } from "../../composables/useNavCollapsed.js";
 
 // Main navigation: frosted tab bar at the bottom on phones (iOS tab bar look,
 // Material 3 pill indicator), navigation rail on the left on tablets and
@@ -14,6 +16,8 @@ import { useFavorites } from "../../composables/useFavorites.js";
 const schedule = inject("schedule");
 const route = useRoute();
 const router = useRouter();
+
+const { collapsed, toggle: toggleCollapsed } = useNavCollapsed();
 
 const items = computed(() => [
   // The Planning link keeps the displayed schedule in the URL (shareable).
@@ -46,7 +50,7 @@ const openFavorite = (fav) => {
 </script>
 
 <template>
-  <nav class="app-nav" aria-label="Navigation principale">
+  <nav class="app-nav" :class="{ collapsed }" aria-label="Navigation principale">
     <button
       v-for="item in items"
       :key="item.tab"
@@ -77,6 +81,18 @@ const openFavorite = (fav) => {
         <span class="nav-fav-label">{{ fav.label }}</span>
       </button>
     </section>
+
+    <button
+      type="button"
+      class="nav-collapse"
+      :aria-label="collapsed ? 'Développer le menu' : 'Réduire le menu'"
+      :aria-expanded="!collapsed"
+      :title="collapsed ? 'Développer le menu' : 'Réduire le menu'"
+      @click="toggleCollapsed"
+    >
+      <v-icon :icon="collapsed ? mdiChevronDoubleRight : mdiChevronDoubleLeft" size="22" />
+      <span class="nav-collapse-label">Réduire</span>
+    </button>
   </nav>
 </template>
 
@@ -178,19 +194,20 @@ const openFavorite = (fav) => {
   }
 }
 
-.nav-favorites {
+.nav-favorites,
+.nav-collapse {
   display: none;
 }
 
 /* Large screens: navigation drawer with labels beside the icons, and favorites. */
 @media (min-width: 1280px) {
-  .app-nav {
+  .app-nav:not(.collapsed) {
     gap: 4px;
     padding: 16px 12px;
     overflow-y: auto;
   }
 
-  .nav-item {
+  .app-nav:not(.collapsed) .nav-item {
     flex-direction: row;
     gap: 14px;
     height: 52px;
@@ -199,22 +216,22 @@ const openFavorite = (fav) => {
     color: rgb(var(--v-theme-on-surface-variant));
   }
 
-  .nav-indicator {
+  .app-nav:not(.collapsed) .nav-indicator {
     width: 40px;
     height: 40px;
     background: none !important;
   }
 
-  .nav-label {
+  .app-nav:not(.collapsed) .nav-label {
     font-size: 0.98rem;
     font-weight: 600;
   }
 
-  .nav-item.active {
+  .app-nav:not(.collapsed) .nav-item.active {
     background: rgba(37, 99, 235, 0.12);
   }
 
-  .nav-favorites {
+  .app-nav:not(.collapsed) .nav-favorites {
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -223,7 +240,7 @@ const openFavorite = (fav) => {
     border-top: 1px solid rgba(var(--v-theme-on-surface), 0.1);
   }
 
-  .nav-section-title {
+  .app-nav:not(.collapsed) .nav-section-title {
     margin: 0 16px 8px;
     font-size: 0.78rem;
     font-weight: 700;
@@ -232,7 +249,7 @@ const openFavorite = (fav) => {
     color: rgb(var(--v-theme-on-surface-variant));
   }
 
-  .nav-fav {
+  .app-nav:not(.collapsed) .nav-fav {
     display: flex;
     align-items: center;
     gap: 14px;
@@ -248,20 +265,49 @@ const openFavorite = (fav) => {
     cursor: pointer;
   }
 
-  .nav-fav:hover {
+  .app-nav:not(.collapsed) .nav-fav:hover {
     background: rgba(var(--v-theme-on-surface), 0.06);
   }
 
-  .nav-fav.current {
+  .app-nav:not(.collapsed) .nav-fav.current {
     font-weight: 700;
     color: #1e3a8a;
   }
 
-  .nav-fav-label {
+  .app-nav:not(.collapsed) .nav-fav-label {
     min-width: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .nav-collapse {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: auto;
+    height: 44px;
+    padding: 0 16px 0 10px;
+    border: 0;
+    border-radius: 999px;
+    background: none;
+    font: inherit;
+    font-size: 0.92rem;
+    color: rgb(var(--v-theme-on-surface-variant));
+    cursor: pointer;
+  }
+
+  .nav-collapse:hover {
+    background: rgba(var(--v-theme-on-surface), 0.06);
+  }
+
+  .app-nav.collapsed .nav-collapse {
+    justify-content: center;
+    padding: 0;
+  }
+
+  .app-nav.collapsed .nav-collapse-label {
+    display: none;
   }
 }
 </style>
@@ -277,11 +323,11 @@ const openFavorite = (fav) => {
 }
 
 @media (min-width: 1280px) {
-  .v-theme--dark .nav-item.active {
+  .v-theme--dark .app-nav:not(.collapsed) .nav-item.active {
     background: rgba(var(--v-theme-primary), 0.16);
   }
 
-  .v-theme--dark .nav-fav.current {
+  .v-theme--dark .app-nav:not(.collapsed) .nav-fav.current {
     color: rgb(var(--v-theme-primary));
   }
 }

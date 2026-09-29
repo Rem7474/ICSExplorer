@@ -41,6 +41,11 @@
   :root {
     --rail-w: 256px;
   }
+
+  /* User collapsed the drawer back to the icon rail. */
+  :root.nav-collapsed {
+    --rail-w: 96px;
+  }
 }
 
 html.dark-mode {
