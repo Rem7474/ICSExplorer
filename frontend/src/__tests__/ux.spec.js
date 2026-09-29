@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { mount, flushPromises } from "@vue/test-utils";
-import ScheduleControls from "../components/ScheduleControls.vue";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { flushPromises } from "@vue/test-utils";
+import { useScheduleLinks } from "../composables/useScheduleLinks.js";
 import { useSchedule } from "../composables/useSchedule.js";
 import { formatRelativeTime } from "../utils/dates.js";
 import { router } from "../router/index.js";
@@ -21,107 +21,13 @@ describe("formatRelativeTime", () => {
   });
 });
 
-describe("quick search", () => {
-  const mountWithFiles = () => {
-    const schedule = useSchedule();
-    schedule.availableFiles.value = ["1A-Prépa-TP1.ics", "1A-Prépa-TP2.ics", "3A-IR-IR1.ics"];
-    schedule.availableTeachers.value = ["DUPONT Jean"];
-    schedule.availableRooms.value = ["A042"];
-    schedule.loadSchedule = vi.fn();
-    const wrapper = mount(ScheduleControls, { props: { schedule }, attachTo: document.body });
-    return { schedule, wrapper, input: wrapper.find("#quickSearchInput") };
-  };
-
-  afterEach(() => {
-    document.body.innerHTML = "";
-  });
-
-  it("exposes an accessible combobox with a label", () => {
-    const { wrapper, input } = mountWithFiles();
-    expect(wrapper.find('label[for="quickSearchInput"]').exists()).toBe(true);
-    expect(input.attributes("role")).toBe("combobox");
-    expect(input.attributes("aria-expanded")).toBe("false");
-  });
-
-  it("navigates results with the keyboard and selects with Enter", async () => {
-    const { schedule, input } = mountWithFiles();
-    await input.trigger("focus");
-    await input.setValue("Prépa");
-    expect(input.attributes("aria-expanded")).toBe("true");
-
-    await input.trigger("keydown", { key: "ArrowDown" });
-    await input.trigger("keydown", { key: "ArrowDown" });
-    expect(input.attributes("aria-activedescendant")).toBe("quick-search-option-1");
-    expect(document.querySelector("#quick-search-option-1").getAttribute("aria-selected")).toBe("true");
-
-    await input.trigger("keydown", { key: "Enter" });
-    expect(schedule.loadSchedule).toHaveBeenCalledWith("1A-Prépa-TP2.ics");
-  });
-
-  it("closes with Escape and shows a no-result message", async () => {
-    const { wrapper, input } = mountWithFiles();
-    await input.trigger("focus");
-    await input.setValue("zzz-introuvable");
-    expect(wrapper.find(".search-dropdown").text()).toContain("Aucun résultat");
-
-    await input.trigger("keydown", { key: "Escape" });
-    expect(wrapper.find(".search-dropdown").exists()).toBe(false);
-  });
-
-  it("closes the dropdown on blur (regression: setTimeout was called from the template)", async () => {
-    vi.useFakeTimers();
-    try {
-      const { wrapper, input } = mountWithFiles();
-      await input.trigger("focus");
-      await input.setValue("Prépa");
-      expect(wrapper.find(".search-dropdown").exists()).toBe(true);
-
-      await input.trigger("blur");
-      vi.advanceTimersByTime(200);
-      await wrapper.vm.$nextTick();
-      expect(wrapper.find(".search-dropdown").exists()).toBe(false);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("does not download every calendar just because the field got focus", async () => {
-    const schedule = useSchedule();
-    schedule.loadTeacherList = vi.fn();
-    schedule.loadRoomList = vi.fn();
-    const wrapper = mount(ScheduleControls, { props: { schedule } });
-    const input = wrapper.find("#quickSearchInput");
-
-    await input.trigger("focus");
-    expect(schedule.loadTeacherList).not.toHaveBeenCalled();
-
-    await input.setValue("DU");
-    expect(schedule.loadTeacherList).toHaveBeenCalledTimes(1);
-    expect(schedule.loadRoomList).toHaveBeenCalledTimes(1);
-  });
-
-  it("shows indexing progress while the teacher/room index is built", async () => {
-    const schedule = useSchedule();
-    schedule.loadTeacherList = vi.fn();
-    schedule.loadRoomList = vi.fn();
-    schedule.isAggregatorLoading.value = true;
-    schedule.indexProgress.value = { loaded: 12, total: 48 };
-    const wrapper = mount(ScheduleControls, { props: { schedule } });
-    const input = wrapper.find("#quickSearchInput");
-    await input.trigger("focus");
-    await input.setValue("DU");
-
-    expect(wrapper.find(".search-status").text()).toContain("12/48");
-  });
-
+describe("schedule links", () => {
   it("offers a webcal subscription link for the current calendar", () => {
     const schedule = useSchedule();
     schedule.selectedMode.value = "student";
     schedule.selectedFile.value = "1A-Prépa-TP1.ics";
-    const wrapper = mount(ScheduleControls, { props: { schedule } });
-    const link = wrapper.find("a.btn-subscribe");
-    expect(link.exists()).toBe(true);
-    expect(link.attributes("href")).toMatch(/^webcal:\/\/.+\/output\/1A-Pr%C3%A9pa-TP1\.ics$/);
+    const { webcalUrl } = useScheduleLinks(schedule);
+    expect(webcalUrl.value).toMatch(/^webcal:\/\/.+\/output\/1A-Pr%C3%A9pa-TP1\.ics$/);
   });
 });
 
@@ -185,23 +91,5 @@ describe("useSchedule UX state", () => {
       schedule.stopHealthPolling();
       vi.restoreAllMocks();
     }
-  });
-});
-
-describe("mobile toolbar", () => {
-  it("keeps an accessible name on every button that becomes icon-only on phones", () => {
-    const schedule = useSchedule();
-    schedule.availableFiles.value = ["1A-Prépa-TP1.ics"];
-    schedule.selectedMode.value = "student";
-    schedule.selectedFile.value = "1A-Prépa-TP1.ics";
-    schedule.selectedType.value = "TP1";
-    const wrapper = mount(ScheduleControls, { props: { schedule } });
-
-    for (const sel of [".btn-pin", ".btn-copy-link", ".btn-subscribe", ".btn-share", ".btn-load-action"]) {
-      const el = wrapper.find(sel);
-      expect(el.exists(), sel).toBe(true);
-      expect(el.attributes("aria-label"), sel).toBeTruthy();
-    }
-    expect(wrapper.findAll(".mode-tab-btn").map((t) => t.find(".tab-label-mobile, span:not(.tab-label-desktop)").exists())).toEqual([true, true, true, true]);
   });
 });

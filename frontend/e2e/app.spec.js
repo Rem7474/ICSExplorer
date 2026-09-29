@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test";
-import { FIXTURE } from "./global-setup.js";
-import { openApp, expectNoHorizontalOverflow, goToTab, topBarTitle, isMobile } from "./helpers.js";
+import fs from "node:fs";
+import path from "node:path";
+import { FIXTURE, DATA_DIR } from "./global-setup.js";
+import { openApp, expectNoHorizontalOverflow, goToTab, topBarTitle, isMobile, settleAnimations } from "./helpers.js";
 
 const promoA = FIXTURE.promoA.replace(/\.ics$/, "");
 const promoAQuery = new RegExp(`/\\?file=${encodeURIComponent(FIXTURE.promoA)}`);
@@ -150,7 +152,7 @@ test.describe("navigation", () => {
   test("free rooms screen opens a room schedule", async ({ page }) => {
     await openApp(page);
     await goToTab(page, "Salles libres");
-    const firstRoom = page.locator(".room-card").first();
+    const firstRoom = page.locator(".room-item").first();
     await expect(firstRoom).toBeVisible();
     await firstRoom.click();
     await expect(page).toHaveURL(/\/\?room=/);
@@ -167,6 +169,98 @@ test.describe("navigation", () => {
     await page.goto("/plus");
     await expect(page.getByText("À propos")).toBeVisible();
     await expect(page).toHaveURL(/\/plus/);
+  });
+});
+
+test.describe("search screen", () => {
+  test("browses promos by year and opens one", async ({ page }) => {
+    await openApp(page);
+    await goToTab(page, "Rechercher");
+    await page.getByRole("tab", { name: "Promos" }).click();
+    await page.locator(".year-row").getByText("3A", { exact: true }).click();
+    await page.locator(".browse-item", { hasText: "TD 1" }).click();
+    await expect(page).toHaveURL(new RegExp(`file=${encodeURIComponent(FIXTURE.promoB)}`));
+    await expect(topBarTitle(page)).toHaveText(FIXTURE.promoB.replace(/\.ics$/, ""));
+  });
+
+  test("lists teachers and rooms", async ({ page }) => {
+    await openApp(page);
+    await goToTab(page, "Rechercher");
+    await page.getByRole("tab", { name: "Profs" }).click();
+    await page.locator(".browse-item", { hasText: FIXTURE.teacher }).click();
+    await expect(topBarTitle(page)).toHaveText(FIXTURE.teacher);
+  });
+});
+
+test.describe("personal ADE flow", () => {
+  // ADE itself is simulated: the server would call the school's ADE instance.
+  const mockAde = async (page) => {
+    await page.route("**/api/universities", (route) => route.fulfill({ json: [{ id: "grenoble-inp-esisar", name: "Grenoble INP - Esisar" }] }));
+    await page.route("**/api/tree", async (route) => {
+      const { branchId, password } = route.request().postDataJSON();
+      if (password !== "secret") return route.fulfill({ status: 401, json: { error: "Identifiants ADE invalides" } });
+      return route.fulfill({
+        json: {
+          nodes: branchId
+            ? [{ id: "101", name: "Groupe TP A", isLeaf: true }]
+            : [{ id: "10", name: "Esisar 1ère année", isLeaf: false }],
+        },
+      });
+    });
+    const ics = fs.readFileSync(path.join(DATA_DIR, "output", FIXTURE.promoA), "utf8");
+    await page.route("**/api/personal-calendar", (route) => route.fulfill({ body: ics, contentType: "text/calendar" }));
+  };
+
+  test("institution → sign-in → tree → my schedule on Planning", async ({ page }, testInfo) => {
+    await mockAde(page);
+    await openApp(page);
+    await goToTab(page, "Rechercher");
+    await page.locator(".personal-item").click();
+
+    const flow = page.getByRole("dialog");
+    await expect(flow.getByRole("heading", { name: "Mon établissement" })).toBeVisible();
+    await settleAnimations(flow);
+    await expectNoHorizontalOverflow(page);
+    await testInfo.attach("ade-1.png", { body: await page.screenshot(), contentType: "image/png" });
+    await flow.getByText("Grenoble INP - Esisar").click();
+
+    await expect(flow.getByRole("heading", { name: "Connexion à ADE" })).toBeVisible();
+    await flow.getByLabel("Identifiant").fill("etudiant");
+    await flow.getByLabel("Mot de passe", { exact: true }).fill("wrong");
+    await flow.getByRole("button", { name: "Continuer" }).click();
+    await expect(flow.getByRole("alert")).toContainText("Identifiants ADE invalides");
+
+    await flow.getByLabel("Mot de passe", { exact: true }).fill("secret");
+    await testInfo.attach("ade-2.png", { body: await page.screenshot(), contentType: "image/png" });
+    await flow.getByRole("button", { name: "Continuer" }).click();
+
+    await expect(flow.getByRole("heading", { name: "Choisir mon planning" })).toBeVisible();
+    await flow.getByText("Esisar 1ère année").click();
+    await expect(flow.getByText("Groupe TP A")).toBeVisible();
+    await settleAnimations(flow);
+    await expectNoHorizontalOverflow(page);
+    await testInfo.attach("ade-3.png", { body: await page.screenshot(), contentType: "image/png" });
+    await flow.getByText("Groupe TP A").click();
+
+    await expect(flow).toBeHidden();
+    await expect(page).toHaveURL(/\/\?mode=personal/);
+    await expect(topBarTitle(page)).toHaveText("Groupe TP A");
+    await expect(page.locator(".event", { hasText: FIXTURE.courseA }).first()).toBeVisible();
+    // Not remembered: the password is nowhere in the browser storage.
+    expect(await page.evaluate(() => JSON.stringify({ ...localStorage }))).not.toContain("secret");
+  });
+
+  test("the back arrow walks back through the steps, then closes", async ({ page }) => {
+    await mockAde(page);
+    await openApp(page);
+    await goToTab(page, "Rechercher");
+    await page.locator(".personal-item").click();
+    const flow = page.getByRole("dialog");
+    await flow.getByText("Grenoble INP - Esisar").click();
+    await flow.getByRole("button", { name: "Étape précédente" }).click();
+    await expect(flow.getByRole("heading", { name: "Mon établissement" })).toBeVisible();
+    await flow.getByRole("button", { name: "Fermer" }).click();
+    await expect(flow).toBeHidden();
   });
 });
 
@@ -196,15 +290,14 @@ test.describe("layout", () => {
     }
   });
 
-  for (const mode of ["Promos", "Profs", "Salles", "Mon ADE"]) {
-    test(`no horizontal overflow — Rechercher / ${mode}`, async ({ page }, testInfo) => {
+  for (const tab of ["Promos", "Profs", "Salles"]) {
+    test(`no horizontal overflow — Rechercher / ${tab}`, async ({ page }, testInfo) => {
       await openApp(page);
       await goToTab(page, "Rechercher");
-      const labels = { Promos: /Promos|Élèves/, Profs: /Profs|Professeurs/, Salles: /^Salles$/, "Mon ADE": /Mon ADE|Mon Planning ADE/ };
-      await page.getByRole("tab", { name: labels[mode] }).click();
-      if (mode === "Mon ADE") await expect(page.getByRole("dialog")).toBeVisible();
+      await page.getByRole("tab", { name: tab }).click();
+      await expect(page.locator(".browse-item").first()).toBeVisible();
       await expectNoHorizontalOverflow(page);
-      await testInfo.attach(`search-${mode}.png`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+      await testInfo.attach(`search-${tab}.png`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
     });
   }
 

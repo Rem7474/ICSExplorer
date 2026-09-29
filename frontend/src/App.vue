@@ -1,5 +1,6 @@
 <script setup>
-import { ref, reactive, provide, watch, onMounted, onUnmounted } from "vue";
+import { ref, reactive, provide, watch, nextTick, onMounted, onUnmounted } from "vue";
+import { useRouter } from "vue-router";
 import { useTheme as useVuetifyTheme } from "vuetify";
 import { useSchedule } from "./composables/useSchedule.js";
 import { useTheme } from "./composables/useTheme.js";
@@ -9,15 +10,15 @@ import { isIOS } from "./plugins/vuetify.js";
 import AppTopBar from "./components/shell/AppTopBar.vue";
 import AppNav from "./components/shell/AppNav.vue";
 import EventSheet from "./components/planning/EventSheet.vue";
-import PersonalScheduleModal from "./components/PersonalScheduleModal.vue";
+import PersonalScheduleFlow from "./components/personal/PersonalScheduleFlow.vue";
 import ToastContainer from "./components/ToastContainer.vue";
 
 // App shell: top app bar, the current screen (router view), main navigation
 // (bottom tab bar on phones, rail on wide screens) and global dialogs.
 const schedule = reactive(useSchedule());
 const { showToast } = useToast();
-const isPersonalScheduleModalOpen = ref(false);
-const openPersonalSchedule = () => (isPersonalScheduleModalOpen.value = true);
+const isPersonalFlowOpen = ref(false);
+const openPersonalSchedule = () => (isPersonalFlowOpen.value = true);
 
 provide("schedule", schedule);
 provide("openPersonalSchedule", openPersonalSchedule);
@@ -34,14 +35,26 @@ const handlePwaUpdate = (e) => {
   });
 };
 
+// Ctrl/⌘+K: jump to the search field from anywhere.
+const router = useRouter();
+const handleShortcut = async (e) => {
+  if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "k") return;
+  e.preventDefault();
+  await router.push({ name: "search" });
+  await nextTick();
+  document.getElementById("quickSearchInput")?.focus();
+};
+
 onMounted(() => {
   schedule.init();
   window.addEventListener("pwa-update-available", handlePwaUpdate);
+  window.addEventListener("keydown", handleShortcut);
 });
 
 onUnmounted(() => {
   schedule.stopHealthPolling?.();
   window.removeEventListener("pwa-update-available", handlePwaUpdate);
+  window.removeEventListener("keydown", handleShortcut);
 });
 </script>
 
@@ -63,11 +76,7 @@ onUnmounted(() => {
       @select-room="schedule.loadRoomSchedule"
     />
 
-    <PersonalScheduleModal
-      v-if="isPersonalScheduleModalOpen"
-      :schedule="schedule"
-      @close="isPersonalScheduleModalOpen = false"
-    />
+    <PersonalScheduleFlow v-if="isPersonalFlowOpen" @close="isPersonalFlowOpen = false" />
 
     <ToastContainer />
   </v-app>

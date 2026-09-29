@@ -47,3 +47,14 @@ export const goToTab = (page, label) =>
   page.getByRole("navigation", { name: "Navigation principale" }).getByRole("button", { name: label, exact: true }).click();
 
 export const topBarTitle = (page) => page.locator(".top-bar-title");
+
+/** Waits for the CSS transitions/animations running inside an element (e.g. a screen sliding in). */
+export const settleAnimations = (locator) =>
+  locator.evaluate((el) =>
+    Promise.all(
+      el
+        .getAnimations({ subtree: true })
+        .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity) // spinners never finish
+        .map((a) => a.finished.catch(() => {}))
+    )
+  );
