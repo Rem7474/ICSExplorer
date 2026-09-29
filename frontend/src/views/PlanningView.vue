@@ -83,7 +83,7 @@ const weekStart = computed({
             :aria-label="schedule.disabledSubjects.length ? `Matières (${schedule.disabledSubjects.length} masquées)` : 'Matières et heures de la semaine'"
             @click="filtersOpen = true"
           >
-            <v-badge v-if="schedule.disabledSubjects.length" :content="schedule.disabledSubjects.length" color="error" floating>
+            <v-badge v-if="schedule.disabledSubjects.length" :content="schedule.disabledSubjects.length" color="error" floating offset-x="4" offset-y="4">
               <v-icon :icon="mdiFilterVariant" />
             </v-badge>
             <v-icon v-else :icon="mdiFilterVariant" />
