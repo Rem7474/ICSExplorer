@@ -23,5 +23,7 @@ export const vuetify = createVuetify({
     // The Material ripple reads as "Android" on iPhone: use a plain pressed
     // state there instead (see .is-ios in styles/main.css).
     global: { ripple: !isIOS },
+    // The MD3 blueprint squares chips off; the rest of the app is pill-shaped.
+    VChip: { rounded: "pill" },
   },
 });

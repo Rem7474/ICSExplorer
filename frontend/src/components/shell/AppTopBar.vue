@@ -12,7 +12,7 @@ import { freshnessBadge } from "../../utils/freshness.js";
 // back arrow when browsing a teacher/room schedule.
 const schedule = inject("schedule");
 const route = useRoute();
-const { mdAndUp } = useDisplay();
+const { mdAndUp, smAndDown } = useDisplay();
 const brandIcon = "/apple-touch-icon.png";
 const { isFavorited, toggleFavorite } = useFavorites();
 const { showToast } = useToast();
@@ -23,6 +23,8 @@ const onPlanning = computed(() => route.meta.tab === "planning");
 const title = computed(() => (onPlanning.value ? schedule.scheduleLabel || "ICSExplorer" : SCREEN_TITLES[route.meta.tab] || "ICSExplorer"));
 
 const badge = computed(() => freshnessBadge(schedule.serverHealth, schedule.isOnline, schedule.currentTime));
+// Phones: "À jour · 33 min" (the full wording stays in the tooltip).
+const badgeText = computed(() => (smAndDown.value ? badge.value.text.replace(" il y a ", " ") : badge.value.text));
 
 // Browsing someone else's schedule (teacher/room): offer a way back to "mine".
 const canGoBack = computed(() => onPlanning.value && (schedule.selectedMode === "teacher" || schedule.selectedMode === "room"));
@@ -56,9 +58,10 @@ const onTogglePin = () => {
     </template>
 
     <div class="top-bar-titles" :class="{ 'with-back': canGoBack }">
-      <h1 class="top-bar-title">{{ title }}</h1>
+      <!-- rtl + ltr inner: when too long, the start is cut ("…App-S9-SIS"), not the end. -->
+      <h1 class="top-bar-title"><span dir="ltr">{{ title }}</span></h1>
       <span class="top-bar-status" :class="`status-${badge.level}`" :title="badge.title || undefined" role="status">
-        <span class="status-dot" aria-hidden="true" />{{ badge.text }}
+        <span class="status-dot" aria-hidden="true" />{{ badgeText }}
       </span>
     </div>
 
@@ -107,6 +110,12 @@ const onTogglePin = () => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+}
+
+.top-bar-title > span {
+  unicode-bidi: isolate;
 }
 
 .top-bar-brand {
@@ -155,9 +164,7 @@ const onTogglePin = () => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 55%;
+  flex: 0 0 auto;
   padding: 3px 9px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.16);
