@@ -113,7 +113,7 @@ const copyDetails = async () => {
         <v-list density="comfortable" bg-color="transparent" class="detail-list">
           <v-list-item :prepend-icon="mdiClockOutline" :title="schedule" />
 
-          <v-list-item v-if="event.location" :prepend-icon="mdiMapMarkerOutline" :title="event.location">
+          <v-list-item v-if="event.location" :prepend-icon="mdiMapMarkerOutline" :title="rooms.length && !isRu ? undefined : event.location">
             <div v-if="rooms.length || isRu" class="chip-row">
               <v-btn
                 v-if="isRu"

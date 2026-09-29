@@ -1,9 +1,6 @@
 <script setup>
 import { computed, inject, ref } from "vue";
-import { useDisplay } from "vuetify";
-import { mdiChevronRight, mdiFilterVariant } from "@mdi/js";
-import { formatTimeOnly } from "../utils/dates.js";
-import { isCercleEvent } from "../utils/colors.js";
+import { mdiFilterVariant } from "@mdi/js";
 import WeekStats from "../components/WeekStats.vue";
 import PlanningGrid from "../components/planning/PlanningGrid.vue";
 import ScheduleSkeleton from "../components/skeletons/ScheduleSkeleton.vue";
@@ -15,18 +12,6 @@ import { useScheduleStore } from "../stores/schedule.js";
 // Planning screen: fills the viewport; only the grid scrolls (natively).
 const schedule = inject("schedule");
 const openPersonalSchedule = inject("openPersonalSchedule");
-
-// The next-course banner is a phone/tablet aid; desktop has the whole week in view.
-const { mdAndUp } = useDisplay();
-
-const nextLabel = computed(() => {
-  const c = schedule.nextCourse;
-  if (!c) return "";
-  const start = new Date(c.start);
-  const day = start.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
-  return [c.summary, `${day} ${formatTimeOnly(start)}`, c.location].filter(Boolean).join(" · ");
-});
-const nextIsCercle = computed(() => schedule.nextCourse && isCercleEvent(schedule.nextCourse));
 
 // Phones: subject stats/filters live in a sheet opened from the grid toolbar,
 // to leave the height to the planning.
@@ -70,11 +55,6 @@ const weekStart = computed({
     </div>
 
     <template v-else>
-      <button v-if="schedule.nextCourse && !mdAndUp" type="button" class="next-banner" @click="schedule.openEventModal(schedule.nextCourse)">
-        <span class="next-kicker">{{ nextIsCercle ? "Prochain événement" : "Prochain cours" }}</span>
-        <span class="next-text">{{ nextLabel }}</span>
-        <v-icon :icon="mdiChevronRight" size="20" />
-      </button>
 
       <WeekStats
         compact
@@ -236,64 +216,10 @@ const weekStart = computed({
   color: rgb(var(--v-theme-on-surface-variant));
 }
 
-.next-banner {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 36px;
-  padding: 5px 8px 5px 12px;
-  border: 0;
-  border-radius: 14px;
-  background: rgba(37, 99, 235, 0.08);
-  color: rgb(var(--v-theme-on-surface));
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.next-kicker {
-  flex: 0 0 auto;
-  font-size: 0.68rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: #1e3a8a;
-}
-
-.next-text {
-  flex: 1;
-  min-width: 0;
-  font-size: 0.88rem;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-@media (min-width: 960px) {
-  .next-banner {
-    min-height: 44px;
-    padding: 8px 12px 8px 16px;
-  }
-
-  .next-kicker {
-    font-size: 0.75rem;
-  }
-
-  .next-text {
-    font-size: 1rem;
-  }
-}
 </style>
 
 <style>
-.v-theme--dark .planning-screen .next-banner,
 .v-theme--dark .planning-screen .status-banner {
   background: rgba(var(--v-theme-primary), 0.12);
-}
-
-.v-theme--dark .planning-screen .next-kicker {
-  color: rgb(var(--v-theme-primary));
 }
 </style>
