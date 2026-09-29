@@ -5,6 +5,7 @@
 // when the user settles on a neighbouring week, the parent week changes and
 // the scroll position is re-centred on the same day, so swiping never ends.
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
+import { useDisplay } from "vuetify";
 import { mdiChevronLeft, mdiChevronRight, mdiCalendarToday } from "@mdi/js";
 import { getWeekStart, formatDateOnly, formatTimeOnly } from "../../utils/dates.js";
 import { getSubjectColors, isCercleEvent, isRuEvent } from "../../utils/colors.js";
@@ -19,7 +20,9 @@ const emit = defineEmits(["update:weekStart", "eventClick"]);
 
 const { isDark } = useTheme();
 
-const RAIL = 44;
+// Desktop (≥ 960px): roomier rail, headers and text (see .wide in the styles).
+const { mdAndUp: wide } = useDisplay();
+const rail = computed(() => (wide.value ? 56 : 44));
 // Hour height adapts so the whole day fits the available height (like v2),
 // but never below a readable minimum: then the grid scrolls vertically.
 const MIN_PX_PER_HOUR = 34;
@@ -71,7 +74,7 @@ const range = computed(() => hourRange(columns.value.flatMap((c) => c.timed)));
 // day is already shown by the chips above: the header only holds all-day banners.
 const maxAllDay = computed(() => Math.max(0, ...columns.value.map((c) => c.allDay.length)));
 const headHeight = computed(() => {
-  if (mode.value === "week") return 52 + 26 * maxAllDay.value;
+  if (mode.value === "week") return (wide.value ? 64 : 52) + (wide.value ? 30 : 26) * maxAllDay.value;
   return maxAllDay.value ? 10 + 26 * maxAllDay.value : 0;
 });
 
@@ -107,7 +110,7 @@ let settleTimer = null;
 
 const colWidth = () => {
   const el = scroller.value;
-  return el ? (el.clientWidth - RAIL) / perPage.value : 0;
+  return el ? (el.clientWidth - rail.value) / perPage.value : 0;
 };
 
 const scrollToColumn = (index, behavior = "auto") => {
@@ -298,7 +301,7 @@ const bannerStyle = (event) => {
 // of an extra line (which got cut off in one-hour slots).
 const eventTitle = (event) => {
   const summary = event.summary || "Événement";
-  if (isRuEvent(event)) return mode.value === "week" ? "🍽️ RU" : summary;
+  if (isRuEvent(event)) return mode.value === "week" && !wide.value ? "🍽️ RU" : summary;
   if (isCercleEvent(event) && !/^\p{Extended_Pictographic}/u.test(summary)) return `🎉 ${summary}`;
   return summary;
 };
@@ -312,9 +315,13 @@ const ruHighlight = (event) =>
     ?.replace(/^•\s*/, "") || "";
 
 // Second piece of information: the first dish for RU menus, the time otherwise.
+// Too short for title + detail on two lines: one line instead (the desktop
+// text is bigger, so the limit is higher there).
+const isShort = (item) => item.height < (wide.value ? 56 : 44);
+
 const eventDetail = (item) => {
   // Narrow 5-day columns: a short slot keeps only its title.
-  if (mode.value === "week" && item.height < 44) return "";
+  if (mode.value === "week" && isShort(item) && !wide.value) return "";
   return isRuEvent(item.event) ? ruHighlight(item.event) : item.time;
 };
 
@@ -367,7 +374,7 @@ defineExpose({ goToDate, goToToday, step, mode, activeIndex });
 </script>
 
 <template>
-  <div class="planning-grid" :class="`mode-${mode}`">
+  <div class="planning-grid" :class="[`mode-${mode}`, { wide }]">
     <!-- Toolbar: period, navigation, 1J / 5J -->
     <div class="grid-toolbar">
       <v-btn :icon="mdiChevronLeft" variant="text" density="comfortable" :aria-label="mode === 'day' ? 'Jour précédent' : 'Semaine précédente'" @click="step(-1)" />
@@ -421,7 +428,7 @@ defineExpose({ goToDate, goToToday, step, mode, activeIndex });
       class="grid-scroller"
       role="region"
       aria-label="Planning"
-      :style="{ '--rail': `${RAIL}px`, '--per-page': perPage, '--grid-h': `${gridHeight}px`, '--head-h': `${headHeight}px` }"
+      :style="{ '--rail': `${rail}px`, '--per-page': perPage, '--grid-h': `${gridHeight}px`, '--head-h': `${headHeight}px` }"
       @scroll.passive="onScroll"
     >
       <div class="rail" aria-hidden="true">
@@ -474,13 +481,13 @@ defineExpose({ goToDate, goToToday, step, mode, activeIndex });
             :key="`${item.event.uid || item.event.summary}-${item.top}`"
             type="button"
             class="event"
-            :class="{ compact: item.height < 44, 'event-ru': isRuEvent(item.event), 'event-cercle': isCercleEvent(item.event) }"
+            :class="{ compact: isShort(item), 'event-ru': isRuEvent(item.event), 'event-cercle': isCercleEvent(item.event) }"
             :style="eventStyle(item)"
             :aria-label="eventLabel(item, c.date)"
             @click="emit('eventClick', item.event)"
           >
             <!-- Short slots (e.g. 1h): a single line "title · detail" -->
-            <span v-if="item.height < 44" class="event-inline">
+            <span v-if="isShort(item)" class="event-inline">
               <strong class="event-title">{{ eventTitle(item.event) }}</strong>
               <span v-if="eventDetail(item)" class="event-sub"> · {{ eventDetail(item) }}</span>
             </span>
@@ -934,6 +941,75 @@ button.day-date {
   .event:hover {
     filter: brightness(0.97);
   }
+}
+
+/* ===== Desktop: bigger, easier to read ===== */
+.wide .grid-toolbar {
+  min-height: 52px;
+  gap: 4px;
+}
+
+.wide .period-btn {
+  font-size: 1.2rem;
+}
+
+.wide .span-btn {
+  font-size: 0.88rem;
+  padding: 8px 16px;
+}
+
+.wide .hour {
+  right: 10px;
+  font-size: 0.8rem;
+}
+
+.wide .day-head .dow {
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+}
+
+.wide .day-head .num {
+  font-size: 1.35rem;
+}
+
+.wide .day-head .num.today {
+  width: 38px;
+  height: 38px;
+  font-size: 1.2rem;
+}
+
+.wide .allday {
+  font-size: 0.82rem;
+  padding: 5px 10px;
+}
+
+.wide .event {
+  gap: 3px;
+  padding: 8px 10px 8px 13px;
+  font-size: 0.86rem;
+  line-height: 1.3;
+}
+
+.wide .event.compact {
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+.wide .event-title {
+  font-size: 0.95rem;
+}
+
+.wide .event-sub {
+  font-size: 0.84rem;
+}
+
+.wide.mode-week .event {
+  padding-left: 12px;
+  padding-right: 8px;
+}
+
+.wide .today-fab {
+  font-size: 0.95rem;
 }
 </style>
 

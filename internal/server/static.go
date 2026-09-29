@@ -1,9 +1,6 @@
 package server
 
 import (
-	"crypto/rand"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"html"
 	"net/http"
@@ -118,49 +115,20 @@ func (s *Server) renderAutoIndex(w http.ResponseWriter, dir string) {
 	_, _ = w.Write([]byte(sb.String()))
 }
 
-// serveIndexHTML delivers index.html, optionally injecting the PrimeUI license key.
+// serveIndexHTML delivers index.html, never cached so a new release is picked up at once.
 func (s *Server) serveIndexHTML(w http.ResponseWriter, r *http.Request, filePath string) {
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-
-	if s.cfg.PrimeUILicense == "" {
-		http.ServeFile(w, r, filePath) // #nosec G703 -- bounded static file serving
-		return
-	}
-
-	content, err := os.ReadFile(filePath)
+	// ServeContent rather than ServeFile, which would redirect /index.html to /.
+	f, err := os.Open(filePath) // #nosec G304 G703 -- bounded static file serving
 	if err != nil {
-		http.ServeFile(w, r, filePath)
+		http.Error(w, "index.html not found", http.StatusNotFound)
 		return
 	}
-
-	jsonLicense, err := json.Marshal(s.cfg.PrimeUILicense)
+	defer f.Close()
+	info, err := f.Stat()
 	if err != nil {
-		http.ServeFile(w, r, filePath)
+		http.Error(w, "index.html not readable", http.StatusInternalServerError)
 		return
 	}
-
-	// The inline script is allowed by a per-response CSP nonce rather than
-	// 'unsafe-inline', so an injected script elsewhere still cannot run.
-	nonceBytes := make([]byte, 16)
-	if _, err := rand.Read(nonceBytes); err != nil {
-		http.ServeFile(w, r, filePath)
-		return
-	}
-	nonce := base64.StdEncoding.EncodeToString(nonceBytes)
-	w.Header().Set("Content-Security-Policy",
-		strings.Replace(contentSecurityPolicy, "script-src 'self'", fmt.Sprintf("script-src 'self' 'nonce-%s'", nonce), 1))
-
-	injection := fmt.Sprintf(`<script nonce=%q>window.PRIMEUI_LICENSE=%s;</script>`, nonce, jsonLicense)
-
-	htmlStr := string(content)
-	if idx := strings.Index(htmlStr, "</head>"); idx != -1 {
-		htmlStr = htmlStr[:idx] + injection + htmlStr[idx:]
-	} else {
-		htmlStr = injection + htmlStr
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	//nolint:gosec // G705: false positive - static HTML with json-marshaled license key
-	_, _ = w.Write([]byte(htmlStr))
+	http.ServeContent(w, r, "index.html", info.ModTime(), f)
 }

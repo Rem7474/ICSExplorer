@@ -29,7 +29,7 @@ export function useSchedule() {
   const {
     selectedMode, baseSchedule, selectedYear, selectedTrack, selectedType, selectedFile,
     selectedTeacher, selectedRoom, events, currentWeekStart, disabledSubjects, isLoading,
-    activeModalEvent, isRoomModalOpen, selectedSubjectFilter, availableYears, availableTracks,
+    activeModalEvent, selectedSubjectFilter, availableYears, availableTracks,
     availableTypes, availableRestFiles, currentWeekEnd, weekEvents, displayedWeekEvents, nextCourse,
     scheduleQuery, scheduleLabel, displayedEvents,
   } = storeToRefs(schedule);
@@ -96,7 +96,6 @@ export function useSchedule() {
     selectedSubjectFilter,
     isLoading,
     activeModalEvent,
-    isRoomModalOpen,
     availableYears,
     availableTracks,
     availableTypes,
@@ -120,8 +119,6 @@ export function useSchedule() {
     nextWeek: schedule.nextWeek,
     prevWeek: schedule.prevWeek,
     goToCurrentWeek: schedule.goToCurrentWeek,
-    openRoomModal: schedule.openRoomModal,
-    closeRoomModal: schedule.closeRoomModal,
     openEventModal: schedule.openEventModal,
     closeEventModal: schedule.closeEventModal,
   };

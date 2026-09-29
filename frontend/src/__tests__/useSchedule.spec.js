@@ -19,21 +19,12 @@ describe("useSchedule composable", () => {
     expect(schedule.weekEvents.value).toEqual([]);
     expect(schedule.displayedWeekEvents.value).toEqual([]);
     expect(schedule.nextCourse.value).toBeNull();
-    expect(schedule.isRoomModalOpen.value).toBe(false);
     expect(schedule.activeModalEvent.value).toBeNull();
   });
 
-  it("handles modal open and close methods correctly", () => {
+  it("opens and closes the course details", () => {
     const schedule = useSchedule();
 
-    // Room modal
-    expect(schedule.isRoomModalOpen.value).toBe(false);
-    schedule.openRoomModal();
-    expect(schedule.isRoomModalOpen.value).toBe(true);
-    schedule.closeRoomModal();
-    expect(schedule.isRoomModalOpen.value).toBe(false);
-
-    // Event modal
     const mockEvent = { summary: "Test Event", start: new Date(), end: new Date() };
     expect(schedule.activeModalEvent.value).toBeNull();
     schedule.openEventModal(mockEvent);

@@ -3,12 +3,14 @@ import { computed, inject } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   mdiCalendarToday, mdiCalendarTodayOutline, mdiMagnify, mdiDoorOpen, mdiDoor,
-  mdiDotsHorizontalCircle, mdiDotsHorizontalCircleOutline,
+  mdiDotsHorizontalCircle, mdiDotsHorizontalCircleOutline, mdiSchool, mdiAccountOutline, mdiAccountSchoolOutline,
 } from "@mdi/js";
 import { PLANNING_PATH } from "../../router/index.js";
+import { useFavorites } from "../../composables/useFavorites.js";
 
 // Main navigation: frosted tab bar at the bottom on phones (iOS tab bar look,
-// Material 3 pill indicator), navigation rail on the left on wide screens.
+// Material 3 pill indicator), navigation rail on the left on tablets and
+// small laptops, navigation drawer (labels + favorites) on large screens.
 const schedule = inject("schedule");
 const route = useRoute();
 const router = useRouter();
@@ -23,6 +25,23 @@ const items = computed(() => [
 
 const go = (item) => {
   if (route.meta.tab !== item.tab) router.push(item.to);
+};
+
+// Drawer only: favorites one click away.
+const { favorites } = useFavorites();
+const FAV_ICONS = { personal: mdiSchool, teacher: mdiAccountOutline, room: mdiDoorOpen, student: mdiAccountSchoolOutline };
+const favKey = computed(() => {
+  const s = schedule;
+  if (s.selectedMode === "personal") return "personal_edt";
+  if (s.selectedMode === "teacher") return `teacher_${s.selectedTeacher}`;
+  if (s.selectedMode === "room") return `room_${s.selectedRoom}`;
+  return s.selectedFile ? `file_${s.selectedFile}` : "";
+});
+const openFavorite = (fav) => {
+  if (fav.mode === "personal") schedule.setMode("personal").then(() => router.push({ path: PLANNING_PATH, query: schedule.scheduleQuery }));
+  else if (fav.mode === "teacher") schedule.loadTeacherSchedule(fav.teacher);
+  else if (fav.mode === "room") schedule.loadRoomSchedule(fav.room);
+  else schedule.loadSchedule(fav.file);
 };
 </script>
 
@@ -42,6 +61,22 @@ const go = (item) => {
       </span>
       <span class="nav-label">{{ item.label }}</span>
     </button>
+
+    <section v-if="favorites.length" class="nav-favorites" aria-label="Favoris">
+      <h2 class="nav-section-title">Favoris</h2>
+      <button
+        v-for="fav in favorites"
+        :key="fav.key"
+        type="button"
+        class="nav-fav"
+        :class="{ current: route.meta.tab === 'planning' && fav.key === favKey }"
+        :title="fav.label"
+        @click="openFavorite(fav)"
+      >
+        <v-icon :icon="FAV_ICONS[fav.mode] || mdiAccountSchoolOutline" size="20" />
+        <span class="nav-fav-label">{{ fav.label }}</span>
+      </button>
+    </section>
   </nav>
 </template>
 
@@ -130,16 +165,103 @@ const go = (item) => {
 
   .nav-item {
     flex: 0 0 auto;
-    gap: 4px;
+    gap: 5px;
   }
 
   .nav-indicator {
-    width: 56px;
-    height: 32px;
+    width: 60px;
+    height: 34px;
   }
 
   .nav-label {
-    font-size: 0.75rem;
+    font-size: 0.8rem;
+  }
+}
+
+.nav-favorites {
+  display: none;
+}
+
+/* Large screens: navigation drawer with labels beside the icons, and favorites. */
+@media (min-width: 1280px) {
+  .app-nav {
+    gap: 4px;
+    padding: 16px 12px;
+    overflow-y: auto;
+  }
+
+  .nav-item {
+    flex-direction: row;
+    gap: 14px;
+    height: 52px;
+    padding: 0 16px 0 8px;
+    border-radius: 999px;
+    color: rgb(var(--v-theme-on-surface-variant));
+  }
+
+  .nav-indicator {
+    width: 40px;
+    height: 40px;
+    background: none !important;
+  }
+
+  .nav-label {
+    font-size: 0.98rem;
+    font-weight: 600;
+  }
+
+  .nav-item.active {
+    background: rgba(37, 99, 235, 0.12);
+  }
+
+  .nav-favorites {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(var(--v-theme-on-surface), 0.1);
+  }
+
+  .nav-section-title {
+    margin: 0 16px 8px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgb(var(--v-theme-on-surface-variant));
+  }
+
+  .nav-fav {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    height: 44px;
+    padding: 0 16px 0 18px;
+    border: 0;
+    border-radius: 999px;
+    background: none;
+    font: inherit;
+    font-size: 0.92rem;
+    text-align: left;
+    color: rgb(var(--v-theme-on-surface));
+    cursor: pointer;
+  }
+
+  .nav-fav:hover {
+    background: rgba(var(--v-theme-on-surface), 0.06);
+  }
+
+  .nav-fav.current {
+    font-weight: 700;
+    color: #1e3a8a;
+  }
+
+  .nav-fav-label {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 </style>
@@ -152,5 +274,15 @@ const go = (item) => {
 
 .v-theme--dark .nav-item.active .nav-indicator {
   background: rgba(var(--v-theme-primary), 0.18);
+}
+
+@media (min-width: 1280px) {
+  .v-theme--dark .nav-item.active {
+    background: rgba(var(--v-theme-primary), 0.16);
+  }
+
+  .v-theme--dark .nav-fav.current {
+    color: rgb(var(--v-theme-primary));
+  }
 }
 </style>

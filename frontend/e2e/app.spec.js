@@ -50,7 +50,7 @@ test.describe("native planning grid", () => {
 
     // Native horizontal scroll to Tuesday of next week (6 days after Monday).
     await scroller.evaluate((el) => {
-      const colW = el.clientWidth - 44;
+      const colW = el.clientWidth - el.querySelector(".rail").offsetWidth;
       // Three weeks are rendered (previous, current, next): the current Monday is the second week start.
       const starts = [...el.querySelectorAll(".day-col")].flatMap((c, i) => (c.classList.contains("week-start") ? [i] : []));
       el.scrollTo({ left: (starts[1] + 6) * colW, behavior: "instant" });
@@ -61,7 +61,7 @@ test.describe("native planning grid", () => {
     await expect(page.getByRole("tab", { selected: true })).toHaveAttribute("aria-label", longDay(tuesdayNextWeek));
 
     // Re-centred: the displayed day sits in the middle week of the rendered window.
-    const index = await scroller.evaluate((el) => Math.round(el.scrollLeft / (el.clientWidth - 44)));
+    const index = await scroller.evaluate((el) => Math.round(el.scrollLeft / (el.clientWidth - el.querySelector(".rail").offsetWidth)));
     expect(index).toBeGreaterThanOrEqual(5);
     expect(index).toBeLessThan(10);
   });

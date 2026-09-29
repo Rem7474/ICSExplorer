@@ -1,15 +1,24 @@
-<script setup>
-import Skeleton from "primevue/skeleton";
-</script>
+<!-- Placeholder with the planning's shape (toolbar, day header, hour rail
+     and a few courses) while the first schedule loads. -->
 
 <template>
   <div class="schedule-skeleton" aria-hidden="true">
-    <div v-for="day in 5" :key="day" class="skeleton-day">
-      <Skeleton width="65%" height="28px" class="skeleton-title" />
-      <div class="skeleton-events">
-        <Skeleton height="90px" border-radius="8px" class="skeleton-event" />
-        <Skeleton height="140px" border-radius="8px" class="skeleton-event" />
-        <Skeleton height="75px" border-radius="8px" class="skeleton-event" />
+    <div class="sk-toolbar">
+      <span class="sk sk-btn" />
+      <span class="sk sk-period" />
+      <span class="sk sk-btn" />
+    </div>
+    <div class="sk-days">
+      <span v-for="d in 5" :key="d" class="sk sk-day" />
+    </div>
+    <div class="sk-body">
+      <div class="sk-rail">
+        <span v-for="h in 6" :key="h" class="sk sk-hour" />
+      </div>
+      <div class="sk-events">
+        <span class="sk sk-event" style="top: 4%; height: 18%" />
+        <span class="sk sk-event" style="top: 38%; height: 10%" />
+        <span class="sk sk-event" style="top: 54%; height: 20%" />
       </div>
     </div>
   </div>
@@ -17,57 +26,94 @@ import Skeleton from "primevue/skeleton";
 
 <style scoped>
 .schedule-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: 320px;
+}
+
+.sk {
+  display: block;
+  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(var(--v-theme-on-surface), 0.06) 25%, rgba(var(--v-theme-on-surface), 0.12) 50%, rgba(var(--v-theme-on-surface), 0.06) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.sk-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sk-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+}
+
+.sk-period {
+  flex: 0 1 180px;
+  height: 22px;
+}
+
+.sk-days {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 0.75rem;
-  min-height: 520px;
-  width: 100%;
+  gap: 8px;
 }
 
-.skeleton-day {
+.sk-day {
+  height: 44px;
+  border-radius: 14px;
+}
+
+.sk-body {
+  position: relative;
   display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  background: var(--card);
+  flex: 1;
+  gap: 10px;
+  padding: 10px;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.75rem;
+  border-radius: 16px;
 }
 
-.skeleton-title {
-  height: 24px;
-  width: 70%;
-  margin: 0 auto;
-  border-radius: 4px;
-}
-
-.skeleton-events {
+.sk-rail {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  justify-content: space-between;
+  width: 28px;
+}
+
+.sk-hour {
+  height: 12px;
+}
+
+.sk-events {
+  position: relative;
   flex: 1;
 }
 
-.skeleton-event {
-  border-radius: 6px;
-  width: 100%;
+.sk-event {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-radius: 12px;
 }
 
-.event-1 {
-  height: 90px;
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
 }
 
-.event-2 {
-  height: 140px;
-}
-
-.event-3 {
-  height: 75px;
-}
-
-@media (max-width: 768px) {
-  .schedule-skeleton {
-    grid-template-columns: 1fr;
+@media (prefers-reduced-motion: reduce) {
+  .sk {
+    animation: none;
   }
 }
 </style>

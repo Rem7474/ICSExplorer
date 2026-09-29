@@ -1,6 +1,7 @@
 <script setup>
 import { computed, inject } from "vue";
 import { useRoute } from "vue-router";
+import { useDisplay } from "vuetify";
 import { mdiArrowLeft, mdiStar, mdiStarOutline } from "@mdi/js";
 import { useFavorites } from "../../composables/useFavorites.js";
 import { useToast } from "../../composables/useToast.js";
@@ -11,6 +12,8 @@ import { freshnessBadge } from "../../utils/freshness.js";
 // back arrow when browsing a teacher/room schedule.
 const schedule = inject("schedule");
 const route = useRoute();
+const { mdAndUp } = useDisplay();
+const brandIcon = "/apple-touch-icon.png";
 const { isFavorited, toggleFavorite } = useFavorites();
 const { showToast } = useToast();
 
@@ -42,7 +45,12 @@ const onTogglePin = () => {
 </script>
 
 <template>
-  <v-app-bar class="top-bar" flat height="52">
+  <v-app-bar class="top-bar" flat :height="mdAndUp ? 64 : 52">
+    <!-- Large screens: brand above the navigation drawer. -->
+    <div class="top-bar-brand" aria-hidden="true">
+      <img :src="brandIcon" alt="" width="32" height="32" />
+      <span>ICSExplorer</span>
+    </div>
     <template v-if="canGoBack" #prepend>
       <v-btn :icon="mdiArrowLeft" color="white" aria-label="Revenir à mon planning" @click="schedule.returnToBaseSchedule()" />
     </template>
@@ -99,6 +107,48 @@ const onTogglePin = () => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.top-bar-brand {
+  display: none;
+}
+
+/* Desktop: taller bar, bigger title. */
+@media (min-width: 960px) {
+  .top-bar.v-app-bar {
+    height: 64px !important;
+  }
+
+  .top-bar-titles {
+    gap: 14px;
+    padding-left: 24px;
+  }
+
+  .top-bar-title {
+    font-size: 1.4rem;
+  }
+
+  .top-bar-status {
+    padding: 5px 12px;
+    font-size: 0.85rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .top-bar-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 0 0 var(--rail-w);
+    padding-left: 20px;
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+  }
+
+  .top-bar-brand img {
+    border-radius: 8px;
+  }
 }
 
 .top-bar-status {

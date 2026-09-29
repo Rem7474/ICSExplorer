@@ -8,7 +8,7 @@ Fini la lenteur et l'austérité d'ADE Campus sur smartphone : accédez instanta
 
 [![CI Pipeline](https://github.com/Rem7474/ICSExplorer/actions/workflows/ci.yml/badge.svg)](https://github.com/Rem7474/ICSExplorer/actions/workflows/ci.yml)
 [![Docker](https://img.shields.io/badge/Docker-Multi--stage%20(~25MB)-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
-[![Vue.js](https://img.shields.io/badge/Frontend-Vue%203%20%7C%20PrimeVue%204-4FC08D?logo=vuedotjs&logoColor=white)](frontend/)
+[![Vue.js](https://img.shields.io/badge/Frontend-Vue%203%20%7C%20Vuetify%20(Material%203)-4FC08D?logo=vuedotjs&logoColor=white)](frontend/)
 [![Go](https://img.shields.io/badge/Backend-Go%201.25%20%7C%20Stdlib-00ADD8?logo=go&logoColor=white)](cmd/server/)
 [![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen?logo=vitest&logoColor=white)](frontend/)
 [![PWA](https://img.shields.io/badge/PWA-Installable%20%26%20Offline-5A0FC8?logo=pwa&logoColor=white)](frontend/public/manifest.json)
@@ -29,7 +29,7 @@ Les logiciels d'emplois du temps universitaires (comme **ADE Campus**) sont souv
 - 📴 **Inutilisables sans réseau** dans les amphis ou les sous-sols où la 4G/5G ne passe pas.
 
 **ICSExplorer** transforme cette expérience en une application web moderne, réactive et installable sur votre téléphone (PWA) :
-1. **Instantanéité & Fluidité** : Calendrier hebdomadaire pensé pour mobile et desktop, avec navigation au swipe tactile ou au clavier.
+1. **Une vraie app sur téléphone** : interface Material 3 avec barre d'onglets, planning natif qui défile au doigt, installable sur l'écran d'accueil (iPhone et Android).
 2. **Reconnaissance visuelle immédiate** : Algorithme de coloration déterministe qui attribue toujours la même teinte à un même cours.
 3. **Universel** : Conçu à l'origine pour **Grenoble INP — Esisar**, il fonctionne désormais avec **toutes les universités équipées d'ADE Campus**.
 4. **Détection des salles vides** : Vue en temps réel des salles disponibles créneau par créneau.
@@ -38,54 +38,55 @@ Les logiciels d'emplois du temps universitaires (comme **ADE Campus**) sont souv
 
 ## ✨ Ce que vous pouvez faire
 
-### 🗓️ Un Calendrier pensé pour vous
-* **Vue semaine fluide & intuitive** : Grille élégante propulsée par **PrimeVue 4** et **PrimeIcons**, avec calcul automatique des plages horaires réelles de la semaine.
-* **Indicateur temps réel** : Ligne rouge animée marquant la minute exacte de la journée.
-* **Gestion intelligente des chevauchements** : Les cours parallèles ou options s'affichent côte-à-côte sans débordement.
-* **Navigation ultra-rapide** : Changement de semaine au swipe mobile, saut direct au jour d'aujourd'hui, ou via les touches fléchées `←` / `→`.
-* **Détails en un clic** : Modal moderne affichant les détails complets (salle, enseignant, description) avec boutons de rebond direct pour voir l'emploi du temps du prof ou de la salle.
+### 🗓️ Un planning pensé pour le téléphone
+* **Vue 1 jour ou 5 jours** : la journée entière tient à l'écran sans défiler ; on passe d'un jour (ou d'une semaine) à l'autre en faisant glisser le doigt, avec un calage magnétique natif.
+* **Retour à aujourd'hui** : un bouton flottant « Aujourd'hui » apparaît dès qu'on s'éloigne du jour actuel.
+* **Tirer pour actualiser**, comme dans une app native.
+* **Indicateur temps réel** et **chevauchements** affichés côte à côte.
+* **Détails d'un cours** dans une feuille qui monte du bas : salle, enseignant, groupes, ajout au calendrier du téléphone, et raccourcis vers le planning du prof ou de la salle.
+* **Menu du RU** directement dans le planning.
 
-### 🎨 Coloration Intelligente & Déterministe
-* **Attribution automatique par matière** : Informatique, Mathématiques, Électronique, Management, Langues, etc.
-* **Cohérence absolue** : Vos cours d'algorithmique ou d'anglais auront **toujours exactement la même couleur**, semaine après semaine.
-* **Thème Sombre / Thème Clair natif** : Bascule en un clic avec adaptation fine des contrastes et des transparences.
+### 🔎 Rechercher n'importe quel planning
+* **Un seul champ** pour les promos, les professeurs et les salles (accents et majuscules ignorés).
+* **Favoris** en un geste (étoile dans la barre du haut), listes à parcourir par année, filière, ordre alphabétique ou bâtiment.
 
-### 🎓 Mon Planning Personnel (Toutes Universités ADE)
-* **Connexion simplifiée** : Choisissez votre établissement dans la liste ou collez simplement l'URL directe de votre planning ADE.
-* **Explorateur d'arborescence visuel** : Naviguez dans les dossiers de votre université (filières, promotions, groupes de TD/TP) grâce à un fil d'Ariane interactif et choisissez directement votre groupe.
-* **Mise à jour d'un clic** : Actualisez votre emploi du temps personnel à tout moment via le bouton de synchronisation rapide.
+### 🏫 Salles libres
+* Les salles disponibles **maintenant**, dans 1 h, demain matin ou à n'importe quel moment (sélecteurs natifs de date et d'heure), filtrables par bâtiment, avec l'heure jusqu'à laquelle chacune reste libre.
 
-### 🏫 Détecteur de Salles Vides
-* **Fini la recherche à l'aveugle** : Choisissez un jour et un horaire pour afficher instantanément la liste des salles non occupées de l'école.
-* **Filtrage immédiat** : Isolez les salles par étage, bâtiment ou capacité.
+### 🎓 Mon planning personnel (toutes universités ADE)
+* **Parcours en 3 étapes** plein écran : établissement (ou adresse de votre planning ADE) → connexion (compatible trousseau iCloud et gestionnaires de mots de passe) → choix du groupe dans l'arborescence ADE.
+* Planning conservé sur l'appareil (IndexedDB) pour l'afficher même hors ligne.
 
-### 📊 Statistiques & Filtres de semaine
-* **Bilan d'heures par matière** : Visualisez en un coup d'œil le volume horaire de chaque discipline pour votre semaine.
-* **Filtrage par clic** : Cliquez sur une matière pour masquer temporairement les autres cours et vous concentrer sur vos priorités.
+### 🎨 Coloration intelligente & thème sombre
+* **Même couleur pour un même cours**, semaine après semaine, et statistiques d'heures par matière (touchez une matière pour la masquer).
+* **Thème clair / sombre** Material 3.
 
-### 📱 Installable en PWA (Mode Hors-ligne)
-* **Installez l'application** directement sur l'écran d'accueil de votre iPhone, Android ou ordinateur (icônes adaptatives maskable).
-* **Consultation hors-ligne complète** : Grâce au Service Worker, vos plannings consultés restent accessibles même sans aucune connexion Internet.
+### 📱 Une PWA installable, même hors ligne
+* **iPhone** : écrans de démarrage et icône dédiés, guide d'installation (*Partager → Sur l'écran d'accueil*).
+* **Android** : bouton « Installer » et raccourcis (Planning, Rechercher, Salles libres) par appui long sur l'icône.
+* **Hors ligne** : les plannings consultés restent accessibles grâce au Service Worker.
 
 ---
 
 ## 🧭 Comment l'utiliser au quotidien ?
 
-### 1. Étudiant ou Enseignant Esisar
-1. Rendez-vous sur l'application.
-2. Choisissez votre **Année** (ex: *3A - CS*), votre **Groupe** ou sélectionnez un **Professeur** / une **Salle**.
-3. Cliquez sur l'étoile ⭐ pour l'ajouter à vos **Favoris** et le retrouver immédiatement au prochain lancement !
+L'application s'organise en quatre onglets : **Planning**, **Rechercher**, **Salles libres** et **Plus**.
+
+### 1. Étudiant ou enseignant Esisar
+1. Ouvrez **Rechercher** et tapez le nom de votre promo, d'un professeur ou d'une salle (ou parcourez les listes).
+2. Le planning s'ouvre dans l'onglet **Planning** ; touchez l'étoile ⭐ pour l'ajouter à vos **favoris**.
 
 ### 2. Étudiant d'une autre université (UGA, etc.)
-1. Cliquez sur l'onglet **Mon Planning ADE** (ou l'icône diplôme).
-2. Choisissez votre université dans la liste (ou collez votre lien de planning direct ADE).
-3. Entrez vos identifiants si demandé, puis explorez l'arbre pour sélectionner votre promotion ou groupe.
-4. Votre calendrier s'affiche instantanément !
+1. Dans **Rechercher**, touchez **Ajouter mon planning ADE**.
+2. Choisissez votre établissement (ou « Autre établissement » pour coller l'adresse de votre planning ADE), connectez-vous, puis choisissez votre groupe.
+3. Votre planning s'affiche ; *Plus → Actualiser mon planning ADE* le met à jour.
 
-### 3. Trouver une salle de révision libre
-1. Cliquez sur le bouton **Salles Vides** dans la barre d'outils.
-2. Sélectionnez l'heure actuelle ou l'horaire souhaité.
-3. Obtenez instantanément toutes les salles disponibles à cet instant.
+### 3. Trouver une salle pour réviser
+1. Ouvrez **Salles libres** : la liste des salles libres maintenant s'affiche.
+2. Changez le moment ou le bâtiment si besoin, puis touchez une salle pour voir son planning.
+
+### 4. S'abonner depuis son agenda
+*Plus → S'abonner dans mon agenda* (Apple Calendar, Outlook, Thunderbird) ou *Copier le lien du calendrier* pour Google Agenda.
 
 ---
 
@@ -95,11 +96,10 @@ Pour aller encore plus vite sur ordinateur :
 
 | Raccourci | Action |
 |:---|:---|
-| `←` | Semaine précédente |
-| `→` | Semaine suivante |
-| `T` | Revenir à la semaine actuelle (*Today*) |
-| `Ctrl + K` ou `Cmd + K` | Ouvrir la recherche rapide instantanée |
-| `Échap` | Fermer les fenêtres modales ouvertes |
+| `←` / `→` | Jour ou semaine précédent / suivant |
+| `T` | Revenir à aujourd'hui (*Today*) |
+| `Ctrl + K` ou `Cmd + K` | Rechercher un planning |
+| `Échap` | Fermer la feuille ou la fenêtre ouverte |
 
 ---
 
@@ -234,7 +234,7 @@ npm run test:e2e
 go test -v -race ./internal/... ./cmd/...
 ```
 
-- ✅ **Suite complète de tests unitaires frontend** couvrant le calendrier, la navigation, le découpage multi-jours, les calculs d'horaires et les modales PrimeVue.
+- ✅ **Suite complète de tests unitaires frontend** couvrant le planning, la navigation, la recherche, les salles libres, le parcours ADE et le cache hors ligne.
 - ✅ **100% des paquets Go couverts** par des tests automatisés avec race detector.
 - ✅ **Tests de bout en bout Playwright** : parcours clés (planning, recherche, retour navigateur, salles) et absence de débordement horizontal, sur WebKit (iPhone), Chromium (Android) et desktop, avec des données générées pour la semaine en cours.
 - ✅ **Scan de sécurité Trivy** intégré au pipeline GitHub Actions sur chaque image Docker produite.

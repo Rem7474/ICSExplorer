@@ -31,7 +31,7 @@ function serviceWorkerVersionPlugin(version) {
 
 export default defineConfig({
   envDir: "../",
-  envPrefix: ["VITE_", "PRIMEUI_"],
+  envPrefix: ["VITE_"],
   plugins: [vue(), vuetify({ autoImport: true }), serviceWorkerVersionPlugin(appVersion)],
   build: {
     rolldownOptions: {
@@ -41,7 +41,6 @@ export default defineConfig({
         codeSplitting: {
           groups: [
             { name: "vuetify", test: /node_modules[\/]vuetify/ },
-            { name: "primevue", test: /node_modules[\/](primevue|@primevue|@primeuix)/ },
             { name: "vue", test: /node_modules[\/](vue|@vue|vue-router|pinia)[\/]/ },
           ],
         },

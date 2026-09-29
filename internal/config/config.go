@@ -36,7 +36,6 @@ type Config struct {
 	LogLevel         string
 	LogFormat        string
 	AdminToken       string
-	PrimeUILicense   string
 	// TrustedProxies lists the reverse proxies whose X-Forwarded-For and
 	// X-Forwarded-Proto headers are honored (e.g. "127.0.0.1,172.16.0.0/12").
 	TrustedProxies []netip.Prefix
@@ -125,7 +124,6 @@ func Load() (*Config, error) {
 		LogLevel:         strings.ToLower(getEnv("LOG_LEVEL", "info")),
 		LogFormat:        strings.ToLower(getEnv("LOG_FORMAT", "text")),
 		AdminToken:       getEnv("ADMIN_TOKEN", ""),
-		PrimeUILicense:   getEnv("PRIMEUI_LICENSE", getEnv("VITE_PRIMEUI_LICENSE", "")),
 		TrustedProxies:   trustedProxies,
 	}
 

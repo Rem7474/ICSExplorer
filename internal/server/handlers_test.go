@@ -251,78 +251,27 @@ func TestRenderAutoIndexEscaping(t *testing.T) {
 	}
 }
 
-func TestServeIndexHTML_PrimeUILicenseInjection(t *testing.T) {
+func TestServeIndexHTML_UncachedAndSPAFallback(t *testing.T) {
 	staticDir := t.TempDir()
-	indexPath := filepath.Join(staticDir, "index.html")
 	originalHTML := "<!DOCTYPE html><html><head><title>Test</title></head><body><div id=\"app\"></div></body></html>"
-	if err := os.WriteFile(indexPath, []byte(originalHTML), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(staticDir, "index.html"), []byte(originalHTML), 0o644); err != nil {
 		t.Fatalf("failed to write index.html: %v", err)
 	}
+	handler := (&Server{cfg: &config.Config{StaticDir: staticDir}}).createFrontendHandler()
 
-	cfg := &config.Config{
-		StaticDir:      staticDir,
-		PrimeUILicense: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.dummyKey",
-	}
-	s := &Server{cfg: cfg}
-	handler := s.createFrontendHandler()
-
-	// 1. Root /
-	reqRoot := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
-	wRoot := httptest.NewRecorder()
-	handler.ServeHTTP(wRoot, reqRoot)
-	if wRoot.Code != http.StatusOK {
-		t.Fatalf("expected 200 OK, got %d", wRoot.Code)
-	}
-	expectedScript := `window.PRIMEUI_LICENSE="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.dummyKey";</script>`
-	if !strings.Contains(wRoot.Body.String(), expectedScript) {
-		t.Errorf("expected HTML to contain license script injection, got: %s", wRoot.Body.String())
-	}
-	if !strings.Contains(wRoot.Body.String(), expectedScript+"</head>") {
-		t.Errorf("expected license script before </head>, got: %s", wRoot.Body.String())
-	}
-	// The inline script must be authorized by a CSP nonce matching the tag.
-	csp := wRoot.Header().Get("Content-Security-Policy")
-	nonceStart := strings.Index(csp, "'nonce-")
-	if nonceStart == -1 {
-		t.Fatalf("expected a script nonce in CSP, got: %s", csp)
-	}
-	nonce, _, _ := strings.Cut(csp[nonceStart+len("'nonce-"):], "'")
-	if !strings.Contains(wRoot.Body.String(), `<script nonce="`+nonce+`">`) {
-		t.Errorf("expected script tag to carry nonce %q, got: %s", nonce, wRoot.Body.String())
-	}
-
-	// 2. Direct /index.html
-	reqDirect := httptest.NewRequest(http.MethodGet, "/index.html", http.NoBody)
-	wDirect := httptest.NewRecorder()
-	handler.ServeHTTP(wDirect, reqDirect)
-	if wDirect.Code != http.StatusOK {
-		t.Fatalf("expected 200 OK, got %d", wDirect.Code)
-	}
-	if !strings.Contains(wDirect.Body.String(), expectedScript) {
-		t.Errorf("expected /index.html to contain license script injection, got: %s", wDirect.Body.String())
-	}
-
-	// 3. SPA Route /settings
-	reqSPA := httptest.NewRequest(http.MethodGet, "/settings", http.NoBody)
-	wSPA := httptest.NewRecorder()
-	handler.ServeHTTP(wSPA, reqSPA)
-	if wSPA.Code != http.StatusOK {
-		t.Fatalf("expected 200 OK, got %d", wSPA.Code)
-	}
-	if !strings.Contains(wSPA.Body.String(), expectedScript) {
-		t.Errorf("expected SPA fallback to contain license script injection, got: %s", wSPA.Body.String())
-	}
-
-	// 4. Without license key
-	cfgNoLicense := &config.Config{
-		StaticDir: staticDir,
-	}
-	sNoLicense := &Server{cfg: cfgNoLicense}
-	handlerNoLicense := sNoLicense.createFrontendHandler()
-
-	wNoLic := httptest.NewRecorder()
-	handlerNoLicense.ServeHTTP(wNoLic, reqRoot)
-	if strings.Contains(wNoLic.Body.String(), "PRIMEUI_LICENSE") {
-		t.Errorf("expected no license script when PrimeUILicense is empty, got: %s", wNoLic.Body.String())
+	// Root, direct access and an app route (SPA fallback) all get the page, never cached.
+	for _, path := range []string{"/", "/index.html", "/rechercher"} {
+		req := httptest.NewRequest(http.MethodGet, path, http.NoBody)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: expected 200 OK, got %d", path, w.Code)
+		}
+		if w.Body.String() != originalHTML {
+			t.Errorf("%s: expected index.html unchanged, got: %s", path, w.Body.String())
+		}
+		if cc := w.Header().Get("Cache-Control"); !strings.Contains(cc, "no-store") {
+			t.Errorf("%s: expected index.html not to be cached, got Cache-Control %q", path, cc)
+		}
 	}
 }
