@@ -109,4 +109,34 @@ END:VCALENDAR`;
     expect(events[0].start.getUTCDate()).toBe(4);
     expect(events[0].end.getUTCFullYear()).toBe(2027);
   });
+
+  it("auto-corrects 1-year end date typo and multi-day course spans from ADE", () => {
+    const icsText = `BEGIN:VCALENDAR
+BEGIN:VEVENT
+UID:evt-end-typo
+SUMMARY:Maths
+DTSTART:20270115T080000Z
+DTEND:20260115T100000Z
+END:VEVENT
+BEGIN:VEVENT
+UID:evt-multiday-span
+SUMMARY:IN530
+DTSTART:20261204T123000Z
+DTEND:20261208T141500Z
+END:VEVENT
+END:VCALENDAR`;
+
+    const events = parseIcs(icsText);
+    expect(events).toHaveLength(2);
+
+    const endTypo = events.find((e) => e.uid === "evt-end-typo");
+    expect(endTypo).toBeDefined();
+    expect(endTypo.end.getUTCFullYear()).toBe(2027);
+
+    const multiDay = events.find((e) => e.uid === "evt-multiday-span");
+    expect(multiDay).toBeDefined();
+    expect(multiDay.end.getUTCDate()).toBe(4); // Corrected to Dec 4 same day as start
+    expect(multiDay.end.getUTCHours()).toBe(14);
+    expect(multiDay.end.getUTCMinutes()).toBe(15);
+  });
 });

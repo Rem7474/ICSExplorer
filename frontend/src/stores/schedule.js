@@ -347,6 +347,11 @@ export const useScheduleStore = defineStore("schedule", () => {
     statusMessage.value = "Actualisation du planning ADE...";
     try {
       const text = await fetchPersonalCalendar(creds);
+      const parsed = parseIcs(text);
+      if (parsed.length === 0 && events.value.length > 0) {
+        statusMessage.value = "La synchronisation ADE a retourné 0 cours. Le planning actuel a été conservé.";
+        return;
+      }
       loadPersonalEvents(text, {
         ...creds,
         name: personal.personalScheduleInfo?.name || creds.resourceName,

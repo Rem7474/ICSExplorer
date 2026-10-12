@@ -7,7 +7,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { useDisplay } from "vuetify";
 import { mdiChevronLeft, mdiChevronRight, mdiCalendarToday } from "@mdi/js";
-import { getWeekStart, formatDateOnly, formatTimeOnly } from "../../utils/dates.js";
+import { getWeekStart, formatDateOnly, formatTimeOnly, getWeekNumber } from "../../utils/dates.js";
 import { getSubjectColors, isCercleEvent, isRuEvent } from "../../utils/colors.js";
 import { eventsOfDay, hourRange, layoutDay } from "../../utils/dayLayout.js";
 import { useTheme } from "../../composables/useTheme.js";
@@ -258,12 +258,14 @@ const onDatePicked = (value) => {
   if (value) goToDate(new Date(`${value}T12:00:00`));
 };
 
-// Week range in both views: in the 1-day view the chips below show the day.
+// Week range in both views: includes week number and date range.
 const periodLabel = computed(() => {
   const first = currentWeek.value[0].date;
   const last = currentWeek.value[DAYS_PER_WEEK - 1].date;
+  const weekNum = getWeekNumber(first);
   const fmt = (d) => d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
-  return `${fmt(first)} – ${fmt(last)}`;
+  const prefix = wide.value ? `Semaine ${weekNum}` : `Sem. ${weekNum}`;
+  return `${prefix} · ${fmt(first)} – ${fmt(last)}`;
 });
 
 // Empty week: offer to jump to the next course.
@@ -537,7 +539,7 @@ defineExpose({ goToDate, goToToday, step, mode, activeIndex });
   background: none;
   font: inherit;
   font-weight: 700;
-  font-size: 0.95rem;
+  font-size: clamp(0.84rem, 2.8vw, 0.95rem);
   color: rgb(var(--v-theme-on-surface));
   text-transform: capitalize;
   white-space: nowrap;

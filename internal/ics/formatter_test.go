@@ -175,3 +175,48 @@ func TestSanitizeCalendarLinesKeepsTextButFixesDates(t *testing.T) {
 		t.Errorf("expected FormatCalendarLines to still prettify SUMMARY, got:\n%s", pretty)
 	}
 }
+
+func TestFormatCalendarLinesMultiDayAndEndYearTypo(t *testing.T) {
+	inputLines := []string{
+		"BEGIN:VCALENDAR",
+		// Multi-day corrupted course span: IN530 from Dec 4 12:30 to Dec 8 14:15
+		"BEGIN:VEVENT",
+		"UID:evt-in530-multiday",
+		"SUMMARY:IN530",
+		"LOCATION:B044",
+		"DESCRIPTION:IN530 en CM avec ATER_27",
+		"DTSTART:20261204T123000Z",
+		"DTEND:20261208T141500Z",
+		"END:VEVENT",
+		// 1-year end typo: DTSTART: 20270115T080000Z, DTEND: 20260115T100000Z
+		"BEGIN:VEVENT",
+		"UID:evt-end-year-typo",
+		"SUMMARY:Maths",
+		"LOCATION:A166",
+		"DESCRIPTION:Maths en CM",
+		"DTSTART:20270115T080000Z",
+		"DTEND:20260115T100000Z",
+		"END:VEVENT",
+		"END:VCALENDAR",
+	}
+
+	formatted := FormatCalendarLines(inputLines)
+	output := strings.Join(formatted, "\n")
+
+	// Multi-day IN530 must be retained and DTEND corrected to Dec 4 14:15:00Z
+	if !strings.Contains(output, "evt-in530-multiday") {
+		t.Errorf("expected IN530 multi-day event to be retained")
+	}
+	if !strings.Contains(output, "DTEND:20261204T141500Z") {
+		t.Errorf("expected IN530 DTEND to be corrected to 20261204T141500Z, got:\n%s", output)
+	}
+
+	// 1-year end typo must be retained and DTEND corrected to 20270115T100000Z
+	if !strings.Contains(output, "evt-end-year-typo") {
+		t.Errorf("expected end-year-typo event to be retained")
+	}
+	if !strings.Contains(output, "DTEND:20270115T100000Z") {
+		t.Errorf("expected DTEND to be corrected to 20270115T100000Z, got:\n%s", output)
+	}
+}
+

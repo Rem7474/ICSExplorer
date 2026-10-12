@@ -245,6 +245,10 @@ func (s *Syncer) processResource(ctx context.Context, res ade.Resource) error {
 		return fmt.Errorf("fetch calendar failed: %w", err)
 	}
 
+	if !strings.Contains(string(raw), "BEGIN:VCALENDAR") {
+		return fmt.Errorf("upstream response does not contain a valid VCALENDAR for %s (%s)", res.Name, res.ID)
+	}
+
 	// Unfold lines and format description / summary / location
 	unfolded := ics.UnfoldLines(raw)
 	formatted := ics.FormatCalendarLines(unfolded)
@@ -258,6 +262,16 @@ func (s *Syncer) processResource(ctx context.Context, res ade.Resource) error {
 	}
 
 	targetPath := filepath.Join(targetDir, resourceFileName(res))
+
+	// Guard against temporary upstream empty responses: if ADE returned 0 events
+	// for a resource whose calendar on disk already has events, preserve the existing
+	// calendar to avoid classes disappearing between synchronization cycles.
+	if strings.Count(string(calendarBytes), "BEGIN:VEVENT") == 0 {
+		if existing, err := os.ReadFile(targetPath); err == nil && strings.Contains(string(existing), "BEGIN:VEVENT") {
+			s.logger.Warn("ADE returned 0 events for resource with existing calendar; preserving existing calendar", "resource", res.Name, "id", res.ID)
+			return nil
+		}
+	}
 
 	// Atomic file write using temporary file
 	tmpPath := targetPath + ".tmp"
