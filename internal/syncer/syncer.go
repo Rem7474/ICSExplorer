@@ -54,7 +54,7 @@ func New(cfg *config.Config, adeClient *ade.Client, logger *slog.Logger) *Syncer
 		adeClient:   adeClient,
 		crawler:     ade.NewCrawler(adeClient, cfg.AcademicYear),
 		logger:      logger,
-		verifyDelay: 2 * time.Second,
+		verifyDelay: 2500 * time.Millisecond,
 	}
 }
 
@@ -278,40 +278,55 @@ func (s *Syncer) processResource(ctx context.Context, res ade.Resource) error {
 	if existingBytes, readErr := os.ReadFile(targetPath); readErr == nil && len(existingBytes) > 0 && strings.Contains(string(existingBytes), "BEGIN:VEVENT") {
 		missingCount := countMissingEvents(existingBytes, calendarBytes)
 		if missingCount > 0 {
-			s.logger.Info("detected potential missing events from ADE, performing double-check with delay",
+			s.logger.Info("detected potential missing events from ADE, performing double-check",
 				"resource", res.Name,
 				"id", res.ID,
 				"missingCount", missingCount,
 			)
 
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(s.verifyDelay):
+			// Double-check with progressive delays (up to 2 verification attempts) to guard against
+			// transient ADE glitches, Tomcat cache refreshes, or mid-transaction exports.
+			delays := []time.Duration{s.verifyDelay, s.verifyDelay + 1500*time.Millisecond}
+			if s.verifyDelay <= 10*time.Millisecond {
+				// Keep unit tests fast
+				delays = []time.Duration{s.verifyDelay}
 			}
 
-			retryRaw, retryErr := s.adeClient.FetchCalendarRaw(ctx, res.ID)
-			if retryErr == nil && strings.Contains(string(retryRaw), "BEGIN:VCALENDAR") {
-				retryUnfolded := ics.UnfoldLines(retryRaw)
-				retryFormatted := ics.FormatCalendarLines(retryUnfolded)
-				retryBytes := []byte(ics.JoinLines(retryFormatted))
-				retryMissing := countMissingEvents(existingBytes, retryBytes)
+			for attempt, delay := range delays {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(delay):
+				}
 
-				if retryMissing < missingCount {
-					s.logger.Info("ADE double-check recovered missing events",
-						"resource", res.Name,
-						"id", res.ID,
-						"previouslyMissing", missingCount,
-						"nowMissing", retryMissing,
-					)
-					calendarBytes = retryBytes
-					missingCount = retryMissing
-				} else {
-					s.logger.Info("ADE double-check confirmed event removal",
-						"resource", res.Name,
-						"id", res.ID,
-						"missingCount", missingCount,
-					)
+				retryRaw, retryErr := s.adeClient.FetchCalendarRaw(ctx, res.ID)
+				if retryErr == nil && strings.Contains(string(retryRaw), "BEGIN:VCALENDAR") {
+					retryUnfolded := ics.UnfoldLines(retryRaw)
+					retryFormatted := ics.FormatCalendarLines(retryUnfolded)
+					retryBytes := []byte(ics.JoinLines(retryFormatted))
+					retryMissing := countMissingEvents(existingBytes, retryBytes)
+
+					if retryMissing < missingCount {
+						s.logger.Info("ADE double-check recovered missing events",
+							"resource", res.Name,
+							"id", res.ID,
+							"attempt", attempt+1,
+							"previouslyMissing", missingCount,
+							"nowMissing", retryMissing,
+						)
+						calendarBytes = retryBytes
+						missingCount = retryMissing
+						if missingCount == 0 {
+							break // All events restored, proceed immediately
+						}
+					} else {
+						s.logger.Info("ADE double-check attempt still reports missing events",
+							"resource", res.Name,
+							"id", res.ID,
+							"attempt", attempt+1,
+							"missingCount", missingCount,
+						)
+					}
 				}
 			}
 		}

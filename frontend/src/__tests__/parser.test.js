@@ -140,3 +140,4 @@ END:VCALENDAR`;
     expect(multiDay.end.getUTCMinutes()).toBe(15);
   });
 });
+
