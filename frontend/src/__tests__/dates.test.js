@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatDateTime, formatDateOnly, formatTimeOnly, getWeekStart, getWeekEnd, getRelevantWeekStart, isAllDayEvent } from "../utils/dates.js";
+import { formatDateTime, formatDateOnly, formatTimeOnly, getWeekStart, getWeekEnd, getWeekNumber, getRelevantWeekStart, isAllDayEvent } from "../utils/dates.js";
 
 describe("dates utils", () => {
   it("formats date and time correctly", () => {
@@ -7,6 +7,20 @@ describe("dates utils", () => {
     expect(formatDateOnly(d)).toBe("01/09/2026");
     expect(formatTimeOnly(d)).toBe("14h30");
     expect(formatDateTime(d)).toBe("01/09/2026 à 14h30");
+  });
+
+  it("calculates ISO week number correctly", () => {
+    // 12 Oct 2026 is week 42
+    const oct12 = new Date(2026, 9, 12);
+    expect(getWeekNumber(oct12)).toBe(42);
+
+    // 1 Jan 2026 (Thursday) is week 1
+    const jan1 = new Date(2026, 0, 1);
+    expect(getWeekNumber(jan1)).toBe(1);
+
+    // 16 Oct 2026 is week 42
+    const oct16 = new Date(2026, 9, 16);
+    expect(getWeekNumber(oct16)).toBe(42);
   });
 
   it("calculates week start (Monday) and week end (Friday)", () => {

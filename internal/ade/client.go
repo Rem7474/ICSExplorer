@@ -233,7 +233,8 @@ func isSessionError(err error) bool {
 	if errors.As(err, &serr) {
 		return serr.statusCode == http.StatusNotFound ||
 			serr.statusCode == http.StatusUnauthorized ||
-			serr.statusCode == http.StatusForbidden
+			serr.statusCode == http.StatusForbidden ||
+			serr.statusCode >= 500
 	}
 	return false
 }
@@ -319,7 +320,7 @@ func (c *Client) fetchCalendarRawOnce(ctx context.Context, resourceIDs string) (
 
 	resourcesParam := fmt.Sprintf("resources=%s&", resourceIDs)
 
-	endpoint := fmt.Sprintf("directCal/%s/%s?%sstartDay=31&startMonth=08&startYear=%d&endDay=10&endMonth=01&endYear=%d",
+	endpoint := fmt.Sprintf("directCal/%s/%s?%sstartDay=31&startMonth=08&startYear=%d&endDay=31&endMonth=08&endYear=%d",
 		c.academicYear, c.institutionPath, resourcesParam, startYear, endYear)
 
 	resp, err := c.makeRequest(ctx, endpoint)
@@ -344,6 +345,13 @@ func (c *Client) fetchCalendarRawOnce(ctx context.Context, resourceIDs string) (
 	data, err := readLimited(resp.Body, maxCalendarBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if !strings.Contains(string(data), "BEGIN:VCALENDAR") {
+		return nil, &sessionHTTPError{
+			statusCode: http.StatusUnauthorized,
+			msg:        "ADE returned invalid or non-calendar response",
+		}
 	}
 
 	return data, nil

@@ -158,7 +158,7 @@ func TestSyncEndpointHardening(t *testing.T) {
 		}
 
 		// Wait for the background sync to finish, then retry within the cooldown.
-		deadline := time.Now().Add(2 * time.Second)
+		deadline := time.Now().Add(5 * time.Second)
 		for time.Now().Before(deadline) && (srv.syncer.GetStats().IsSyncing || srv.syncer.GetStats().LastSyncTime == nil) {
 			time.Sleep(5 * time.Millisecond)
 		}

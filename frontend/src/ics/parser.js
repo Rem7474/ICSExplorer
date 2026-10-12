@@ -36,15 +36,20 @@ export const parseIcs = (icsText) => {
     } else if (line === "END:VEVENT" && currentEvent) {
       if (currentEvent.start && currentEvent.end) {
         let s = new Date(currentEvent.start);
-        const e = new Date(currentEvent.end);
-        if (!isNaN(s.getTime()) && !isNaN(e.getTime()) && s.getFullYear() >= 2000 && e.getFullYear() >= 2000 && e > s) {
-          // Detect common 1-year ADE typo: start year was mistyped as previous year instead of end year
-          // e.g. 2026-02-04 09:15 -> 2027-02-04 10:45 (same day & month, 1-year gap for a standard class)
-          if (
-            e.getFullYear() === s.getFullYear() + 1 &&
-            e.getMonth() === s.getMonth() &&
-            e.getDate() === s.getDate()
-          ) {
+        let e = new Date(currentEvent.end);
+        if (!isNaN(s.getTime()) && !isNaN(e.getTime()) && s.getFullYear() >= 2000 && e.getFullYear() >= 2000) {
+          // 1. Detect 1-year end date typo from ADE: e.g. start 2027, end 2026
+          if (s.getFullYear() === e.getFullYear() + 1) {
+            const correctedEnd = new Date(e);
+            correctedEnd.setFullYear(s.getFullYear());
+            if (correctedEnd > s) {
+              e = correctedEnd;
+              currentEvent.end = correctedEnd;
+            }
+          }
+
+          // 2. Detect 1-year start date typo from ADE: e.g. start 2026, end 2027
+          if (e.getFullYear() === s.getFullYear() + 1) {
             const correctedStart = new Date(s);
             correctedStart.setFullYear(e.getFullYear());
             if (e > correctedStart) {
@@ -53,10 +58,31 @@ export const parseIcs = (icsText) => {
             }
           }
 
-          // Discard aberrant durations (> 30 days continuous) that clutter weekly schedule
-          const durationDays = (e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24);
-          if (durationDays <= 30) {
-            events.push(currentEvent);
+          // 3. Auto-correct multi-day course corrupted span:
+          // In ADE, a course on day s was scheduled with end date on a later day e.
+          // If e is after s and the slot duration within the day is normal (15 min to 8 hours), set e to be on s's day.
+          const sDateStr = `${s.getFullYear()}-${s.getMonth()}-${s.getDate()}`;
+          const eDateStr = `${e.getFullYear()}-${e.getMonth()}-${e.getDate()}`;
+          if (sDateStr !== eDateStr && e > s) {
+            const sMinutes = s.getHours() * 60 + s.getMinutes();
+            const eMinutes = e.getHours() * 60 + e.getMinutes();
+            const slotDur = eMinutes - sMinutes;
+            if (slotDur > 0 && slotDur <= 8 * 60 && s.getHours() >= 6) {
+              const correctedEnd = new Date(s);
+              correctedEnd.setHours(e.getHours(), e.getMinutes(), e.getSeconds(), e.getMilliseconds());
+              if (correctedEnd > s) {
+                e = correctedEnd;
+                currentEvent.end = correctedEnd;
+              }
+            }
+          }
+
+          if (e > s) {
+            // Discard aberrant durations (> 30 days continuous) that clutter weekly schedule
+            const durationDays = (e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24);
+            if (durationDays <= 30) {
+              events.push(currentEvent);
+            }
           }
         }
       }

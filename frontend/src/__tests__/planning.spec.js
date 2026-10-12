@@ -35,6 +35,14 @@ describe("PlanningGrid", () => {
     expect(labels[0]).toContain("salle A042");
   });
 
+  it("displays week number in the toolbar period label", () => {
+    const wrapper = mountGrid();
+    const periodBtn = wrapper.find(".period-btn");
+    expect(periodBtn.exists()).toBe(true);
+    // 28 Sept 2026 is ISO week 40
+    expect(periodBtn.text()).toMatch(/Sem(?:aine|\.)\s*40/);
+  });
+
   it("emits eventClick for courses and all-day banners", async () => {
     const allDay = { uid: "day", summary: "Journée portes ouvertes", start: at(1, 0), end: at(2, 0) };
     const wrapper = mountGrid({ events: [course("IN101", 0, 8, 10), allDay] });

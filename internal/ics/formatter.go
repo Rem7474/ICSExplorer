@@ -49,6 +49,29 @@ func SanitizeCalendarLines(lines []string) []string {
 	return processCalendarLines(lines, false)
 }
 
+func updateEventDateLine(lines []string, lineIdx int, t time.Time) {
+	if lineIdx < 0 || lineIdx >= len(lines) {
+		return
+	}
+	oldLine := lines[lineIdx]
+	colonIdx := strings.Index(oldLine, ":")
+	if colonIdx == -1 {
+		return
+	}
+	prefix := oldLine[:colonIdx+1]
+	origVal := strings.TrimSpace(oldLine[colonIdx+1:])
+	var formatted string
+	switch {
+	case strings.HasSuffix(origVal, "Z"):
+		formatted = t.UTC().Format("20060102T150405Z")
+	case strings.Contains(origVal, "T"):
+		formatted = t.Format("20060102T150405")
+	default:
+		formatted = t.Format("20060102")
+	}
+	lines[lineIdx] = prefix + formatted
+}
+
 func processCalendarLines(lines []string, prettify bool) []string {
 	result := make([]string, 0, len(lines))
 	var lastSummary string
@@ -56,6 +79,7 @@ func processCalendarLines(lines []string, prettify bool) []string {
 	var inEvent bool
 	var eventLines []string
 	dtStartIdx := -1
+	dtEndIdx := -1
 	var dtStartVal, dtEndVal string
 
 	flushEvent := func() {
@@ -67,27 +91,52 @@ func processCalendarLines(lines []string, prettify bool) []string {
 			s, sOk := parseIcsDateTime(dtStartVal)
 			e, eOk := parseIcsDateTime(dtEndVal)
 			if sOk && eOk {
-				// Reject events with invalid years (e.g. Unix epoch 1970) or inverted dates (end <= start)
-				if s.Year() < 2000 || e.Year() < 2000 || !e.After(s) {
+				// Reject events with invalid years (e.g. Unix epoch 1970)
+				if s.Year() < 2000 || e.Year() < 2000 {
 					return
 				}
 
-				// Auto-correct 1-year start date typo from ADE:
-				// e.g. 2026-02-04 09:15 -> 2027-02-04 10:45 (same day & month, 1-year typo)
-				if e.Year() == s.Year()+1 && e.Month() == s.Month() && e.Day() == s.Day() {
+				// 1. Auto-correct 1-year end date typo from ADE:
+				// e.g. DTSTART: 2027-01-15 08:00, DTEND: 2026-01-15 10:00 (end year was typed as previous year)
+				if s.Year() == e.Year()+1 {
+					correctedEnd := e.AddDate(1, 0, 0)
+					if correctedEnd.After(s) {
+						e = correctedEnd
+						updateEventDateLine(eventLines, dtEndIdx, e)
+					}
+				}
+
+				// 2. Auto-correct 1-year start date typo from ADE:
+				// e.g. DTSTART: 2026-02-04 09:15, DTEND: 2027-02-04 10:45 (start year was typed as previous year)
+				if e.Year() == s.Year()+1 {
 					correctedStart := s.AddDate(1, 0, 0)
-					if e.After(correctedStart) && dtStartIdx >= 0 && dtStartIdx < len(eventLines) {
-						oldLine := eventLines[dtStartIdx]
-						colonIdx := strings.Index(oldLine, ":")
-						if colonIdx != -1 {
-							prefix := oldLine[:colonIdx+1]
-							val := oldLine[colonIdx+1:]
-							if len(val) >= 4 {
-								eventLines[dtStartIdx] = prefix + fmt.Sprintf("%04d", e.Year()) + val[4:]
-								s = correctedStart
-							}
+					if e.After(correctedStart) {
+						s = correctedStart
+						updateEventDateLine(eventLines, dtStartIdx, s)
+					}
+				}
+
+				// 3. Auto-correct multi-day course corrupted span:
+				// In ADE, a course on day s (e.g. 12:30) was scheduled with end date on a later day e (e.g. 14:15).
+				// If e is after s and the slot duration within the day is normal (15 min to 8 hours), set e to be on s's day.
+				sDate := s.Format("20060102")
+				eDate := e.Format("20060102")
+				if sDate != eDate && e.After(s) {
+					sTime := s.Hour()*60 + s.Minute()
+					eTime := e.Hour()*60 + e.Minute()
+					slotDur := eTime - sTime
+					if slotDur > 0 && slotDur <= 8*60 && sTime >= 6*60 {
+						correctedEnd := time.Date(s.Year(), s.Month(), s.Day(), e.Hour(), e.Minute(), e.Second(), e.Nanosecond(), e.Location())
+						if correctedEnd.After(s) {
+							e = correctedEnd
+							updateEventDateLine(eventLines, dtEndIdx, e)
 						}
 					}
+				}
+
+				// Discard if still inverted or identical
+				if !e.After(s) {
+					return
 				}
 
 				// Discard aberrant continuous durations (> 30 days)
@@ -110,6 +159,7 @@ func processCalendarLines(lines []string, prettify bool) []string {
 			inEvent = true
 			eventLines = []string{line}
 			dtStartIdx = -1
+			dtEndIdx = -1
 			dtStartVal, dtEndVal = "", ""
 			lastSummary = ""
 			continue
@@ -144,6 +194,7 @@ func processCalendarLines(lines []string, prettify bool) []string {
 					dtStartVal = line[idx+1:]
 				}
 			} else if strings.HasPrefix(line, "DTEND") {
+				dtEndIdx = len(eventLines)
 				if idx := strings.Index(line, ":"); idx != -1 {
 					dtEndVal = line[idx+1:]
 				}
