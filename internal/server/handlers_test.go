@@ -47,8 +47,17 @@ func setupTestServer(t *testing.T) (*Server, *config.Config, string) {
 		AdminToken:       "secret-token",
 	}
 
+	mockADE := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/calendar")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n"))
+	}))
+	t.Cleanup(mockADE.Close)
+
 	adeClient := ade.NewClient("", "", cfg.AcademicYear)
+	adeClient.SetBaseURL(mockADE.URL)
 	syncService := syncer.New(cfg, adeClient, nil)
+	syncService.SetVerifyDelay(1 * time.Millisecond)
 
 	srv := New(cfg, syncService, nil)
 	// Tests talk to httptest servers on loopback over plain HTTP; the strict
