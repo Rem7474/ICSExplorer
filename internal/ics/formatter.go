@@ -61,11 +61,12 @@ func updateEventDateLine(lines []string, lineIdx int, t time.Time) {
 	prefix := oldLine[:colonIdx+1]
 	origVal := strings.TrimSpace(oldLine[colonIdx+1:])
 	var formatted string
-	if strings.HasSuffix(origVal, "Z") {
+	switch {
+	case strings.HasSuffix(origVal, "Z"):
 		formatted = t.UTC().Format("20060102T150405Z")
-	} else if strings.Contains(origVal, "T") {
+	case strings.Contains(origVal, "T"):
 		formatted = t.Format("20060102T150405")
-	} else {
+	default:
 		formatted = t.Format("20060102")
 	}
 	lines[lineIdx] = prefix + formatted

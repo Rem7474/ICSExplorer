@@ -353,4 +353,3 @@ func TestProcessResourceMassDisappearancePreserved(t *testing.T) {
 		t.Errorf("expected existing calendar to be preserved during mass disappearance")
 	}
 }
-

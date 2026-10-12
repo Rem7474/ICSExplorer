@@ -219,4 +219,3 @@ func TestFormatCalendarLinesMultiDayAndEndYearTypo(t *testing.T) {
 		t.Errorf("expected DTEND to be corrected to 20270115T100000Z, got:\n%s", output)
 	}
 }
-

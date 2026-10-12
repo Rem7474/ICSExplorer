@@ -329,6 +329,13 @@ func (s *Syncer) processResource(ctx context.Context, res ade.Resource) error {
 					}
 				}
 			}
+			if missingCount > 0 {
+				s.logger.Info("ADE double-check concluded with remaining missing events",
+					"resource", res.Name,
+					"id", res.ID,
+					"missingCount", missingCount,
+				)
+			}
 		}
 
 		// Guard against empty or mass disappearance:
