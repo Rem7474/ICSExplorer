@@ -346,8 +346,20 @@ export const useScheduleStore = defineStore("schedule", () => {
     isLoading.value = true;
     statusMessage.value = "Actualisation du planning ADE...";
     try {
-      const text = await fetchPersonalCalendar(creds);
-      const parsed = parseIcs(text);
+      let text = await fetchPersonalCalendar(creds);
+      let parsed = parseIcs(text);
+      if (parsed.length === 0 && events.value.length > 0) {
+        // Double-check with a short delay to guard against transient ADE glitches
+        await new Promise((r) => setTimeout(r, 1500));
+        try {
+          const retryText = await fetchPersonalCalendar(creds);
+          const retryParsed = parseIcs(retryText);
+          if (retryParsed.length > 0) {
+            text = retryText;
+            parsed = retryParsed;
+          }
+        } catch {}
+      }
       if (parsed.length === 0 && events.value.length > 0) {
         statusMessage.value = "La synchronisation ADE a retourné 0 cours. Le planning actuel a été conservé.";
         return;

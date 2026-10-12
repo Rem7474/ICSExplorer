@@ -1,6 +1,8 @@
 package syncer
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -32,10 +34,11 @@ type Stats struct {
 
 // Syncer orchestrates the downloading, formatting, and writing of ADE calendars.
 type Syncer struct {
-	cfg       *config.Config
-	adeClient *ade.Client
-	crawler   *ade.Crawler
-	logger    *slog.Logger
+	cfg         *config.Config
+	adeClient   *ade.Client
+	crawler     *ade.Crawler
+	logger      *slog.Logger
+	verifyDelay time.Duration
 
 	mu    sync.RWMutex
 	stats Stats
@@ -47,11 +50,17 @@ func New(cfg *config.Config, adeClient *ade.Client, logger *slog.Logger) *Syncer
 		logger = slog.Default()
 	}
 	return &Syncer{
-		cfg:       cfg,
-		adeClient: adeClient,
-		crawler:   ade.NewCrawler(adeClient, cfg.AcademicYear),
-		logger:    logger,
+		cfg:         cfg,
+		adeClient:   adeClient,
+		crawler:     ade.NewCrawler(adeClient, cfg.AcademicYear),
+		logger:      logger,
+		verifyDelay: 2 * time.Second,
 	}
+}
+
+// SetVerifyDelay configures the delay before double-checking an ADE calendar when missing events are detected.
+func (s *Syncer) SetVerifyDelay(d time.Duration) {
+	s.verifyDelay = d
 }
 
 // GetStats returns a thread-safe copy of the current sync statistics.
@@ -263,12 +272,65 @@ func (s *Syncer) processResource(ctx context.Context, res ade.Resource) error {
 
 	targetPath := filepath.Join(targetDir, resourceFileName(res))
 
-	// Guard against temporary upstream empty responses: if ADE returned 0 events
-	// for a resource whose calendar on disk already has events, preserve the existing
-	// calendar to avoid classes disappearing between synchronization cycles.
-	if strings.Count(string(calendarBytes), "BEGIN:VEVENT") == 0 {
-		if existing, err := os.ReadFile(targetPath); err == nil && strings.Contains(string(existing), "BEGIN:VEVENT") {
-			s.logger.Warn("ADE returned 0 events for resource with existing calendar; preserving existing calendar", "resource", res.Name, "id", res.ID)
+	// If a calendar already exists on disk, check for missing events.
+	// In ADE Campus, race conditions or temporary sync glitches can cause individual
+	// events to disappear momentarily. We double-check with a short delay before overwriting.
+	if existingBytes, readErr := os.ReadFile(targetPath); readErr == nil && len(existingBytes) > 0 && strings.Contains(string(existingBytes), "BEGIN:VEVENT") {
+		missingCount := countMissingEvents(existingBytes, calendarBytes)
+		if missingCount > 0 {
+			s.logger.Info("detected potential missing events from ADE, performing double-check with delay",
+				"resource", res.Name,
+				"id", res.ID,
+				"missingCount", missingCount,
+			)
+
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(s.verifyDelay):
+			}
+
+			retryRaw, retryErr := s.adeClient.FetchCalendarRaw(ctx, res.ID)
+			if retryErr == nil && strings.Contains(string(retryRaw), "BEGIN:VCALENDAR") {
+				retryUnfolded := ics.UnfoldLines(retryRaw)
+				retryFormatted := ics.FormatCalendarLines(retryUnfolded)
+				retryBytes := []byte(ics.JoinLines(retryFormatted))
+				retryMissing := countMissingEvents(existingBytes, retryBytes)
+
+				if retryMissing < missingCount {
+					s.logger.Info("ADE double-check recovered missing events",
+						"resource", res.Name,
+						"id", res.ID,
+						"previouslyMissing", missingCount,
+						"nowMissing", retryMissing,
+					)
+					calendarBytes = retryBytes
+					missingCount = retryMissing
+				} else {
+					s.logger.Info("ADE double-check confirmed event removal",
+						"resource", res.Name,
+						"id", res.ID,
+						"missingCount", missingCount,
+					)
+				}
+			}
+		}
+
+		// Guard against empty or mass disappearance:
+		// 1) If 0 events returned, always preserve existing calendar.
+		if strings.Count(string(calendarBytes), "BEGIN:VEVENT") == 0 {
+			s.logger.Warn("ADE returned 0 events for resource with existing calendar; preserving existing calendar",
+				"resource", res.Name, "id", res.ID)
+			return nil
+		}
+
+		// 2) If more than 50% of events disappeared abruptly from a calendar with at least 10 events,
+		// preserve existing calendar (similar to maxPruneRatio) to protect against ADE export truncation.
+		existingCount := strings.Count(string(existingBytes), "BEGIN:VEVENT")
+		newCount := strings.Count(string(calendarBytes), "BEGIN:VEVENT")
+		if existingCount >= 10 && float64(existingCount-newCount)/float64(existingCount) > 0.5 {
+			s.logger.Warn("mass event disappearance detected (>50%); preserving existing calendar",
+				"resource", res.Name, "id", res.ID, "existing", existingCount, "new", newCount)
 			return nil
 		}
 	}
@@ -285,6 +347,54 @@ func (s *Syncer) processResource(ctx context.Context, res ade.Resource) error {
 	}
 
 	return nil
+}
+
+// extractEventUIDs returns a set of all event UIDs found in the given iCalendar data.
+func extractEventUIDs(calendarData []byte) map[string]bool {
+	uids := make(map[string]bool)
+	scanner := bufio.NewScanner(bytes.NewReader(calendarData))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "UID:") {
+			uid := strings.TrimSpace(strings.TrimPrefix(line, "UID:"))
+			if uid != "" {
+				uids[uid] = true
+			}
+		} else if strings.HasPrefix(line, "UID;") {
+			if idx := strings.Index(line, ":"); idx != -1 {
+				uid := strings.TrimSpace(line[idx+1:])
+				if uid != "" {
+					uids[uid] = true
+				}
+			}
+		}
+	}
+	return uids
+}
+
+// countMissingEvents compares existing and new calendar data and returns the number of
+// previously existing events missing in the new data.
+func countMissingEvents(existingData, newData []byte) int {
+	existingUIDs := extractEventUIDs(existingData)
+	newUIDs := extractEventUIDs(newData)
+
+	if len(existingUIDs) > 0 {
+		missing := 0
+		for uid := range existingUIDs {
+			if !newUIDs[uid] {
+				missing++
+			}
+		}
+		return missing
+	}
+
+	// Fallback to VEVENT count if UIDs were not present
+	existingCount := strings.Count(string(existingData), "BEGIN:VEVENT")
+	newCount := strings.Count(string(newData), "BEGIN:VEVENT")
+	if existingCount > newCount {
+		return existingCount - newCount
+	}
+	return 0
 }
 
 // resourceFileName returns the .ics file name a resource is written to.

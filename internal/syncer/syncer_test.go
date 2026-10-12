@@ -253,3 +253,104 @@ func TestFilesIndexExcludesAuxiliaryCalendars(t *testing.T) {
 		t.Errorf("expected only 1A-A.ics in files.json, got %v", files)
 	}
 }
+
+func TestProcessResourceDoubleCheckRecoversMissingEvent(t *testing.T) {
+	fetchCount := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/2026-2027/etudiant/esisar" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		fetchCount++
+		w.Header().Set("Content-Type", "text/calendar")
+		w.WriteHeader(http.StatusOK)
+		if fetchCount == 1 {
+			// First fetch: event 2 is momentarily missing due to ADE glitch
+			_, _ = w.Write([]byte("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:evt-1\r\nSUMMARY:Course 1\r\nDTSTART:20260920T080000Z\r\nDTEND:20260920T100000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"))
+		} else {
+			// Second fetch (double-check): event 2 is restored!
+			_, _ = w.Write([]byte("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:evt-1\r\nSUMMARY:Course 1\r\nDTSTART:20260920T080000Z\r\nDTEND:20260920T100000Z\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:evt-2\r\nSUMMARY:Course 2\r\nDTSTART:20260920T101500Z\r\nDTEND:20260920T121500Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"))
+		}
+	}))
+	defer mockServer.Close()
+
+	tmpDir := t.TempDir()
+	outputDir := filepath.Join(tmpDir, "output")
+	_ = os.MkdirAll(outputDir, 0o755)
+
+	existingICS := "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:evt-1\r\nSUMMARY:Course 1\r\nDTSTART:20260920T080000Z\r\nDTEND:20260920T100000Z\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:evt-2\r\nSUMMARY:Course 2\r\nDTSTART:20260920T101500Z\r\nDTEND:20260920T121500Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+	_ = os.WriteFile(filepath.Join(outputDir, "1A-Test.ics"), []byte(existingICS), 0o644)
+
+	cfg := &config.Config{
+		OutputDir:    outputDir,
+		AcademicYear: "2026-2027",
+	}
+	adeClient := ade.NewClient("", "", cfg.AcademicYear)
+	adeClient.SetBaseURL(mockServer.URL)
+
+	s := New(cfg, adeClient, nil)
+	s.SetVerifyDelay(1 * time.Millisecond)
+
+	res := ade.Resource{Name: "1A-Test", ID: "1001"}
+	err := s.processResource(context.Background(), res)
+	if err != nil {
+		t.Fatalf("processResource failed: %v", err)
+	}
+
+	if fetchCount != 2 {
+		t.Errorf("expected 2 fetches (initial + double-check), got %d", fetchCount)
+	}
+
+	saved, _ := os.ReadFile(filepath.Join(outputDir, "1A-Test.ics"))
+	if !strings.Contains(string(saved), "evt-2") {
+		t.Errorf("expected recovered event evt-2 to be saved in ics file")
+	}
+}
+
+func TestProcessResourceMassDisappearancePreserved(t *testing.T) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/2026-2027/etudiant/esisar" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.Header().Set("Content-Type", "text/calendar")
+		w.WriteHeader(http.StatusOK)
+		// ADE returns only 1 event while existing had 10 events
+		_, _ = w.Write([]byte("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:evt-1\r\nSUMMARY:C1\r\nDTSTART:20260920T080000Z\r\nDTEND:20260920T100000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"))
+	}))
+	defer mockServer.Close()
+
+	tmpDir := t.TempDir()
+	outputDir := filepath.Join(tmpDir, "output")
+	_ = os.MkdirAll(outputDir, 0o755)
+
+	var sb strings.Builder
+	sb.WriteString("BEGIN:VCALENDAR\r\n")
+	for i := 1; i <= 10; i++ {
+		sb.WriteString(strings.ReplaceAll("BEGIN:VEVENT\r\nUID:evt-X\r\nSUMMARY:CX\r\nDTSTART:20260920T080000Z\r\nDTEND:20260920T100000Z\r\nEND:VEVENT\r\n", "X", string(rune('0'+i))))
+	}
+	sb.WriteString("END:VCALENDAR\r\n")
+	_ = os.WriteFile(filepath.Join(outputDir, "1A-Test.ics"), []byte(sb.String()), 0o644)
+
+	cfg := &config.Config{
+		OutputDir:    outputDir,
+		AcademicYear: "2026-2027",
+	}
+	adeClient := ade.NewClient("", "", cfg.AcademicYear)
+	adeClient.SetBaseURL(mockServer.URL)
+
+	s := New(cfg, adeClient, nil)
+	s.SetVerifyDelay(1 * time.Millisecond)
+
+	res := ade.Resource{Name: "1A-Test", ID: "1001"}
+	err := s.processResource(context.Background(), res)
+	if err != nil {
+		t.Fatalf("processResource failed: %v", err)
+	}
+
+	saved, _ := os.ReadFile(filepath.Join(outputDir, "1A-Test.ics"))
+	if !strings.Contains(string(saved), "evt-9") {
+		t.Errorf("expected existing calendar to be preserved during mass disappearance")
+	}
+}
+
