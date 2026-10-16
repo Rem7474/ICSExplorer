@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { formatDateTime, formatDateOnly, formatTimeOnly, getWeekStart, getWeekEnd, getWeekNumber, getRelevantWeekStart, isAllDayEvent } from "../utils/dates.js";
 
 describe("dates utils", () => {
@@ -39,6 +39,24 @@ describe("dates utils", () => {
     ];
     const relevant = getRelevantWeekStart(events);
     expect(relevant).toBeInstanceOf(Date);
+  });
+
+  it("picks the earliest upcoming week regardless of event order", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 14, 12, 0, 0)); // Wed 14 Oct 2026
+    try {
+      const ev = (m, d) => ({ start: new Date(2026, m, d, 8, 0), end: new Date(2026, m, d, 10, 0) });
+      // December course listed first, as when a teacher index is concatenated per promo.
+      const relevant = getRelevantWeekStart([ev(11, 2), ev(9, 20), ev(10, 5)]);
+      expect(relevant.getTime()).toBe(getWeekStart(new Date(2026, 9, 20)).getTime());
+
+      // All in the past: the latest event wins even when listed first.
+      vi.setSystemTime(new Date(2027, 0, 15));
+      const past = getRelevantWeekStart([ev(11, 2), ev(9, 20)]);
+      expect(past.getTime()).toBe(getWeekStart(new Date(2026, 11, 2)).getTime());
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("identifies all-day and multi-day events correctly with isAllDayEvent", () => {
