@@ -134,6 +134,14 @@ export const parseIcs = (icsText) => {
   return events;
 };
 
+// Upper-case surname (one or more words) followed by a capitalized first name,
+// e.g. "LEMAITRE AUGER Pierre", "MORGE-ROLLET Louis", "AKTOUF Oum-El-Kheir".
+const UPPER = "A-ZÀ-ÖØ-ÞŒ";
+const LOWER = "a-zß-öø-ÿœ";
+const BARE_TEACHER_LINE = new RegExp(
+  `^(?:\\*\\s*)?([${UPPER}][${UPPER}'’-]+(?:\\s[${UPPER}][${UPPER}'’-]+)*\\s[${UPPER}][${LOWER}]+(?:[-\\s][${UPPER}][${LOWER}]+)*)$`
+);
+
 export const extractTeacherNames = (description) => {
   if (!description) return [];
   const lines = description.split("\n");
@@ -173,8 +181,22 @@ export const extractTeacherNames = (description) => {
         }
       }
     }
+
+    // Pattern 3: raw ADE line holding only a name, e.g. "GIORGI Quentin" or "* TEYSSIER Bruno"
+    const bareMatch = trimmed.match(BARE_TEACHER_LINE);
+    if (bareMatch) {
+      names.push(bareMatch[1]);
+    }
   }
 
-  return [...new Set(names)];
+  return [...new Set(names.map(normalizeTeacherName).filter(Boolean))];
+};
+
+// ADE prefixes some names with "* " and lists placeholders ("* VAC_MAC",
+// "* Surveillant") or groups ("AHN1") where a teacher is expected.
+const normalizeTeacherName = (raw) => {
+  const name = raw.replace(/^\*\s*/, "").replace(/\s+/g, " ").trim();
+  if (!name || /[\d_]/.test(name) || /^surveillant/i.test(name)) return "";
+  return name;
 };
 

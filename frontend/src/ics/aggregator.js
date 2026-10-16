@@ -1,13 +1,64 @@
-import { fetchIcsText, fetchFileList } from "./api.js";
+import { fetchIcsText, fetchFileList, fetchRoomList, decodeTextWithFallback } from "./api.js";
 import { parseIcs, extractTeacherNames } from "./parser.js";
 
 let cachedAllEvents = null;
 let cacheTimestamp = 0;
+let cachedRoomEvents = null;
+let roomCacheTimestamp = 0;
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 export const clearAggregatedCache = () => {
   cachedAllEvents = null;
   cacheTimestamp = 0;
+  cachedRoomEvents = null;
+  roomCacheTimestamp = 0;
+};
+
+const fetchRoomIcsText = async (room) => {
+  const resp = await fetch(`/rooms/${encodeURIComponent(room)}.ics`, { cache: "no-store" });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  return decodeTextWithFallback(resp);
+};
+
+/**
+ * Events of every room calendar (/rooms/{room}.ics). A room lists every course
+ * held in it, including those of groups that have no promo file.
+ */
+export const getRoomCalendarEvents = async (progressCallback) => {
+  const now = Date.now();
+  if (cachedRoomEvents && now - roomCacheTimestamp < CACHE_TTL_MS) {
+    return cachedRoomEvents;
+  }
+
+  const rooms = await fetchRoomList().catch(() => []);
+  const allEvents = [];
+  let loaded = 0;
+
+  const BATCH_SIZE = 8;
+  for (let i = 0; i < rooms.length; i += BATCH_SIZE) {
+    const batch = rooms.slice(i, i + BATCH_SIZE);
+    const results = await Promise.all(
+      batch.map(async (room) => {
+        try {
+          return parseIcs(await fetchRoomIcsText(room));
+        } catch {
+          return [];
+        } finally {
+          loaded++;
+          if (progressCallback) {
+            progressCallback(loaded, rooms.length);
+          }
+        }
+      })
+    );
+    for (const evts of results) {
+      allEvents.push(...evts);
+    }
+  }
+
+  cachedRoomEvents = allEvents;
+  roomCacheTimestamp = now;
+  return allEvents;
 };
 
 export const getAggregatedEvents = async (progressCallback) => {
@@ -53,7 +104,10 @@ export const getAggregatedEvents = async (progressCallback) => {
 };
 
 export const getTeacherIndex = async (progressCallback) => {
-  const events = await getAggregatedEvents(progressCallback);
+  // Promo events go first so that a course found in both keeps its promo sourceFiles.
+  const promoEvents = await getAggregatedEvents(progressCallback);
+  const roomEvents = await getRoomCalendarEvents(progressCallback);
+  const events = [...promoEvents, ...roomEvents];
   const teacherMap = new Map();
   const teacherSeenKeys = new Map();
 

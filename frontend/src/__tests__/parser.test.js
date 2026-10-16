@@ -55,6 +55,21 @@ END:VCALENDAR`;
     expect(teachers).not.toContain("de 1A");
   });
 
+  it("extracts teachers listed alone on raw ADE description lines", () => {
+    const desc = "\n\nM2-IMESS-Gr1\nBRUN Emmanuel\nLEMAITRE AUGER Pierre\n* TEYSSIER Bruno\nAKTOUF Oum-El-Kheir\n(Exporté le:29/09/2026 07:50)\n";
+    expect(extractTeacherNames(desc)).toEqual([
+      "BRUN Emmanuel",
+      "LEMAITRE AUGER Pierre",
+      "TEYSSIER Bruno",
+      "AKTOUF Oum-El-Kheir",
+    ]);
+  });
+
+  it("drops ADE placeholders and group codes from teacher names", () => {
+    const desc = "Cours avec * VAC_MAC, * Surveillant, AHN1, * LANYON  Rosina\nG1\n* Surveillant Esisar";
+    expect(extractTeacherNames(desc)).toEqual(["LANYON Rosina"]);
+  });
+
   it("rejects Unix epoch 1970 dates and inverted dates in parseIcs", () => {
     expect(parseIcsDate("19700101T000000Z")).toBeNull();
 
