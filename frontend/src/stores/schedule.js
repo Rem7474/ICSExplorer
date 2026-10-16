@@ -564,8 +564,10 @@ export const useScheduleStore = defineStore("schedule", () => {
         newEvents = overlays.mergeWithRu(overlays.mergeWithCercle(tEvents, cEvents), rEvents);
       } else if (selectedMode.value === "room" && selectedRoom.value) {
         try {
-          newEvents = parseIcs(await fetchIcsText(`${selectedRoom.value}.ics`));
-        } catch {
+          const resp = await fetch(`/rooms/${encodeURIComponent(selectedRoom.value)}.ics`, { cache: "no-store" });
+          if (resp.ok) newEvents = parseIcs(await decodeTextWithFallback(resp));
+        } catch {}
+        if (!newEvents || newEvents.length === 0) {
           const roomMap = await getRoomIndex();
           newEvents = roomMap.get(selectedRoom.value) || [];
         }

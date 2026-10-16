@@ -371,6 +371,57 @@ END:VCALENDAR`;
     expect(schedule.events.value[0].sourceFiles).toContain("1A-Prepa-G2.ics");
   });
 
+  it("loadTeacherSchedule includes courses only found in room calendars", async () => {
+    aggregator.clearAggregatedCache();
+    vi.spyOn(api, "fetchFileList").mockResolvedValue(["1A-Prepa-G1.ics"]);
+    vi.spyOn(api, "fetchIcsText").mockResolvedValue(`BEGIN:VCALENDAR
+BEGIN:VEVENT
+SUMMARY:IN531
+LOCATION:B141
+DESCRIPTION:IN531 en TP1 avec GIORGI Quentin
+DTSTART:20261016T061500Z
+DTEND:20261016T094500Z
+END:VEVENT
+END:VCALENDAR`);
+    vi.spyOn(api, "fetchRoomList").mockResolvedValue(["B141"]);
+    const roomICS = `BEGIN:VCALENDAR
+BEGIN:VEVENT
+SUMMARY:IN531
+LOCATION:B141
+DESCRIPTION:IN531 en TP1 avec GIORGI Quentin
+DTSTART:20261016T061500Z
+DTEND:20261016T094500Z
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:IN426
+LOCATION:B141
+DESCRIPTION:IN426 en TP1 avec GIORGI Quentin, (Exporté le:29/09/2026 07:50)
+DTSTART:20261016T113000Z
+DTEND:20261016T150000Z
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:PFE
+LOCATION:B141
+DESCRIPTION:\\n\\nBRUN Emmanuel\\nGIORGI Quentin\\n(Exporté le:29/09/2026 07:50)\\n
+DTSTART:20261017T080000Z
+DTEND:20261017T090000Z
+END:VEVENT
+END:VCALENDAR`;
+    const fetchMock = vi.fn(async (url) =>
+      String(url) === "/rooms/B141.ics" ? new Response(roomICS) : new Response("", { status: 404 })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const schedule = useSchedule();
+    await schedule.loadTeacherSchedule("GIORGI Quentin");
+    vi.unstubAllGlobals();
+
+    const courses = schedule.events.value.filter((e) => !e.isRu && !e.isCercle);
+    expect(courses.map((e) => e.summary)).toEqual(["IN531", "IN426", "PFE"]);
+    // The course also present in the promo file keeps its promo origin
+    expect(courses[0].sourceFiles).toEqual(["1A-Prepa-G1.ics"]);
+  });
+
   it("loadSchedule synchronizes selectedMode, selectedFile and autoSelectFromFile", async () => {
     const schedule = useSchedule();
     schedule.availableFiles.value = ["1A-Prepa-TP1.ics", "3A-IR-IR1.ics"];
