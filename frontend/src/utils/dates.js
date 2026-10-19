@@ -52,11 +52,13 @@ export const getRelevantWeekStart = (events) => {
 
   if (!events || !events.length) return currentWeekMonday;
 
-  // Filter future events
-  const futureEvents = events.filter((e) => new Date(e.end) > now);
+  // Callers don't guarantee ordering (e.g. the teacher index is concatenated
+  // per source calendar), so pick the extremes by time instead of by position.
+  const byStart = (a, b) => new Date(a.start) - new Date(b.start);
+  const futureEvents = events.filter((e) => new Date(e.end) > now).sort(byStart);
   if (!futureEvents.length) {
     // If all events in past, return week of the last event
-    const lastEvent = events[events.length - 1];
+    const lastEvent = [...events].sort(byStart).at(-1);
     return getWeekStart(new Date(lastEvent.start));
   }
 
