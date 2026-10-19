@@ -16,22 +16,9 @@ var (
 	regexInverted  = regexp.MustCompile(`AM[A-Z]{2}\d{3}_\d{4}_S\d_[A-Z ]+_[A-Z]\d`)
 
 	// ExportStampRegex matches the "(Exporté le:12/10/2026 20:32)" trailer ADE appends to every event
-	// description, together with the separators (escaped newlines, commas, spaces) leading up to it.
-	ExportStampRegex = regexp.MustCompile(`(?i)(?:\\n|[,\s])*\(Export[ée]e? le\s*:\s*(\d{1,2}/\d{1,2}/\d{4})(?:\s+(\d{1,2}:\d{2}))?\s*\)`)
+	// description. It is kept in the text (readers use it to tell how fresh a schedule is) and only parsed here.
+	ExportStampRegex = regexp.MustCompile(`(?i)\(Export[ée]e? le\s*:\s*(\d{1,2}/\d{1,2}/\d{4})(?:\s+(\d{1,2}:\d{2}))?\s*\)`)
 )
-
-// StripExportStamp removes the ADE export trailer from a DESCRIPTION line. The stamp changes at every
-// export, so it is noise for readers and makes otherwise identical events look different.
-func StripExportStamp(line string) string {
-	if !ExportStampRegex.MatchString(line) {
-		return line
-	}
-	line = ExportStampRegex.ReplaceAllString(line, "")
-	for strings.HasSuffix(line, `\n`) {
-		line = strings.TrimSuffix(line, `\n`)
-	}
-	return line
-}
 
 // LatestExportStamp returns the most recent ADE export time found in raw calendar data, or the zero
 // time when none is present. It tells how fresh the data ADE served really is.
@@ -185,10 +172,6 @@ func processCalendarLines(lines []string, prettify bool) []string {
 
 	for i := 0; i < len(lines); i++ {
 		line := lines[i]
-
-		if strings.HasPrefix(line, "DESCRIPTION") {
-			line = StripExportStamp(line)
-		}
 
 		if line == "BEGIN:VEVENT" {
 			if inEvent {

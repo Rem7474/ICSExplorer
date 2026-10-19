@@ -395,8 +395,8 @@ func TestProcessResourceDoubleCheckIgnoresStaleExport(t *testing.T) {
 	if strings.Contains(string(saved), "evt-2") {
 		t.Errorf("expected the deleted event evt-2 not to be resurrected from a stale export")
 	}
-	if strings.Contains(string(saved), "Exporté") {
-		t.Errorf("expected the export stamp to be stripped from saved descriptions, got %q", saved)
+	if !strings.Contains(string(saved), "(Exporté le:19/10/2026 06:20)") {
+		t.Errorf("expected the fresh export stamp to be kept in saved descriptions, got %q", saved)
 	}
 }
 
