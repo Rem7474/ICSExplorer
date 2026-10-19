@@ -83,6 +83,23 @@ export const fetchRuEvents = async () => {
   }
 };
 
+// Attendance of the RU: { current, today: [{t, served, capacity}], history: [{date, served, capacity}] }.
+// Returns null when the feature is disabled or unreachable (the UI then hides it).
+export const fetchRuOccupancy = async () => {
+  try {
+    const resp = await fetch("/api/ru/occupancy", { cache: "no-store" });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return {
+      current: data.current || null,
+      today: Array.isArray(data.today) ? data.today : [],
+      history: Array.isArray(data.history) ? data.history : [],
+    };
+  } catch {
+    return null;
+  }
+};
+
 export const fetchUniversities = async () => {
   const resp = await fetch("/api/universities", { cache: "no-store" });
   if (!resp.ok) {

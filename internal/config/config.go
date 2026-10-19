@@ -12,30 +12,34 @@ import (
 
 // Config holds all configuration options for the server and scraper.
 type Config struct {
-	Port             int
-	AgalanLogin      string
-	AgalanPassword   string
-	DataDir          string
-	OutputDir        string
-	RoomsOutputDir   string
-	StaticDir        string
-	SyncInterval     time.Duration
-	SyncOnStartup    bool
-	SyncCercle       bool
-	CercleIcsURL     string
-	SyncRU           bool
-	RURestaurantID   string
-	RUSlotStartHour  int
-	RUSlotStartMin   int
-	RUSlotEndHour    int
-	RUSlotEndMin     int
-	Concurrency      int
-	MaxDataAge       time.Duration
-	MinFileSizeBytes int64
-	AcademicYear     string
-	LogLevel         string
-	LogFormat        string
-	AdminToken       string
+	Port            int
+	AgalanLogin     string
+	AgalanPassword  string
+	DataDir         string
+	OutputDir       string
+	RoomsOutputDir  string
+	StaticDir       string
+	SyncInterval    time.Duration
+	SyncOnStartup   bool
+	SyncCercle      bool
+	CercleIcsURL    string
+	SyncRU          bool
+	RURestaurantID  string
+	RUSlotStartHour int
+	RUSlotStartMin  int
+	RUSlotEndHour   int
+	RUSlotEndMin    int
+	// RUOccupancy enables the lescrous attendance poller (meals served / remaining).
+	RUOccupancy         bool
+	RUOccupancyURL      string
+	RUOccupancyInterval time.Duration
+	Concurrency         int
+	MaxDataAge          time.Duration
+	MinFileSizeBytes    int64
+	AcademicYear        string
+	LogLevel            string
+	LogFormat           string
+	AdminToken          string
 	// TrustedProxies lists the reverse proxies whose X-Forwarded-For and
 	// X-Forwarded-Proto headers are honored (e.g. "127.0.0.1,172.16.0.0/12").
 	TrustedProxies []netip.Prefix
@@ -99,32 +103,40 @@ func Load() (*Config, error) {
 	startH, startM := parseTimeSlot(getEnv("RU_SLOT_START", "12:00"), 12, 0)
 	endH, endM := parseTimeSlot(getEnv("RU_SLOT_END", "13:00"), 13, 0)
 
+	occupancyInterval, err := time.ParseDuration(getEnv("RU_OCCUPANCY_INTERVAL", "5m"))
+	if err != nil || occupancyInterval < time.Minute {
+		occupancyInterval = 5 * time.Minute
+	}
+
 	cfg := &Config{
-		Port:             port,
-		AgalanLogin:      getEnv("AGALAN_LOGIN", ""),
-		AgalanPassword:   getEnv("AGALAN_PASSWORD", ""),
-		DataDir:          dataDir,
-		OutputDir:        outputDir,
-		RoomsOutputDir:   roomsOutputDir,
-		StaticDir:        staticDir,
-		SyncInterval:     syncInterval,
-		SyncOnStartup:    getEnvBool("SYNC_ON_STARTUP", true),
-		SyncCercle:       getEnvBool("SYNC_CERCLE", true),
-		CercleIcsURL:     getEnv("CERCLE_ICS_URL", DefaultCercleURL),
-		SyncRU:           getEnvBool("SYNC_RU", true),
-		RURestaurantID:   getEnv("RU_RESTAURANT_ID", "1459"),
-		RUSlotStartHour:  startH,
-		RUSlotStartMin:   startM,
-		RUSlotEndHour:    endH,
-		RUSlotEndMin:     endM,
-		Concurrency:      concurrency,
-		MaxDataAge:       maxDataAge,
-		MinFileSizeBytes: minFileSize,
-		AcademicYear:     academicYear,
-		LogLevel:         strings.ToLower(getEnv("LOG_LEVEL", "info")),
-		LogFormat:        strings.ToLower(getEnv("LOG_FORMAT", "text")),
-		AdminToken:       getEnv("ADMIN_TOKEN", ""),
-		TrustedProxies:   trustedProxies,
+		Port:                port,
+		AgalanLogin:         getEnv("AGALAN_LOGIN", ""),
+		AgalanPassword:      getEnv("AGALAN_PASSWORD", ""),
+		DataDir:             dataDir,
+		OutputDir:           outputDir,
+		RoomsOutputDir:      roomsOutputDir,
+		StaticDir:           staticDir,
+		SyncInterval:        syncInterval,
+		SyncOnStartup:       envEnabled("SYNC_ON_STARTUP"),
+		SyncCercle:          envEnabled("SYNC_CERCLE"),
+		CercleIcsURL:        getEnv("CERCLE_ICS_URL", DefaultCercleURL),
+		SyncRU:              envEnabled("SYNC_RU"),
+		RURestaurantID:      getEnv("RU_RESTAURANT_ID", "1459"),
+		RUSlotStartHour:     startH,
+		RUSlotStartMin:      startM,
+		RUSlotEndHour:       endH,
+		RUSlotEndMin:        endM,
+		RUOccupancy:         envEnabled("RU_OCCUPANCY"),
+		RUOccupancyURL:      getEnv("RU_OCCUPANCY_URL", ""), // empty: crous.DefaultOccupancyURL
+		RUOccupancyInterval: occupancyInterval,
+		Concurrency:         concurrency,
+		MaxDataAge:          maxDataAge,
+		MinFileSizeBytes:    minFileSize,
+		AcademicYear:        academicYear,
+		LogLevel:            strings.ToLower(getEnv("LOG_LEVEL", "info")),
+		LogFormat:           strings.ToLower(getEnv("LOG_FORMAT", "text")),
+		AdminToken:          getEnv("ADMIN_TOKEN", ""),
+		TrustedProxies:      trustedProxies,
 	}
 
 	return cfg, nil
@@ -137,12 +149,14 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-func getEnvBool(key string, fallback bool) bool {
+// envEnabled reports whether a feature flag is on: unset means enabled, and only
+// true/1/yes/on enable it explicitly.
+func envEnabled(key string) bool {
 	if val := strings.TrimSpace(os.Getenv(key)); val != "" {
 		valLower := strings.ToLower(val)
 		return valLower == "true" || valLower == "1" || valLower == "yes" || valLower == "on"
 	}
-	return fallback
+	return true
 }
 
 func parseTimeSlot(slotStr string, fallbackHour, fallbackMin int) (hour, minute int) {
