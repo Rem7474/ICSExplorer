@@ -117,16 +117,16 @@ func Load() (*Config, error) {
 		RoomsOutputDir:      roomsOutputDir,
 		StaticDir:           staticDir,
 		SyncInterval:        syncInterval,
-		SyncOnStartup:       getEnvBool("SYNC_ON_STARTUP", true),
-		SyncCercle:          getEnvBool("SYNC_CERCLE", true),
+		SyncOnStartup:       envEnabled("SYNC_ON_STARTUP"),
+		SyncCercle:          envEnabled("SYNC_CERCLE"),
 		CercleIcsURL:        getEnv("CERCLE_ICS_URL", DefaultCercleURL),
-		SyncRU:              getEnvBool("SYNC_RU", true),
+		SyncRU:              envEnabled("SYNC_RU"),
 		RURestaurantID:      getEnv("RU_RESTAURANT_ID", "1459"),
 		RUSlotStartHour:     startH,
 		RUSlotStartMin:      startM,
 		RUSlotEndHour:       endH,
 		RUSlotEndMin:        endM,
-		RUOccupancy:         getEnvBool("RU_OCCUPANCY", true),
+		RUOccupancy:         envEnabled("RU_OCCUPANCY"),
 		RUOccupancyURL:      getEnv("RU_OCCUPANCY_URL", ""), // empty: crous.DefaultOccupancyURL
 		RUOccupancyInterval: occupancyInterval,
 		Concurrency:         concurrency,
@@ -149,12 +149,14 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-func getEnvBool(key string, fallback bool) bool {
+// envEnabled reports whether a feature flag is on: unset means enabled, and only
+// true/1/yes/on enable it explicitly.
+func envEnabled(key string) bool {
 	if val := strings.TrimSpace(os.Getenv(key)); val != "" {
 		valLower := strings.ToLower(val)
 		return valLower == "true" || valLower == "1" || valLower == "yes" || valLower == "on"
 	}
-	return fallback
+	return true
 }
 
 func parseTimeSlot(slotStr string, fallbackHour, fallbackMin int) (hour, minute int) {
