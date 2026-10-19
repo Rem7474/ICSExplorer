@@ -12,6 +12,7 @@ import (
 
 	"github.com/Rem7474/ICSExplorer/internal/ade"
 	"github.com/Rem7474/ICSExplorer/internal/config"
+	"github.com/Rem7474/ICSExplorer/internal/crous"
 	"github.com/Rem7474/ICSExplorer/internal/guard"
 	"github.com/Rem7474/ICSExplorer/internal/netsafe"
 	"github.com/Rem7474/ICSExplorer/internal/syncer"
@@ -282,5 +283,38 @@ func TestServeIndexHTML_UncachedAndSPAFallback(t *testing.T) {
 		if cc := w.Header().Get("Cache-Control"); !strings.Contains(cc, "no-store") {
 			t.Errorf("%s: expected index.html not to be cached, got Cache-Control %q", path, cc)
 		}
+	}
+}
+
+func TestRuOccupancyEndpoint(t *testing.T) {
+	srv, _, tmpDir := setupTestServer(t)
+
+	mux := http.NewServeMux()
+	srv.registerRoutes(mux)
+	handler := srv.applyMiddlewares(mux)
+
+	// Feature off (default in tests): 404.
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/ru/occupancy", http.NoBody))
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 when disabled, got %d", w.Code)
+	}
+
+	// Feature on: the report is served.
+	srv.occupancy = crous.NewOccupancyStore(filepath.Join(tmpDir, "ru_occupancy.json"))
+	if err := srv.occupancy.Record(crous.Occupancy{Served: 300, Capacity: 850, Remaining: 550, UpdatedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/ru/occupancy", http.NoBody))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var report crous.OccupancyReport
+	if err := json.Unmarshal(w.Body.Bytes(), &report); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if report.Current == nil || report.Current.Served != 300 {
+		t.Errorf("unexpected report %+v", report)
 	}
 }

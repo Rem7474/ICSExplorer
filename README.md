@@ -188,6 +188,8 @@ go run ./cmd/server
 | `SYNC_CERCLE` | Intégrer les événements associatifs du Cercle des élèves | `true` |
 | `SYNC_RU` | Générer le menu du RU (CROUStillant Open Data) | `true` |
 | `RU_RESTAURANT_ID` / `RU_SLOT_START` / `RU_SLOT_END` | Restaurant et créneau affiché du menu RU | `1459` / `12:00` / `13:00` |
+| `RU_OCCUPANCY` | Afficher la fréquentation du RU (repas servis/restants, courbes) via `restos.lescrous.fr` | `true` |
+| `RU_OCCUPANCY_URL` / `RU_OCCUPANCY_INTERVAL` | Endpoint « écran » lescrous et fréquence d'interrogation (11h–15h, lun–ven) | URL Briff'O midi / `5m` |
 | `CONCURRENCY` | Nombre de téléchargements parallèles simultanés | `5` |
 | `MAX_DATA_AGE` | Seuil d'alerte pour les données obsolètes (`/api/health`) | `24h` |
 | `LOG_LEVEL` | Niveau de verbosité (`debug`, `info`, `warn`, `error`) | `info` |

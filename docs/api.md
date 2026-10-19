@@ -31,6 +31,7 @@ L'API de **ICSExplorer** est servie par le backend Go natif (port par défaut `8
 | `GET` | [`/api/status`](#get-apistatus) | Statistiques de synchronisation et configuration | Non |
 | `GET` | [`/api/files`](#get-apifiles) | Liste des fichiers ICS de promotions/groupes | Non |
 | `GET` | [`/api/rooms`](#get-apirooms) | Liste des fichiers ICS de salles | Non |
+| `GET` | [`/api/ru/occupancy`](#get-apiruoccupancy) | Fréquentation du RU (repas servis/restants + historique) | Non |
 | `GET` | [`/api/universities`](#get-apiuniversities) | Liste des universités pré-configurées pour ADE | Non |
 | `POST` | [`/api/tree`](#post-apitree) | Exploration hiérarchique de l'arborescence ADE | Non (Rate-limit) |
 | `POST` | [`/api/personal-calendar`](#post-apipersonal-calendar) | Génération à la volée d'un calendrier ADE personnel | Non (Rate-limit) |
@@ -127,6 +128,25 @@ Retourne la liste alphabétique des emplois du temps de salles générés dans l
   "D204.ics"
 ]
 ```
+
+---
+
+### `GET /api/ru/occupancy`
+
+Fréquentation du RU Briff'O (repas servis / restants, service du midi), alimentée par l'API publique `restos.lescrous.fr` interrogée en arrière-plan (toutes les `RU_OCCUPANCY_INTERVAL`, du lundi au vendredi de 11h à 15h, heure de Paris). L'historique est conservé 90 jours dans `DATA_DIR/ru_occupancy.json`.
+
+- `404` : fonctionnalité désactivée (`RU_OCCUPANCY=false`).
+
+#### Réponse (`200 OK`) :
+```json
+{
+  "current": { "served": 849, "capacity": 850, "remaining": 1, "updatedAt": "2026-10-19T15:36:43+02:00" },
+  "today": [{ "t": "2026-10-19T10:05:00Z", "served": 120, "capacity": 850 }],
+  "history": [{ "date": "2026-10-16", "served": 812, "capacity": 850 }]
+}
+```
+
+`current` vaut `null` si aucune mesure n'a été faite aujourd'hui ; `history` liste les 21 derniers jours calendaires (hors aujourd'hui), du plus ancien au plus récent.
 
 ---
 

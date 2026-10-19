@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/Rem7474/ICSExplorer/internal/config"
+	"github.com/Rem7474/ICSExplorer/internal/crous"
 	"github.com/Rem7474/ICSExplorer/internal/netsafe"
 	"github.com/Rem7474/ICSExplorer/internal/syncer"
 	"github.com/Rem7474/ICSExplorer/internal/university"
@@ -45,6 +47,9 @@ type Server struct {
 	calendarLimiter     *ipRateLimiter
 	universityDirectory *university.Directory
 
+	// occupancy holds the RU attendance history; nil when the feature is off.
+	occupancy *crous.OccupancyStore
+
 	// upstreamPolicy restricts where user-supplied ADE URLs may point to.
 	// The zero value is the strict production policy.
 	upstreamPolicy netsafe.Policy
@@ -76,6 +81,12 @@ func New(cfg *config.Config, s *syncer.Syncer, logger *slog.Logger) *Server {
 		universityDirectory: university.NewDirectory(university.DefaultDeployments(), 6*time.Hour),
 		bgCtx:               bgCtx,
 		bgCancel:            bgCancel,
+	}
+
+	if cfg.RUOccupancy {
+		srv.occupancy = crous.NewOccupancyStore(filepath.Join(cfg.DataDir, "ru_occupancy.json"))
+		poller := crous.NewPoller(crous.NewOccupancyClient(cfg.RUOccupancyURL), srv.occupancy, cfg.RUOccupancyInterval, logger)
+		go poller.Run(bgCtx)
 	}
 
 	mux := http.NewServeMux()

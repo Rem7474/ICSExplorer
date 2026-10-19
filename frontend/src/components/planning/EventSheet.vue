@@ -13,6 +13,7 @@ import { extractTeacherNames } from "../../ics/parser.js";
 import { buildSingleEventIcs } from "../../utils/icsExport.js";
 import { useToast } from "../../composables/useToast.js";
 import { vSwipeDismiss } from "../../composables/swipeDismiss.js";
+import RuOccupancy from "./RuOccupancy.vue";
 
 const props = defineProps({
   event: { type: Object, default: null },
@@ -109,6 +110,7 @@ const copyDetails = async () => {
         <div v-else-if="isCercle" class="source-banner cercle">
           🎉 <span><strong>Cercle des Élèves</strong> — agenda officiel du Cercle Esisar</span>
         </div>
+        <RuOccupancy v-if="isRu" :day="event.start" />
 
         <v-list density="comfortable" bg-color="transparent" class="detail-list">
           <v-list-item :prepend-icon="mdiClockOutline" :title="schedule" />

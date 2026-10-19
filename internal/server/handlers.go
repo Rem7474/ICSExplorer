@@ -22,6 +22,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/files", s.handleFilesList)
 	mux.HandleFunc("GET /api/rooms", s.handleRoomsList)
 	mux.HandleFunc("GET /api/universities", s.handleUniversitiesList)
+	mux.HandleFunc("GET /api/ru/occupancy", s.handleRuOccupancy)
 	mux.HandleFunc("/api/tree", s.handleTree)
 	mux.HandleFunc("/api/personal-calendar", s.handlePersonalCalendar)
 
@@ -128,6 +129,20 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 // writeJSONError writes a {"error": msg} JSON body with the given status.
 func writeJSONError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
+}
+
+// ruHistoryDays is how many past days /api/ru/occupancy lists.
+const ruHistoryDays = 21
+
+// handleRuOccupancy returns the RU attendance: latest reading, today's curve
+// and the daily totals of previous days. It answers 404 when the feature is off.
+func (s *Server) handleRuOccupancy(w http.ResponseWriter, r *http.Request) {
+	if s.occupancy == nil {
+		writeJSONError(w, http.StatusNotFound, "RU occupancy is disabled")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-cache")
+	writeJSON(w, http.StatusOK, s.occupancy.Report(time.Now(), ruHistoryDays))
 }
 
 // handleFilesList returns the list of available student calendar files.
