@@ -228,6 +228,11 @@ func (e *sessionHTTPError) Error() string {
 	return e.msg
 }
 
+func isServerError(err error) bool {
+	var serr *sessionHTTPError
+	return errors.As(err, &serr) && serr.statusCode >= 500
+}
+
 func isSessionError(err error) bool {
 	var serr *sessionHTTPError
 	if errors.As(err, &serr) {
@@ -361,7 +366,9 @@ func (c *Client) fetchCalendarRawOnce(ctx context.Context, resourceIDs string) (
 // If the server returns a session-invalid status (401/403/404), it resets the session and retries once.
 func (c *Client) FetchTreePage(ctx context.Context, path string) ([]byte, error) {
 	data, err := c.fetchTreePageOnce(ctx, path)
-	if err != nil && isSessionError(err) {
+	// A 5xx on a tree page is a bad request, not an expired session: the server-side session holds the
+	// branches expanded so far, and resetting it would wipe the tree the crawler has just built.
+	if err != nil && isSessionError(err) && !isServerError(err) {
 		c.ResetSession()
 		return c.fetchTreePageOnce(ctx, path)
 	}

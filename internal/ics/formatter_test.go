@@ -3,6 +3,7 @@ package ics
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestFormatCalendarLines(t *testing.T) {
@@ -217,5 +218,48 @@ func TestFormatCalendarLinesMultiDayAndEndYearTypo(t *testing.T) {
 	}
 	if !strings.Contains(output, "DTEND:20270115T100000Z") {
 		t.Errorf("expected DTEND to be corrected to 20270115T100000Z, got:\n%s", output)
+	}
+}
+
+func TestFormatCalendarLinesStripsExportStamp(t *testing.T) {
+	inputLines := []string{
+		"BEGIN:VEVENT",
+		"SUMMARY:IN426",
+		"DESCRIPTION:IN426 en TP1 avec GIORGI Quentin, (Exporté le:12/10/2026 20:32)",
+		"END:VEVENT",
+		"BEGIN:VEVENT",
+		"SUMMARY:PFE",
+		"DESCRIPTION:\\n\\nBRUN Emmanuel\\nGIORGI Quentin\\n(Exporté le:12/10/2026 20:32)\\n",
+		"END:VEVENT",
+		"BEGIN:VEVENT",
+		"SUMMARY:Informatique C++",
+		"DESCRIPTION:1AMIF101_2024_S1_TP_A2\\nProfesseur Durand\\n(Exporté le:12/10/2026 20:32)",
+		"END:VEVENT",
+	}
+
+	out := strings.Join(FormatCalendarLines(inputLines), "\n")
+	if strings.Contains(out, "Export") {
+		t.Errorf("expected the export stamp to be stripped, got:\n%s", out)
+	}
+	for _, want := range []string{
+		"DESCRIPTION:IN426 en TP1 avec GIORGI Quentin",
+		`BRUN Emmanuel\nGIORGI Quentin`,
+		"DESCRIPTION:Informatique C++ en TP2 avec Professeur Durand",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected %q in output, got:\n%s", want, out)
+		}
+	}
+}
+
+func TestLatestExportStamp(t *testing.T) {
+	data := []byte("DESCRIPTION:A\\n(Exporté le:12/10/2026 20:32)\nDESCRIPTION:B (Exporté le:19/10/2026 06:20)\n")
+	got := LatestExportStamp(data)
+	want := time.Date(2026, 10, 19, 6, 20, 0, 0, time.UTC)
+	if !got.Equal(want) {
+		t.Errorf("got %v; want %v", got, want)
+	}
+	if !LatestExportStamp([]byte("DESCRIPTION:none")).IsZero() {
+		t.Errorf("expected zero time without export stamp")
 	}
 }
