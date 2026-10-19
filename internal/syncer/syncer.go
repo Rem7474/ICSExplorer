@@ -258,6 +258,9 @@ func (s *Syncer) processResource(ctx context.Context, res ade.Resource) error {
 		return fmt.Errorf("upstream response does not contain a valid VCALENDAR for %s (%s)", res.Name, res.ID)
 	}
 
+	// Read the export time before formatting strips it from the event descriptions.
+	exportStamp := ics.LatestExportStamp(raw)
+
 	// Unfold lines and format description / summary / location
 	unfolded := ics.UnfoldLines(raw)
 	formatted := ics.FormatCalendarLines(unfolded)
@@ -301,6 +304,18 @@ func (s *Syncer) processResource(ctx context.Context, res ade.Resource) error {
 
 				retryRaw, retryErr := s.adeClient.FetchCalendarRaw(ctx, res.ID)
 				if retryErr == nil && strings.Contains(string(retryRaw), "BEGIN:VCALENDAR") {
+					// A response exported before the first one is a stale copy served from an ADE
+					// cache: its "recovered" events are courses that were deleted upstream.
+					if retryStamp := ics.LatestExportStamp(retryRaw); !retryStamp.IsZero() && retryStamp.Before(exportStamp) {
+						s.logger.Info("ADE double-check returned an older export; ignoring it",
+							"resource", res.Name,
+							"id", res.ID,
+							"attempt", attempt+1,
+							"firstExport", exportStamp,
+							"retryExport", retryStamp,
+						)
+						continue
+					}
 					retryUnfolded := ics.UnfoldLines(retryRaw)
 					retryFormatted := ics.FormatCalendarLines(retryUnfolded)
 					retryBytes := []byte(ics.JoinLines(retryFormatted))
@@ -473,6 +488,13 @@ func (s *Syncer) pruneStaleFiles(resources []ade.Resource) {
 		}
 
 		if len(stale) == 0 {
+			continue
+		}
+		if len(keep) == 0 {
+			// Nothing was discovered for this directory: the crawl came back empty (credentials,
+			// ADE tree layout...) rather than every calendar having been removed upstream.
+			s.logger.Error("ADE discovery returned no calendar for this directory; keeping existing calendars",
+				"dir", dir, "existing", total)
 			continue
 		}
 		if float64(len(stale)) > float64(total)*maxPruneRatio {

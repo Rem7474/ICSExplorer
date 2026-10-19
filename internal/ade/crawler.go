@@ -65,9 +65,6 @@ func (c *Crawler) DiscoverResources(ctx context.Context) ([]Resource, error) {
 		}
 	}
 
-	// Crawl trainee branch if not already visited
-	_ = c.crawlBranch(ctx, "trainee")
-
 	// Final step: fetch the fully expanded tree page to collect all leaf resources
 	finalPath := fmt.Sprintf("%s/esisar/etudiant/jsp/standard/gui/tree.jsp", c.academicYear)
 	finalContent, err := c.client.FetchTreePage(ctx, finalPath)

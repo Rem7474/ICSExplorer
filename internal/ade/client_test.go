@@ -328,3 +328,27 @@ func TestClientResetSession(t *testing.T) {
 		t.Errorf("expected 2 session inits after ResetSession, got %d", sessionCount)
 	}
 }
+
+func TestFetchTreePageServerErrorKeepsSession(t *testing.T) {
+	sessionCount := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/2026-2027/etudiant/esisar" {
+			sessionCount++
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer mockServer.Close()
+
+	client := NewClient("user", "pass", "2026-2027")
+	client.SetBaseURL(mockServer.URL)
+
+	if _, err := client.FetchTreePage(context.Background(), "/test/tree.jsp?branchId=trainee"); err == nil {
+		t.Fatal("expected an error for a 500 tree response")
+	}
+	// Resetting the session on a 500 would drop the branches the crawler already expanded.
+	if sessionCount != 1 {
+		t.Errorf("expected the session to be kept after a 500, got %d initializations", sessionCount)
+	}
+}

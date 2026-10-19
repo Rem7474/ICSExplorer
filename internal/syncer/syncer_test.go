@@ -353,3 +353,65 @@ func TestProcessResourceMassDisappearancePreserved(t *testing.T) {
 		t.Errorf("expected existing calendar to be preserved during mass disappearance")
 	}
 }
+
+func TestProcessResourceDoubleCheckIgnoresStaleExport(t *testing.T) {
+	fetchCount := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/2026-2027/etudiant/esisar" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		fetchCount++
+		w.Header().Set("Content-Type", "text/calendar")
+		w.WriteHeader(http.StatusOK)
+		if fetchCount == 1 {
+			// Fresh export (19/10): evt-2 was really deleted upstream.
+			_, _ = w.Write([]byte("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:evt-1\r\nSUMMARY:Course 1\r\nDESCRIPTION:Course 1\\n(Exporté le:19/10/2026 06:20)\r\nDTSTART:20260920T080000Z\r\nDTEND:20260920T100000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"))
+		} else {
+			// Double-check served from a cache holding the old export (12/10), evt-2 included.
+			_, _ = w.Write([]byte("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:evt-1\r\nSUMMARY:Course 1\r\nDESCRIPTION:Course 1\\n(Exporté le:12/10/2026 20:32)\r\nDTSTART:20260920T080000Z\r\nDTEND:20260920T100000Z\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:evt-2\r\nSUMMARY:Course 2\r\nDESCRIPTION:Course 2\\n(Exporté le:12/10/2026 20:32)\r\nDTSTART:20260920T101500Z\r\nDTEND:20260920T121500Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"))
+		}
+	}))
+	defer mockServer.Close()
+
+	outputDir := filepath.Join(t.TempDir(), "output")
+	_ = os.MkdirAll(outputDir, 0o755)
+
+	existingICS := "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:evt-1\r\nSUMMARY:Course 1\r\nDTSTART:20260920T080000Z\r\nDTEND:20260920T100000Z\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:evt-2\r\nSUMMARY:Course 2\r\nDTSTART:20260920T101500Z\r\nDTEND:20260920T121500Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+	_ = os.WriteFile(filepath.Join(outputDir, "1A-Test.ics"), []byte(existingICS), 0o644)
+
+	cfg := &config.Config{OutputDir: outputDir, AcademicYear: "2026-2027"}
+	adeClient := ade.NewClient("", "", cfg.AcademicYear)
+	adeClient.SetBaseURL(mockServer.URL)
+
+	s := New(cfg, adeClient, nil)
+	s.SetVerifyDelay(1 * time.Millisecond)
+
+	if err := s.processResource(context.Background(), ade.Resource{Name: "1A-Test", ID: "1001"}); err != nil {
+		t.Fatalf("processResource failed: %v", err)
+	}
+
+	saved, _ := os.ReadFile(filepath.Join(outputDir, "1A-Test.ics"))
+	if strings.Contains(string(saved), "evt-2") {
+		t.Errorf("expected the deleted event evt-2 not to be resurrected from a stale export")
+	}
+	if strings.Contains(string(saved), "Exporté") {
+		t.Errorf("expected the export stamp to be stripped from saved descriptions, got %q", saved)
+	}
+}
+
+func TestPruneStaleFilesKeepsAllWhenDiscoveryEmpty(t *testing.T) {
+	s, outputDir, roomsDir := newPruneTestSyncer(t)
+	for _, name := range []string{"1A-A.ics", "1A-B.ics", "2A-A.ics"} {
+		_ = os.WriteFile(filepath.Join(outputDir, name), []byte("x"), 0o644)
+	}
+	_ = os.WriteFile(filepath.Join(roomsDir, "A042.ics"), []byte("x"), 0o644)
+
+	// Only rooms discovered: the student directory must be left alone.
+	s.pruneStaleFiles([]ade.Resource{{Name: "A042", ID: "9", IsRoom: true}})
+
+	entries, _ := os.ReadDir(outputDir)
+	if len(entries) != 3 {
+		t.Errorf("expected all 3 student calendars to be kept, got %d", len(entries))
+	}
+}

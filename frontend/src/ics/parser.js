@@ -1,3 +1,6 @@
+// "(Exporté le:12/10/2026 20:32)" trailer that ADE appends to every event description.
+const EXPORT_STAMP_RE = /[\s,]*\(Export[ée]e? le\s*:[^)]*\)/gi;
+
 export const parseIcsDate = (dateStr) => {
   if (!dateStr) return null;
   const clean = dateStr.replace(/[^0-9TZ]/g, "");
@@ -99,7 +102,11 @@ export const parseIcs = (icsText) => {
         } else if (key === "LOCATION") {
           currentEvent.location = value.replace(/\\,/g, ",").replace(/\\n/g, " ");
         } else if (key === "DESCRIPTION") {
-          currentEvent.description = value.replace(/\\,/g, ",").replace(/\\n/g, "\n");
+          currentEvent.description = value
+            .replace(/\\,/g, ",")
+            .replace(/\\n/g, "\n")
+            .replace(EXPORT_STAMP_RE, "")
+            .replace(/\n+$/, "");
         } else if (key === "DTSTART") {
           currentEvent.start = parseIcsDate(value);
         } else if (key === "DTEND") {
